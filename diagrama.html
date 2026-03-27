@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PickleManager — Diagrama de Dados</title>
+  <style>
+    :root {
+      --bg:       #f0f4f8;
+      --card:     #ffffff;
+      --border:   #d0dce8;
+      --header:   #083c2f;
+      --header-t: #ffffff;
+      --pk:       #b24a1e;
+      --fk:       #1d6fa8;
+      --field:    #1a2e3b;
+      --type:     #6b7f8e;
+      --line:     #94a3b8;
+      --cat-bg:   #e8f4f0;
+      --cat-bd:   #4a9e7f;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--field);
+      padding: 32px;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 22px;
+      color: var(--header);
+      margin-bottom: 6px;
+    }
+
+    .subtitle {
+      text-align: center;
+      font-size: 13px;
+      color: #64748b;
+      margin-bottom: 32px;
+    }
+
+    /* ── Legenda ─────────────────────────────────────── */
+    .legend {
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      flex-wrap: wrap;
+      margin-bottom: 32px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: #475569;
+    }
+    .legend-dot {
+      width: 12px; height: 12px;
+      border-radius: 3px;
+    }
+    .dot-pk  { background: var(--pk); }
+    .dot-fk  { background: var(--fk); }
+    .dot-cat { background: var(--cat-bd); }
+
+    /* ── Grupos ──────────────────────────────────────── */
+    .group-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #64748b;
+      margin: 28px 0 10px;
+    }
+
+    /* ── Grid de tabelas ─────────────────────────────── */
+    .grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      align-items: flex-start;
+      margin-bottom: 8px;
+    }
+
+    /* ── Tabela ──────────────────────────────────────── */
+    .table-card {
+      background: var(--card);
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      min-width: 240px;
+      max-width: 300px;
+      overflow: hidden;
+      box-shadow: 0 2px 6px rgba(0,0,0,.07);
+      flex: 1 1 240px;
+    }
+
+    .table-card.cat {
+      border-color: var(--cat-bd);
+      min-width: 180px;
+      max-width: 220px;
+    }
+
+    .table-header {
+      background: var(--header);
+      color: var(--header-t);
+      padding: 9px 14px;
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .table-card.cat .table-header {
+      background: var(--cat-bd);
+    }
+
+    .table-header .icon { font-size: 16px; }
+
+    .table-key {
+      font-size: 10px;
+      background: rgba(255,255,255,.2);
+      border-radius: 4px;
+      padding: 1px 6px;
+      margin-left: auto;
+      font-weight: 600;
+      letter-spacing: .5px;
+    }
+
+    .table-body { padding: 6px 0; }
+
+    .field-row {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      padding: 4px 14px;
+      font-size: 12px;
+      border-bottom: 1px solid #f1f5f9;
+    }
+
+    .field-row:last-child { border-bottom: none; }
+
+    .field-name {
+      font-weight: 600;
+      color: var(--field);
+      min-width: 110px;
+    }
+
+    .field-name.pk { color: var(--pk); }
+    .field-name.fk { color: var(--fk); }
+
+    .field-type {
+      font-size: 11px;
+      color: var(--type);
+      font-style: italic;
+    }
+
+    .field-tag {
+      font-size: 10px;
+      font-weight: 700;
+      border-radius: 3px;
+      padding: 1px 5px;
+      margin-left: auto;
+      flex-shrink: 0;
+    }
+
+    .tag-pk  { background: #fee2e2; color: var(--pk); }
+    .tag-fk  { background: #dbeafe; color: var(--fk); }
+    .tag-auto{ background: #f1f5f9; color: #64748b; }
+
+    /* ── Relacionamentos ─────────────────────────────── */
+    .rel-section {
+      margin-top: 40px;
+      padding: 24px;
+      background: #fff;
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      box-shadow: 0 2px 6px rgba(0,0,0,.07);
+    }
+
+    .rel-section h2 {
+      font-size: 14px;
+      color: var(--header);
+      margin-bottom: 16px;
+    }
+
+    .rel-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12.5px;
+    }
+
+    .rel-table th {
+      background: var(--header);
+      color: #fff;
+      padding: 8px 12px;
+      text-align: left;
+      font-size: 11px;
+      letter-spacing: .5px;
+    }
+
+    .rel-table td {
+      padding: 7px 12px;
+      border-bottom: 1px solid #f1f5f9;
+      vertical-align: middle;
+    }
+
+    .rel-table tr:last-child td { border-bottom: none; }
+    .rel-table tr:nth-child(even) td { background: #f8fafc; }
+
+    .rel-type {
+      font-size: 13px;
+      font-weight: 700;
+      color: #64748b;
+      text-align: center;
+    }
+
+    .chip {
+      display: inline-block;
+      background: #e8f4f0;
+      border: 1px solid #4a9e7f;
+      color: #083c2f;
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 4px;
+      padding: 2px 7px;
+    }
+
+    .chip.blue {
+      background: #dbeafe;
+      border-color: #3b82f6;
+      color: #1e3a8a;
+    }
+
+    /* ── Storage info ────────────────────────────────── */
+    .storage-info {
+      margin-top: 28px;
+      padding: 18px 24px;
+      background: #fffbeb;
+      border: 1.5px solid #fbbf24;
+      border-radius: 10px;
+      font-size: 12.5px;
+      color: #78350f;
+      line-height: 1.8;
+    }
+
+    .storage-info strong { color: #92400e; }
+  </style>
+</head>
+<body>
+
+<h1><img src="img/pickleball-paddle.svg" alt="Pickleball" style="width:32px;height:32px;vertical-align:middle;margin-right:8px;">PickleManager — Diagrama de Dados</h1>
+<p class="subtitle">Modelo de dados armazenados no localStorage · Todas as entidades possuem <code>id</code>, <code>createdAt</code> e <code>updatedAt</code> gerados automaticamente pelo Storage.</p>
+
+<!-- Legenda -->
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot dot-pk"></div> Chave primária (PK)</div>
+  <div class="legend-item"><div class="legend-dot dot-fk"></div> Chave estrangeira (FK)</div>
+  <div class="legend-item"><div class="legend-dot dot-cat"></div> Tabela de apoio / catálogo</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- GRUPO: Autenticação & Controle de Acesso -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="group-label">🔐 Autenticação &amp; Controle de Acesso</div>
+<div class="grid">
+
+  <div class="table-card">
+    <div class="table-header"><span class="icon">🏷️</span> perfis <span class="table-key">pm_perfis</span></div>
+    <div class="table-body">
+      <div class="field-row"><span class="field-name pk">id</span><span class="field-type">string</span><span class="field-tag tag-pk">PK</span></div>
+      <div class="field-row"><span class="field-name">key</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">label</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">descricao</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">cor</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">modulos</span><span class="field-type">string[]</span></div>
+      <div class="field-row"><span class="field-name">createdAt</span><span class="field-type">ISO date</span><span class="field-tag tag-auto">auto</span></div>
+      <div class="field-row"><span class="field-name">updatedAt</span><span class="field-type">ISO date</span><span class="field-tag tag-auto">auto</span></div>
+    </div>
+  </div>
+
+  <div class="table-card">
+    <div class="table-header"><span class="icon">👤</span> usuarios <span class="table-key">pm_usuarios</span></div>
+    <div class="table-body">
+      <div class="field-row"><span class="field-name pk">id</span><span class="field-type">string</span><span class="field-tag tag-pk">PK</span></div>
+      <div class="field-row"><span class="field-name">nome</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">login</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">email</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">senha</span><span class="field-type">string (base64)</span></div>
+      <div class="field-row"><span class="field-name fk">perfil</span><span class="field-type">→ perfis.key</span><span class="field-tag tag-fk">FK</span></div>
+      <div class="field-row"><span class="field-name">status</span><span class="field-type">ativo | inativo</span></div>
+      <div class="field-row"><span class="field-name">createdAt</span><span class="field-type">ISO date</span><span class="field-tag tag-auto">auto</span></div>
+      <div class="field-row"><span class="field-name">updatedAt</span><span class="field-type">ISO date</span><span class="field-tag tag-auto">auto</span></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- GRUPO: Estrutura da Academia -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="group-label">🏟️ Estrutura da Academia</div>
+<div class="grid">
+
+  <div class="table-card">
+    <div class="table-header"><span class="icon">🏟️</span> arenas <span class="table-key">pm_arenas</span></div>
+    <div class="table-body">
+      <div class="field-row"><span class="field-name pk">id</span><span class="field-type">string</span><span class="field-tag tag-pk">PK</span></div>
+      <div class="field-row"><span class="field-name">nome</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">codigo</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">tipo</span><span class="field-type">indoor | outdoor</span></div>
+      <div class="field-row"><span class="field-name">capacidade</span><span class="field-type">number</span></div>
+      <div class="field-row"><span class="field-name">dimensoes</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">piso</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">iluminacao</span><span class="field-type">boolean</span></div>
+      <div class="field-row"><span class="field-name">status</span><span class="field-type">ativa | inativa | manutencao</span></div>
+      <div class="field-row"><span class="field-name">observacoes</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">createdAt</span><span class="field-type">ISO date</span><span class="field-tag tag-auto">auto</span></div>
+    </div>
+  </div>
+
+  <div class="table-card">
+    <div class="table-header"><span class="icon">🎓</span> professores <span class="table-key">pm_professores</span></div>
+    <div class="table-body">
+      <div class="field-row"><span class="field-name pk">id</span><span class="field-type">string</span><span class="field-tag tag-pk">PK</span></div>
+      <div class="field-row"><span class="field-name">nome</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">cpf</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">email</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">telefone</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">especialidade</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">status</span><span class="field-type">ativo | inativo | ferias</span></div>
+      <div class="field-row"><span class="field-name">horarioInicio</span><span class="field-type">HH:mm</span></div>
+      <div class="field-row"><span class="field-name">horarioFim</span><span class="field-type">HH:mm</span></div>
+      <div class="field-row"><span class="field-name">diasDisponiveis</span><span class="field-type">string[]</span></div>
+      <div class="field-row"><span class="field-name">observacoes</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">createdAt</span><span class="field-type">ISO date</span><span class="field-tag tag-auto">auto</span></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- GRUPO: Alunos & Planos -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="group-label">👥 Alunos &amp; Planos</div>
+<div class="grid">
+
+  <div class="table-card">
+    <div class="table-header"><span class="icon">👥</span> alunos <span class="table-key">pm_alunos</span></div>
+    <div class="table-body">
+      <div class="field-row"><span class="field-name pk">id</span><span class="field-type">string</span><span class="field-tag tag-pk">PK</span></div>
+      <div class="field-row"><span class="field-name">nome</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">cpf</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">email</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">telefone</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">dataNascimento</span><span class="field-type">YYYY-MM-DD</span></div>
+      <div class="field-row"><span class="field-name">nivel</span><span class="field-type">iniciante | intermediario | avancado | profissional</span></div>
+      <div class="field-row"><span class="field-name">status</span><span class="field-type">ativo | inativo | suspenso</span></div>
+      <div class="field-row"><span class="field-name">observacoes</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">createdAt</span><span class="field-type">ISO date</span><span class="field-tag tag-auto">auto</span></div>
+    </div>
+  </div>
+
+  <div class="table-card">
+    <div class="table-header"><span class="icon">📋</span> planos <span class="table-key">pm_planos</span></div>
+    <div class="table-body">
+      <div class="field-row"><span class="field-name pk">id</span><span class="field-type">string</span><span class="field-tag tag-pk">PK</span></div>
+      <div class="field-row"><span class="field-name">nome</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">tipo</span><span class="field-type">mensal | trimestral | semestral | anual | avulso | pacote</span></div>
+      <div class="field-row"><span class="field-name">modalidade</span><span class="field-type">individual | dupla | grupo | livre</span></div>
+      <div class="field-row"><span class="field-name">valor</span><span class="field-type">number (R$)</span></div>
+      <div class="field-row"><span class="field-name">aulasIncluidas</span><span class="field-type">number</span></div>
+      <div class="field-row"><span class="field-name">beneficios</span><span class="field-type">string (multiline)</span></div>
+      <div class="field-row"><span class="field-name">descricao</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">status</span><span class="field-type">ativo | inativo | pausado</span></div>
+      <div class="field-row"><span class="field-name">createdAt</span><span class="field-type">ISO date</span><span class="field-tag tag-auto">auto</span></div>
+    </div>
+  </div>
+
+  <div class="table-card">
+    <div class="table-header"><span class="icon">📝</span> matriculas <span class="table-key">pm_matriculas</span></div>
+    <div class="table-body">
+      <div class="field-row"><span class="field-name pk">id</span><span class="field-type">string</span><span class="field-tag tag-pk">PK</span></div>
+      <div class="field-row"><span class="field-name fk">alunoId</span><span class="field-type">→ alunos.id</span><span class="field-tag tag-fk">FK</span></div>
+      <div class="field-row"><span class="field-name">alunoNome</span><span class="field-type">string (cache)</span></div>
+      <div class="field-row"><span class="field-name fk">planoId</span><span class="field-type">→ planos.id</span><span class="field-tag tag-fk">FK</span></div>
+      <div class="field-row"><span class="field-name">planoNome</span><span class="field-type">string (cache)</span></div>
+      <div class="field-row"><span class="field-name">dataInicio</span><span class="field-type">YYYY-MM-DD</span></div>
+      <div class="field-row"><span class="field-name">dataFim</span><span class="field-type">YYYY-MM-DD</span></div>
+      <div class="field-row"><span class="field-name">valorPago</span><span class="field-type">number (R$)</span></div>
+      <div class="field-row"><span class="field-name">formaPagamento</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">status</span><span class="field-type">ativa | suspensa | encerrada | vencida</span></div>
+      <div class="field-row"><span class="field-name">observacoes</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">createdAt</span><span class="field-type">ISO date</span><span class="field-tag tag-auto">auto</span></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- GRUPO: Atividades -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="group-label">🏸 Atividades</div>
+<div class="grid">
+
+  <div class="table-card">
+    <div class="table-header"><span class="icon">🏸</span> aulas <span class="table-key">pm_aulas</span></div>
+    <div class="table-body">
+      <div class="field-row"><span class="field-name pk">id</span><span class="field-type">string</span><span class="field-tag tag-pk">PK</span></div>
+      <div class="field-row"><span class="field-name">titulo</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">tipo</span><span class="field-type">individual | dupla | grupo</span></div>
+      <div class="field-row"><span class="field-name">nivel</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name fk">professorId</span><span class="field-type">→ professores.id</span><span class="field-tag tag-fk">FK</span></div>
+      <div class="field-row"><span class="field-name">professorNome</span><span class="field-type">string (cache)</span></div>
+      <div class="field-row"><span class="field-name fk">arenaId</span><span class="field-type">→ arenas.id</span><span class="field-tag tag-fk">FK</span></div>
+      <div class="field-row"><span class="field-name">arenaNome</span><span class="field-type">string (cache)</span></div>
+      <div class="field-row"><span class="field-name">data</span><span class="field-type">YYYY-MM-DD</span></div>
+      <div class="field-row"><span class="field-name">horarioInicio</span><span class="field-type">HH:mm</span></div>
+      <div class="field-row"><span class="field-name">horarioFim</span><span class="field-type">HH:mm</span></div>
+      <div class="field-row"><span class="field-name">vagas</span><span class="field-type">number</span></div>
+      <div class="field-row"><span class="field-name">status</span><span class="field-type">agendada | em_andamento | concluida | cancelada</span></div>
+      <div class="field-row"><span class="field-name">professorCheckin</span><span class="field-type">ISO date</span></div>
+      <div class="field-row"><span class="field-name">professorCheckout</span><span class="field-type">ISO date</span></div>
+      <div class="field-row"><span class="field-name">observacoes</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">createdAt</span><span class="field-type">ISO date</span><span class="field-tag tag-auto">auto</span></div>
+    </div>
+  </div>
+
+  <div class="table-card">
+    <div class="table-header"><span class="icon">✅</span> presencas <span class="table-key">pm_presencas</span></div>
+    <div class="table-body">
+      <div class="field-row"><span class="field-name pk">id</span><span class="field-type">string</span><span class="field-tag tag-pk">PK</span></div>
+      <div class="field-row"><span class="field-name fk">aulaId</span><span class="field-type">→ aulas.id</span><span class="field-tag tag-fk">FK</span></div>
+      <div class="field-row"><span class="field-name fk">alunoId</span><span class="field-type">→ alunos.id</span><span class="field-tag tag-fk">FK</span></div>
+      <div class="field-row"><span class="field-name">alunoNome</span><span class="field-type">string (cache)</span></div>
+      <div class="field-row"><span class="field-name">presente</span><span class="field-type">boolean</span></div>
+      <div class="field-row"><span class="field-name">registradoEm</span><span class="field-type">ISO date</span></div>
+      <div class="field-row"><span class="field-name">createdAt</span><span class="field-type">ISO date</span><span class="field-tag tag-auto">auto</span></div>
+    </div>
+  </div>
+
+  <div class="table-card">
+    <div class="table-header"><span class="icon">🏆</span> eventos <span class="table-key">pm_eventos</span></div>
+    <div class="table-body">
+      <div class="field-row"><span class="field-name pk">id</span><span class="field-type">string</span><span class="field-tag tag-pk">PK</span></div>
+      <div class="field-row"><span class="field-name">nome</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">tipo</span><span class="field-type">torneio | campeonato | clinica | social | amistoso</span></div>
+      <div class="field-row"><span class="field-name">nivel</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">data</span><span class="field-type">YYYY-MM-DD</span></div>
+      <div class="field-row"><span class="field-name">dataFim</span><span class="field-type">YYYY-MM-DD</span></div>
+      <div class="field-row"><span class="field-name">horarioInicio</span><span class="field-type">HH:mm</span></div>
+      <div class="field-row"><span class="field-name">horarioFim</span><span class="field-type">HH:mm</span></div>
+      <div class="field-row"><span class="field-name fk">arenaId</span><span class="field-type">→ arenas.id</span><span class="field-tag tag-fk">FK</span></div>
+      <div class="field-row"><span class="field-name">arenaNome</span><span class="field-type">string (cache)</span></div>
+      <div class="field-row"><span class="field-name">vagas</span><span class="field-type">number</span></div>
+      <div class="field-row"><span class="field-name">valorInscricao</span><span class="field-type">number (R$)</span></div>
+      <div class="field-row"><span class="field-name">status</span><span class="field-type">planejado | aberto | concluido | cancelado</span></div>
+      <div class="field-row"><span class="field-name">descricao</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">createdAt</span><span class="field-type">ISO date</span><span class="field-tag tag-auto">auto</span></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- GRUPO: Financeiro & Manutenção -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="group-label">💰 Financeiro &amp; Manutenção</div>
+<div class="grid">
+
+  <div class="table-card">
+    <div class="table-header"><span class="icon">💰</span> financeiro <span class="table-key">pm_financeiro</span></div>
+    <div class="table-body">
+      <div class="field-row"><span class="field-name pk">id</span><span class="field-type">string</span><span class="field-tag tag-pk">PK</span></div>
+      <div class="field-row"><span class="field-name">tipo</span><span class="field-type">receita | despesa</span></div>
+      <div class="field-row"><span class="field-name">data</span><span class="field-type">YYYY-MM-DD</span></div>
+      <div class="field-row"><span class="field-name">descricao</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">categoria</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">valor</span><span class="field-type">number (R$)</span></div>
+      <div class="field-row"><span class="field-name">formaPagamento</span><span class="field-type">dinheiro | pix | cartao_credito | cartao_debito | transferencia | boleto</span></div>
+      <div class="field-row"><span class="field-name">status</span><span class="field-type">pago | pendente | cancelado</span></div>
+      <div class="field-row"><span class="field-name">referencia</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">observacoes</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">createdAt</span><span class="field-type">ISO date</span><span class="field-tag tag-auto">auto</span></div>
+    </div>
+  </div>
+
+  <div class="table-card">
+    <div class="table-header"><span class="icon">🔧</span> manutencao <span class="table-key">pm_manutencao</span></div>
+    <div class="table-body">
+      <div class="field-row"><span class="field-name pk">id</span><span class="field-type">string</span><span class="field-tag tag-pk">PK</span></div>
+      <div class="field-row"><span class="field-name">titulo</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">tipo</span><span class="field-type">eletrica | hidraulica | piso | equipamento | ...</span></div>
+      <div class="field-row"><span class="field-name">prioridade</span><span class="field-type">baixa | media | alta | urgente</span></div>
+      <div class="field-row"><span class="field-name fk">arenaId</span><span class="field-type">→ arenas.id</span><span class="field-tag tag-fk">FK</span></div>
+      <div class="field-row"><span class="field-name">arenaNome</span><span class="field-type">string (cache)</span></div>
+      <div class="field-row"><span class="field-name">status</span><span class="field-type">aberto | em_andamento | concluido | cancelado</span></div>
+      <div class="field-row"><span class="field-name">dataAbertura</span><span class="field-type">YYYY-MM-DD</span></div>
+      <div class="field-row"><span class="field-name">dataConclusao</span><span class="field-type">YYYY-MM-DD</span></div>
+      <div class="field-row"><span class="field-name">responsavel</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">custo</span><span class="field-type">number (R$)</span></div>
+      <div class="field-row"><span class="field-name">checklist</span><span class="field-type">{ item, feito }[]</span></div>
+      <div class="field-row"><span class="field-name">descricao</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">createdAt</span><span class="field-type">ISO date</span><span class="field-tag tag-auto">auto</span></div>
+    </div>
+  </div>
+
+  <div class="table-card">
+    <div class="table-header"><span class="icon">📅</span> manutencao_prev <span class="table-key">pm_manutencao_prev</span></div>
+    <div class="table-body">
+      <div class="field-row"><span class="field-name pk">id</span><span class="field-type">string</span><span class="field-tag tag-pk">PK</span></div>
+      <div class="field-row"><span class="field-name">titulo</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">tipo</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name fk">arenaId</span><span class="field-type">→ arenas.id</span><span class="field-tag tag-fk">FK</span></div>
+      <div class="field-row"><span class="field-name">arenaNome</span><span class="field-type">string (cache)</span></div>
+      <div class="field-row"><span class="field-name">frequencia</span><span class="field-type">semanal | quinzenal | mensal | trimestral | semestral | anual</span></div>
+      <div class="field-row"><span class="field-name">proximaData</span><span class="field-type">YYYY-MM-DD</span></div>
+      <div class="field-row"><span class="field-name">ultimaExecucao</span><span class="field-type">YYYY-MM-DD</span></div>
+      <div class="field-row"><span class="field-name">responsavel</span><span class="field-type">string</span></div>
+      <div class="field-row"><span class="field-name">checklist</span><span class="field-type">{ item, feito }[]</span></div>
+      <div class="field-row"><span class="field-name">status</span><span class="field-type">ativo | inativo</span></div>
+      <div class="field-row"><span class="field-name">createdAt</span><span class="field-type">ISO date</span><span class="field-tag tag-auto">auto</span></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- GRUPO: Tabelas de Apoio / Catálogos -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="group-label">🗂️ Tabelas de Apoio (Catálogos)</div>
+<div class="grid">
+
+  <div class="table-card cat">
+    <div class="table-header"><span class="icon">🎓</span> cat_especialidades</div>
+    <div class="table-body">
+      <div class="field-row"><span class="field-name pk">id</span><span class="field-type">string</span><span class="field-tag tag-pk">PK</span></div>
+      <div class="field-row"><span class="field-name">nome</span><span class="field-type">string</span></div>
+    </div>
+  </div>
+
+  <div class="table-card cat">
+    <div class="table-header"><span class="icon">💚</span> cat_receita</div>
+    <div class="table-body">
+      <div class="field-row"><span class="field-name pk">id</span><span class="field-type">string</span><span class="field-tag tag-pk">PK</span></div>
+      <div class="field-row"><span class="field-name">nome</span><span class="field-type">string</span></div>
+    </div>
+  </div>
+
+  <div class="table-card cat">
+    <div class="table-header"><span class="icon">🔴</span> cat_despesa</div>
+    <div class="table-body">
+      <div class="field-row"><span class="field-name pk">id</span><span class="field-type">string</span><span class="field-tag tag-pk">PK</span></div>
+      <div class="field-row"><span class="field-name">nome</span><span class="field-type">string</span></div>
+    </div>
+  </div>
+
+  <div class="table-card cat">
+    <div class="table-header"><span class="icon">🏸</span> cat_tipos_aula</div>
+    <div class="table-body">
+      <div class="field-row"><span class="field-name pk">id</span><span class="field-type">string</span><span class="field-tag tag-pk">PK</span></div>
+      <div class="field-row"><span class="field-name">nome</span><span class="field-type">string</span></div>
+    </div>
+  </div>
+
+  <div class="table-card cat">
+    <div class="table-header"><span class="icon">🏆</span> cat_tipos_evento</div>
+    <div class="table-body">
+      <div class="field-row"><span class="field-name pk">id</span><span class="field-type">string</span><span class="field-tag tag-pk">PK</span></div>
+      <div class="field-row"><span class="field-name">nome</span><span class="field-type">string</span></div>
+    </div>
+  </div>
+
+  <div class="table-card cat">
+    <div class="table-header"><span class="icon">⚙️</span> listas_config</div>
+    <div class="table-body">
+      <div class="field-row"><span class="field-name">chave</span><span class="field-type">string (key)</span></div>
+      <div class="field-row"><span class="field-name">itens</span><span class="field-type">{ v, l }[]</span></div>
+      <div class="field-row" style="padding:4px 14px;font-size:11px;color:#64748b;font-style:italic;">Sobrescreve os defaults do ListasService</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- Tabela de Relacionamentos -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="rel-section">
+  <h2>🔗 Relacionamentos entre Entidades</h2>
+  <table class="rel-table">
+    <thead>
+      <tr>
+        <th>Entidade</th>
+        <th style="text-align:center;">Cardinalidade</th>
+        <th>Entidade</th>
+        <th>Descrição</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="chip">perfis</span></td>
+        <td class="rel-type">1 → N</td>
+        <td><span class="chip">usuarios</span></td>
+        <td>Um perfil pode ter vários usuários</td>
+      </tr>
+      <tr>
+        <td><span class="chip">alunos</span></td>
+        <td class="rel-type">1 → N</td>
+        <td><span class="chip">matriculas</span></td>
+        <td>Um aluno pode ter várias matrículas ao longo do tempo</td>
+      </tr>
+      <tr>
+        <td><span class="chip">planos</span></td>
+        <td class="rel-type">1 → N</td>
+        <td><span class="chip">matriculas</span></td>
+        <td>Um plano pode estar vinculado a várias matrículas</td>
+      </tr>
+      <tr>
+        <td><span class="chip">professores</span></td>
+        <td class="rel-type">1 → N</td>
+        <td><span class="chip">aulas</span></td>
+        <td>Um professor pode ministrar várias aulas</td>
+      </tr>
+      <tr>
+        <td><span class="chip">arenas</span></td>
+        <td class="rel-type">1 → N</td>
+        <td><span class="chip">aulas</span></td>
+        <td>Uma arena pode receber várias aulas</td>
+      </tr>
+      <tr>
+        <td><span class="chip">aulas</span></td>
+        <td class="rel-type">1 → N</td>
+        <td><span class="chip">presencas</span></td>
+        <td>Uma aula tem um registro de presença por aluno</td>
+      </tr>
+      <tr>
+        <td><span class="chip">alunos</span></td>
+        <td class="rel-type">1 → N</td>
+        <td><span class="chip">presencas</span></td>
+        <td>Um aluno tem registros de presença em múltiplas aulas</td>
+      </tr>
+      <tr>
+        <td><span class="chip">arenas</span></td>
+        <td class="rel-type">1 → N</td>
+        <td><span class="chip">eventos</span></td>
+        <td>Uma arena pode sediar vários eventos</td>
+      </tr>
+      <tr>
+        <td><span class="chip">arenas</span></td>
+        <td class="rel-type">1 → N</td>
+        <td><span class="chip">manutencao</span></td>
+        <td>Uma arena pode ter vários chamados de manutenção</td>
+      </tr>
+      <tr>
+        <td><span class="chip">arenas</span></td>
+        <td class="rel-type">1 → N</td>
+        <td><span class="chip">manutencao_prev</span></td>
+        <td>Uma arena pode ter várias manutenções preventivas agendadas</td>
+      </tr>
+      <tr>
+        <td><span class="chip">aulas</span></td>
+        <td class="rel-type">N ↔ M</td>
+        <td><span class="chip">alunos</span></td>
+        <td>Muitos alunos em muitas aulas — via tabela <span class="chip blue">presencas</span></td>
+      </tr>
+      <tr>
+        <td><span class="chip">alunos</span></td>
+        <td class="rel-type">N ↔ M</td>
+        <td><span class="chip">planos</span></td>
+        <td>Muitos alunos em muitos planos — via tabela <span class="chip blue">matriculas</span></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- Nota sobre o banco de dados -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="storage-info">
+  <strong>Banco de dados:</strong> localStorage do navegador · Prefixo de todas as chaves: <code>pm_</code><br>
+  <strong>Formato:</strong> JSON serializado por chave · Cada registro possui <code>id</code> (base36 + random), <code>createdAt</code> e <code>updatedAt</code> (ISO 8601) gerados automaticamente pelo <code>Storage</code>.<br>
+  <strong>Chaves de sessão:</strong> <code>pm_session</code> (objeto de sessão do usuário logado) · <code>pm_theme</code> (light | dark) · <code>listas_config</code> (listas customizadas).<br>
+  <strong>Integridade referencial:</strong> implementada por convenção (sem constraints nativas). FKs são armazenadas como <code>Id</code> + <code>Nome</code> (cache) para evitar JOINs no frontend.
+</div>
+
+</body>
+</html>

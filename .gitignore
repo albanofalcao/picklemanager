@@ -1,0 +1,24 @@
+# Node
+node/node_modules/
+
+# Logs de build
+build-err.txt
+build-err2.txt
+build-out.txt
+build-out2.txt
+install-err.txt
+install-out.txt
+setup-err.txt
+setup-out.txt
+err.txt
+out.txt
+
+# Scripts de setup temporários
+setup-react.bat
+install-recharts.bat
+start-react-dev.bat
+start-react.bat
+build-react.bat
+
+# Misc
+ola.txt

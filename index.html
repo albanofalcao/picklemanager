@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PickleManager — Academia de Pickleball</title>
+  <link rel="stylesheet" href="css/app.css?v=2" />
+</head>
+<body>
+
+  <!-- ========== LOGIN OVERLAY ========== -->
+  <div class="login-overlay" id="login-overlay" aria-hidden="true">
+    <div class="login-box">
+      <div class="login-brand">
+        <span class="login-brand-icon"><img src="img/pickleball-paddle.svg" alt="Pickleball" style="width:40px;height:40px;vertical-align:middle;"></span>
+        <div>
+          <div class="login-brand-name">PickleManager</div>
+          <div class="login-brand-sub">Academia de Pickleball</div>
+        </div>
+      </div>
+      <h2 class="login-title">Entrar no sistema</h2>
+      <form id="login-form" autocomplete="off" novalidate>
+        <div class="form-group" style="margin-bottom:16px;">
+          <label class="form-label" for="li-login">Login</label>
+          <input id="li-login" type="text" class="form-input" placeholder="seu login" required />
+        </div>
+        <div class="form-group" style="margin-bottom:16px;">
+          <label class="form-label" for="li-senha">Senha</label>
+          <input id="li-senha" type="password" class="form-input" placeholder="••••••••" required />
+        </div>
+        <div id="login-error" class="login-error" style="display:none;"></div>
+        <button type="submit" class="btn btn-primary" style="width:100%;margin-top:4px;">Entrar</button>
+      </form>
+      <div class="login-hint">
+        Login padrão: <strong>admin</strong> &nbsp;/&nbsp; Senha: <strong>admin123</strong>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== LOCK OVERLAY ========== -->
+  <div class="lock-overlay" id="lock-overlay" aria-hidden="true">
+    <div class="lock-box">
+      <div class="lock-avatar-wrap">
+        <div class="lock-avatar" id="lock-avatar">?</div>
+      </div>
+      <div class="lock-name" id="lock-name">Usuário</div>
+      <div class="lock-msg">Sessão bloqueada por inatividade</div>
+      <form id="lock-form" autocomplete="off" novalidate>
+        <input id="lock-senha" type="password" class="form-input"
+          placeholder="Digite sua senha para continuar" required />
+        <div id="lock-error" class="login-error" style="display:none;"></div>
+        <button type="submit" class="btn btn-primary" style="width:100%;margin-top:12px;">
+          🔓 Desbloquear
+        </button>
+      </form>
+      <button class="btn btn-ghost btn-sm" style="width:100%;margin-top:8px;color:#a8c5be;"
+        onclick="Auth.logout()">Sair do sistema</button>
+    </div>
+  </div>
+
+  <!-- ========== AVISO DE INATIVIDADE ========== -->
+  <div id="lock-warn" class="lock-warn-bar" style="display:none;"></div>
+
+  <!-- ========== LAYOUT WRAPPER ========== -->
+  <div class="app-layout">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-brand">
+        <span class="brand-icon"><img src="img/pickleball-paddle.svg" alt="Pickleball" style="width:28px;height:28px;vertical-align:middle;"></span>
+        <div class="brand-text">
+          <span class="brand-name">PickleManager</span>
+          <span class="brand-sub">Academia de Pickleball</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav" id="sidebar-nav">
+        <!-- injected by App.renderSidebar() -->
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="sidebar-user" id="sidebar-user">
+          <!-- injected by App.updateHeaderUser() -->
+        </div>
+        <span class="sidebar-footer-text">v1.1.0</span>
+      </div>
+    </aside>
+
+    <!-- MAIN WRAPPER -->
+    <div class="main-wrapper">
+
+      <!-- TOP HEADER -->
+      <header class="top-header">
+        <div class="header-left">
+          <button class="btn btn-icon sidebar-toggle" id="sidebar-toggle" aria-label="Toggle sidebar">
+            ☰
+          </button>
+          <h1 class="page-title" id="page-title">Dashboard</h1>
+        </div>
+        <div class="header-right">
+          <div class="header-date">
+            <span class="date-icon">📅</span>
+            <span id="current-date">—</span>
+          </div>
+
+          <!-- Notificações -->
+          <div class="notif-wrapper" id="notif-wrapper">
+            <button class="btn btn-icon notif-btn" id="notif-btn"
+              onclick="Notifications.toggle()" title="Notificações">🔔</button>
+            <div class="notif-panel" id="notif-panel"></div>
+          </div>
+
+          <!-- Toggle modo escuro -->
+          <button class="btn btn-icon" id="theme-toggle"
+            onclick="Theme.toggle()" title="Modo escuro">🌙</button>
+
+          <div class="header-user-info" id="header-user-info">
+            <!-- injected by App.updateHeaderUser() -->
+          </div>
+        </div>
+      </header>
+
+      <!-- CONTENT AREA -->
+      <main class="content-area" id="content-area">
+        <div class="loading-state">
+          <span class="loading-spinner">⏳</span>
+          <p>Carregando…</p>
+        </div>
+      </main>
+
+    </div><!-- /main-wrapper -->
+
+  </div><!-- /app-layout -->
+
+  <!-- ========== MODAL OVERLAY ========== -->
+  <div class="modal-overlay" id="modal-overlay" aria-hidden="true">
+    <div class="modal-dialog" id="modal-dialog" role="dialog" aria-modal="true">
+      <div class="modal-header">
+        <h2 class="modal-title" id="modal-title">Título</h2>
+        <button class="btn btn-icon modal-close" id="modal-close" aria-label="Fechar">✕</button>
+      </div>
+      <div class="modal-body" id="modal-body">
+        <!-- dynamic content -->
+      </div>
+      <div class="modal-footer" id="modal-footer">
+        <button class="btn btn-secondary" id="modal-cancel">Cancelar</button>
+        <button class="btn btn-primary" id="modal-confirm">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== CONFIRM DIALOG OVERLAY ========== -->
+  <div class="modal-overlay" id="confirm-overlay" aria-hidden="true">
+    <div class="modal-dialog confirm-dialog" id="confirm-dialog" role="alertdialog" aria-modal="true">
+      <div class="modal-header">
+        <h2 class="modal-title" id="confirm-title">Confirmar</h2>
+      </div>
+      <div class="modal-body" id="confirm-body">
+        <p id="confirm-message"></p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="confirm-cancel">Cancelar</button>
+        <button class="btn btn-danger" id="confirm-ok">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== TOAST CONTAINER ========== -->
+  <div class="toast-container" id="toast-container" aria-live="polite"></div>
+
+  <!-- ========== SCRIPTS (order matters) ========== -->
+  <script src="js/storage.js"></script>
+  <script src="js/listas-service.js"></script>
+  <script src="js/ui.js?v=2"></script>
+  <script src="js/router.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/inactivity.js"></script>
+  <script src="js/theme.js"></script>
+  <script src="js/modules/arenas.js"></script>
+  <script src="js/modules/alunos.js?v=2"></script>
+  <script src="js/modules/professores.js"></script>
+  <script src="js/modules/planos.js"></script>
+  <script src="js/modules/turmas.js"></script>
+  <script src="js/modules/presenca.js"></script>
+  <script src="js/modules/eventos.js"></script>
+  <script src="js/modules/financeiro.js"></script>
+  <script src="js/modules/manutencao.js"></script>
+  <script src="js/modules/cadastros.js"></script>
+  <script src="js/modules/listas.js"></script>
+  <script src="js/modules/admin.js"></script>
+  <script src="js/modules/matriculas.js"></script>
+  <script src="js/modules/relatorios.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="js/modules/stubs.js"></script>
+  <script src="js/notifications.js"></script>
+  <script src="js/app.js"></script>
+
+</body>
+</html>

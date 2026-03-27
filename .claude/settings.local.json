@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(powershell -Command \"Get-ChildItem ''C:\\\\'', ''D:\\\\'', ''C:\\\\Program Files'', ''C:\\\\Program Files \\(x86\\)'', $env:LOCALAPPDATA -Filter ''node.exe'' -Recurse -ErrorAction SilentlyContinue -Depth 3 | Select-Object FullName\")"
+    ]
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "picklemanager",
+      "runtimeExecutable": "D:\\meuprojeto\\start-react-dev.bat",
+      "runtimeArgs": [],
+      "port": 3460
+    }
+  ]
+}
