@@ -10,6 +10,7 @@ const AlunoModule = {
     search:       '',
     filterStatus: '',
     filterNivel:  '',
+    tab:          'alunos', // 'alunos' | 'matriculas'
   },
 
   STATUS: {
@@ -69,7 +70,19 @@ const AlunoModule = {
   /*  Render                                                              */
   /* ------------------------------------------------------------------ */
 
+  _tabBtn(key, label) {
+    return `<button class="tab-btn ${this._state.tab === key ? 'active' : ''}"
+      onclick="AlunoModule.switchTab('${key}')">${label}</button>`;
+  },
+
+  switchTab(tab) {
+    this._state.tab = tab;
+    if (tab === 'matriculas') this._renderMatriculas();
+    else this.render();
+  },
+
   render() {
+    this._state.tab = 'alunos';
     const stats    = this.getStats();
     const filtered = this.getFiltered();
     const area     = document.getElementById('content-area');
@@ -85,6 +98,11 @@ const AlunoModule = {
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Novo Aluno
         </button>
+      </div>
+
+      <div class="tabs-bar">
+        ${this._tabBtn('alunos', '👥 Alunos')}
+        ${this._tabBtn('matriculas', '📝 Matrículas')}
       </div>
 
       <div class="stats-grid">
@@ -219,6 +237,99 @@ const AlunoModule = {
         <div class="empty-desc">Comece adicionando o primeiro aluno da academia.</div>
         <button class="btn btn-primary mt-16" onclick="AlunoModule.openModal()">+ Cadastrar primeiro aluno</button>
       </div>`;
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Matrículas tab                                                      */
+  /* ------------------------------------------------------------------ */
+
+  _renderMatriculas() {
+    MatriculaModule._syncVencidas();
+    const stats    = MatriculaModule.getStats();
+    const filtered = MatriculaModule.getFiltered();
+    const area     = document.getElementById('content-area');
+    if (!area) return;
+
+    const planos = Storage.getAll('planos').filter(p => p.status === 'ativo');
+    const planoFilterOpts = planos.map(p =>
+      `<option value="${p.id}" ${MatriculaModule._state.filterPlano === p.id ? 'selected' : ''}>${UI.escape(p.nome)}</option>`
+    ).join('');
+
+    area.innerHTML = `
+      <div class="page-header">
+        <div class="page-header-text">
+          <h2>Alunos</h2>
+          <p>Cadastro e gestão de alunos matriculados</p>
+        </div>
+        <button class="btn btn-primary" onclick="MatriculaModule.openModal()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Nova Matrícula
+        </button>
+      </div>
+
+      <div class="tabs-bar">
+        ${this._tabBtn('alunos', '👥 Alunos')}
+        ${this._tabBtn('matriculas', '📝 Matrículas')}
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon blue">📝</div>
+          <div class="stat-info">
+            <div class="stat-value">${stats.total}</div>
+            <div class="stat-label">Total de Matrículas</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon green">✅</div>
+          <div class="stat-info">
+            <div class="stat-value">${stats.ativas}</div>
+            <div class="stat-label">Ativas</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon amber">⚠️</div>
+          <div class="stat-info">
+            <div class="stat-value">${stats.vencidas}</div>
+            <div class="stat-label">Vencidas</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon gray">⚪</div>
+          <div class="stat-info">
+            <div class="stat-value">${stats.encerradas}</div>
+            <div class="stat-label">Encerradas</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="filters-bar">
+        <div class="search-wrapper">
+          <span class="search-icon">🔍</span>
+          <input type="text" class="search-input"
+            placeholder="Buscar por aluno ou plano…"
+            value="${UI.escape(MatriculaModule._state.search)}"
+            oninput="MatriculaModule.handleSearch(this.value)" />
+        </div>
+        <select class="filter-select" onchange="MatriculaModule.handleFilterStatus(this.value)">
+          <option value="">Todos os status</option>
+          ${Object.entries(MatriculaModule.STATUS).map(([k, v]) =>
+            `<option value="${k}" ${MatriculaModule._state.filterStatus === k ? 'selected' : ''}>${v.label}</option>`
+          ).join('')}
+        </select>
+        <select class="filter-select" onchange="MatriculaModule.handleFilterPlano(this.value)">
+          <option value="">Todos os planos</option>
+          ${planoFilterOpts}
+        </select>
+        <span class="results-count">
+          ${filtered.length} matrícula${filtered.length !== 1 ? 's' : ''}
+        </span>
+      </div>
+
+      <div class="alunos-table-wrap" id="matriculas-list">
+        ${filtered.length ? MatriculaModule.renderTable(filtered) : MatriculaModule.renderEmpty()}
+      </div>
+    `;
   },
 
   /* ------------------------------------------------------------------ */

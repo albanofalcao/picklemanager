@@ -176,6 +176,7 @@ const AdminModule = {
           <td><span class="badge ${status.badge}">${status.label}</span></td>
           <td class="text-muted text-sm">${cadastro}</td>
           <td class="aluno-row-actions">
+            <button class="btn btn-ghost btn-sm" onclick="AdminModule.abrirRedefinirSenha('${u.id}')" title="Redefinir senha">🔑</button>
             <button class="btn btn-ghost btn-sm" onclick="AdminModule.openModal('${u.id}')" title="Editar">✏️</button>
             ${!isMe ? `<button class="btn btn-ghost btn-sm danger" onclick="AdminModule.deleteUsuario('${u.id}')" title="Excluir">🗑️</button>` : ''}
           </td>
@@ -524,7 +525,9 @@ const AdminModule = {
         <div class="form-grid-2">
           <div class="form-group">
             <label class="form-label" for="us-perfil">Perfil <span class="required-star">*</span></label>
-            <select id="us-perfil" class="form-select" ${isMe ? 'disabled title="Você não pode alterar seu próprio perfil"' : ''}>
+            <select id="us-perfil" class="form-select"
+              ${isMe ? 'disabled title="Você não pode alterar seu próprio perfil"' : ''}
+              onchange="AdminModule._toggleVinculoField(this.value)">
               ${perfilOptions}
             </select>
             ${isMe ? '<div class="form-hint" style="margin-top:4px;">Você não pode alterar seu próprio perfil.</div>' : ''}
@@ -535,6 +538,28 @@ const AdminModule = {
               ${statusOptions}
             </select>
           </div>
+        </div>
+
+        <div class="form-group" id="us-professor-field" style="display:${user?.perfil === 'professor' ? 'block' : 'none'};">
+          <label class="form-label" for="us-professor">Professor vinculado</label>
+          <select id="us-professor" class="form-select">
+            <option value="">— Selecionar professor —</option>
+            ${Storage.getAll('professores').filter(p => p.status === 'ativo').sort((a,b) => a.nome.localeCompare(b.nome)).map(p =>
+              `<option value="${p.id}" ${user?.professorId === p.id ? 'selected' : ''}>${UI.escape(p.nome)}</option>`
+            ).join('')}
+          </select>
+          <div class="form-hint" style="margin-top:4px;">Vincula o login ao professor para filtrar automaticamente as grades e aulas dele.</div>
+        </div>
+
+        <div class="form-group" id="us-aluno-field" style="display:${user?.perfil === 'aluno' ? 'block' : 'none'};">
+          <label class="form-label" for="us-aluno">Aluno vinculado</label>
+          <select id="us-aluno" class="form-select">
+            <option value="">— Selecionar aluno —</option>
+            ${Storage.getAll('alunos').filter(a => a.status === 'ativo').sort((a,b) => a.nome.localeCompare(b.nome)).map(a =>
+              `<option value="${a.id}" ${user?.alunoId === a.id ? 'selected' : ''}>${UI.escape(a.nome)}</option>`
+            ).join('')}
+          </select>
+          <div class="form-hint" style="margin-top:4px;">Vincula o login ao aluno para filtrar automaticamente as grades em que está inscrito.</div>
         </div>
       </div>`;
 
@@ -589,12 +614,15 @@ const AdminModule = {
     const isMe = session && id === session.id;
     const old  = id ? Storage.getById(this.STORAGE_KEY, id) : null;
 
+    const perfilVal = (!isMe && g('perfil')) ? g('perfil').value : (old ? old.perfil : 'recepcionista');
     const data = {
-      nome:   nome.value.trim(),
-      login:  login.value.trim().toLowerCase(),
-      email:  g('email')  ? g('email').value.trim()  : '',
-      perfil: (!isMe && g('perfil')) ? g('perfil').value : (old ? old.perfil : 'recepcionista'),
-      status: (!isMe && g('status')) ? g('status').value : (old ? old.status : 'ativo'),
+      nome:        nome.value.trim(),
+      login:       login.value.trim().toLowerCase(),
+      email:       g('email')     ? g('email').value.trim()     : '',
+      perfil:      perfilVal,
+      status:      (!isMe && g('status')) ? g('status').value : (old ? old.status : 'ativo'),
+      professorId: perfilVal === 'professor' && g('professor') ? (g('professor').value || null) : null,
+      alunoId:     perfilVal === 'aluno'     && g('aluno')     ? (g('aluno').value     || null) : null,
     };
 
     // Only update password if a new one was provided
@@ -673,6 +701,64 @@ const AdminModule = {
     this._state.filterPerfil = '';
     this._state.filterStatus = '';
     this.render();
+  },
+
+  _toggleVinculoField(perfil) {
+    const profField  = document.getElementById('us-professor-field');
+    const alunoField = document.getElementById('us-aluno-field');
+    if (profField)  profField.style.display  = perfil === 'professor' ? 'block' : 'none';
+    if (alunoField) alunoField.style.display = perfil === 'aluno'     ? 'block' : 'none';
+  },
+
+  /* Redefinir senha de um usuário */
+  abrirRedefinirSenha(id) {
+    const user = Storage.getById(this.STORAGE_KEY, id);
+    if (!user) return;
+
+    const content = `
+      <div class="form-grid">
+        <div class="info-box">
+          <strong>${UI.escape(user.nome)}</strong>
+          <span class="text-muted" style="margin-left:8px;">@${UI.escape(user.login)}</span>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="rs-nova">Nova senha <span class="required-star">*</span></label>
+          <input id="rs-nova" type="password" class="form-input"
+            placeholder="mínimo 6 caracteres" autocomplete="new-password" />
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="rs-conf">Confirmar senha <span class="required-star">*</span></label>
+          <input id="rs-conf" type="password" class="form-input"
+            placeholder="repita a senha" autocomplete="new-password" />
+        </div>
+      </div>`;
+
+    UI.openModal({
+      title:        `Redefinir Senha — ${user.nome}`,
+      content,
+      confirmLabel: 'Salvar nova senha',
+      onConfirm:    () => this._salvarNovaSenha(id),
+    });
+  },
+
+  _salvarNovaSenha(id) {
+    const nova = document.getElementById('rs-nova');
+    const conf = document.getElementById('rs-conf');
+
+    if (!nova || nova.value.length < 6) {
+      if (nova) nova.classList.add('error');
+      UI.toast('A senha deve ter pelo menos 6 caracteres.', 'warning');
+      return;
+    }
+    if (!conf || conf.value !== nova.value) {
+      if (conf) conf.classList.add('error');
+      UI.toast('As senhas não coincidem.', 'warning');
+      return;
+    }
+
+    Storage.update(this.STORAGE_KEY, id, { senha: btoa(nova.value) });
+    UI.closeModal();
+    UI.toast('Senha redefinida com sucesso!', 'success');
   },
 
   /* ------------------------------------------------------------------ */

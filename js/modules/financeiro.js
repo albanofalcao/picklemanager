@@ -29,6 +29,7 @@ const FinanceiroModule = {
     inscricao_evento: 'Inscrição em Evento',
     aula_avulsa:      'Aula Avulsa',
     pacote:           'Pacote de Aulas',
+    day_use:          'Day Use',
     outro_r:          'Outro',
   },
 

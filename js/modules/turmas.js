@@ -34,12 +34,18 @@ const TurmasModule = {
   },
 
   _state: {
-    tab:          'turmas', // 'turmas' | 'calendario' | 'frequencia'
-    search:       '',
-    filterStatus: '',
-    calAno:       null,
-    calMes:       null,
-    turmaSel:     '',
+    tab:            'turmas', // 'turmas' | 'aulas' | 'calendario' | 'frequencia'
+    search:         '',
+    filterStatus:   '',
+    calAno:         null,
+    calMes:         null,
+    turmaSel:       '',
+    aulaFilterTurma:'',
+    aulaFilterData: '',
+    aulaFilterSt:   '',
+    aulaFilterArena:'',
+    calFilterArena: '',
+    calFilterTurma: '',
   },
 
   /* ------------------------------------------------------------------ */
@@ -74,34 +80,26 @@ const TurmasModule = {
     const area = document.getElementById('content-area');
     if (!area) return;
 
+    const svgPlus = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
     const btnHeader =
       this._state.tab === 'turmas'
-        ? `<button class="btn btn-primary" onclick="TurmasModule.openModalTurma()">
-             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-               stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/>
-               <line x1="5" y1="12" x2="19" y2="12"/></svg>
-             Nova Turma
-           </button>`
-        : this._state.tab === 'calendario'
-        ? `<button class="btn btn-primary" onclick="TurmasModule.openModalAula()">
-             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-               stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/>
-               <line x1="5" y1="12" x2="19" y2="12"/></svg>
-             Nova Aula
-           </button>`
+        ? `<button class="btn btn-primary" onclick="TurmasModule.openModalTurma()">${svgPlus} Nova Grade</button>`
+        : (this._state.tab === 'calendario' || this._state.tab === 'aulas')
+        ? `<button class="btn btn-primary" onclick="TurmasModule.openModalAula()">${svgPlus} Nova Aula</button>`
         : '';
 
     area.innerHTML = `
       <div class="page-header">
         <div class="page-header-text">
-          <h2>Turmas</h2>
-          <p>Gestão de turmas, calendário de aulas e frequência de alunos</p>
+          <h2>Grade</h2>
+          <p>Gestão de grades, calendário de aulas e frequência de alunos</p>
         </div>
         ${btnHeader}
       </div>
 
       <div class="tabs-bar">
-        ${this._tabBtn('turmas',     '📋 Turmas')}
+        ${this._tabBtn('turmas',     '📋 Grade')}
+        ${this._tabBtn('aulas',      '🏸 Aulas')}
         ${this._tabBtn('calendario', '📅 Calendário')}
         ${this._tabBtn('frequencia', '📊 Frequência')}
       </div>
@@ -124,6 +122,7 @@ const TurmasModule = {
   _renderTab() {
     switch (this._state.tab) {
       case 'turmas':     return this._renderTurmas();
+      case 'aulas':      return this._renderAulas();
       case 'calendario': return this._renderCalendario();
       case 'frequencia': return this._renderFrequencia();
       default:           return this._renderTurmas();
@@ -135,7 +134,22 @@ const TurmasModule = {
   /* ================================================================== */
 
   _renderTurmas() {
-    const all = Storage.getAll(this.SK)
+    const session     = Auth.getSession();
+    const isProfessor = session?.perfil === 'professor';
+    const isAluno     = session?.perfil === 'aluno';
+
+    // Aluno tem view própria com todas as grades disponíveis
+    if (isAluno) return this._renderTurmasAluno(session);
+
+    // Pré-filtra por professor vinculado
+    let base = Storage.getAll(this.SK);
+    if (isProfessor) {
+      base = base.filter(t =>
+        session.professorId ? t.professorId === session.professorId : t.professorNome === session.nome
+      );
+    }
+
+    const all = base
       .filter(t => {
         const q = this._state.search.toLowerCase();
         return (!q || t.nome.toLowerCase().includes(q) ||
@@ -159,14 +173,14 @@ const TurmasModule = {
             `<option value="${k}" ${this._state.filterStatus === k ? 'selected' : ''}>${v.label}</option>`
           ).join('')}
         </select>
-        <span class="results-count">${all.length} turma${all.length !== 1 ? 's' : ''}</span>
+        <span class="results-count">${all.length} grade${all.length !== 1 ? 's' : ''}</span>
       </div>
 
       ${all.length
         ? `<div class="table-card">
              <table class="data-table">
                <thead><tr>
-                 <th>Turma</th>
+                 <th>Grade</th>
                  <th>Professor</th>
                  <th>Horário / Dias</th>
                  <th>Alunos inscritos</th>
@@ -237,9 +251,9 @@ const TurmasModule = {
     return `
       <div class="empty-state">
         <div class="empty-icon">🏸</div>
-        <div class="empty-title">Nenhuma turma cadastrada</div>
-        <div class="empty-desc">Crie a primeira turma para organizar as aulas da academia.</div>
-        <button class="btn btn-primary mt-16" onclick="TurmasModule.openModalTurma()">+ Nova Turma</button>
+        <div class="empty-title">Nenhuma grade cadastrada</div>
+        <div class="empty-desc">Crie a primeira grade para organizar as aulas da academia.</div>
+        <button class="btn btn-primary mt-16" onclick="TurmasModule.openModalTurma()">+ Nova Grade</button>
       </div>`;
   },
 
@@ -249,7 +263,607 @@ const TurmasModule = {
   },
 
   /* ================================================================== */
-  /*  ABA 2 — Calendário                                                 */
+  /*  VIEW DO ALUNO — Escolher grades                                    */
+  /* ================================================================== */
+
+  _renderTurmasAluno(session) {
+    const grades = Storage.getAll(this.SK)
+      .filter(t => t.status === 'ativa')
+      .sort((a, b) => a.nome.localeCompare(b.nome));
+
+    const inscricoes = Storage.getAll(this.SK_INSCR)
+      .filter(i => session.alunoId ? i.alunoId === session.alunoId : i.alunoNome === session.nome);
+    const inscritosMap = {};
+    inscricoes.forEach(i => { inscritosMap[i.turmaId] = i.id; });
+
+    if (!grades.length) {
+      return `<div class="empty-state">
+        <div class="empty-icon">🏸</div>
+        <div class="empty-title">Nenhuma grade disponível</div>
+        <div class="empty-desc">Não há grades ativas no momento.</div>
+      </div>`;
+    }
+
+    const cards = grades.map(t => {
+      const inscrito    = !!inscritosMap[t.id];
+      const inscricaoId = inscritosMap[t.id] || '';
+      const nivel       = this.NIVEL[t.nivel] || t.nivel || '—';
+      const dias        = (t.diasSemana || []).map(d => this.DIAS[d] || d).join(', ') || '—';
+      const hora        = t.horarioInicio
+        ? `${t.horarioInicio}${t.horarioFim ? ' – ' + t.horarioFim : ''}`
+        : '—';
+      const inscritos   = Storage.getAll(this.SK_INSCR).filter(i => i.turmaId === t.id && i.status === 'ativo').length;
+      const vagas       = t.vagas || 0;
+      const vagasLivre  = vagas > 0 ? Math.max(0, vagas - inscritos) : null;
+      const semVaga     = vagasLivre !== null && vagasLivre === 0 && !inscrito;
+
+      return `
+        <div class="table-card" style="padding:16px;display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;">
+          <div style="flex:1;min-width:200px;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+              <strong style="font-size:1rem;">${UI.escape(t.nome)}</strong>
+              ${inscrito ? `<span class="badge badge-success" style="font-size:0.7rem;">✓ Inscrito</span>` : ''}
+            </div>
+            <div class="info-grid" style="grid-template-columns:repeat(2,1fr);gap:4px 16px;font-size:0.82rem;">
+              <div><span class="text-muted">Professor:</span> ${UI.escape(t.professorNome || '—')}</div>
+              <div><span class="text-muted">Arena:</span> ${UI.escape(t.arenaNome || '—')}</div>
+              <div><span class="text-muted">Dias:</span> ${UI.escape(dias)}</div>
+              <div><span class="text-muted">Horário:</span> ${UI.escape(hora)}</div>
+              <div><span class="text-muted">Nível:</span> ${UI.escape(nivel)}</div>
+              <div><span class="text-muted">Vagas:</span> ${vagasLivre !== null ? `${vagasLivre} disponível${vagasLivre !== 1 ? 'is' : ''}` : '—'}</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;">
+            ${inscrito
+              ? `<button class="btn btn-secondary btn-sm" onclick="TurmasModule.cancelarInscricaoAluno('${inscricaoId}')">Cancelar inscrição</button>`
+              : semVaga
+              ? `<button class="btn btn-secondary btn-sm" disabled title="Sem vagas">Sem vagas</button>`
+              : `<button class="btn btn-primary btn-sm" onclick="TurmasModule.inscreverAluno('${t.id}')">Inscrever-se</button>`
+            }
+          </div>
+        </div>`;
+    }).join('');
+
+    return `
+      <div style="margin-bottom:12px;">
+        <span class="badge badge-success">${Object.keys(inscritosMap).length} grade${Object.keys(inscritosMap).length !== 1 ? 's' : ''} inscrito</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;">${cards}</div>`;
+  },
+
+  inscreverAluno(turmaId) {
+    const session = Auth.getSession();
+    if (!session) return;
+    const turma = Storage.getById(this.SK, turmaId);
+    if (!turma) return;
+
+    // Verifica se já está inscrito
+    const jaInscrito = Storage.getAll(this.SK_INSCR)
+      .find(i => i.turmaId === turmaId &&
+        (session.alunoId ? i.alunoId === session.alunoId : i.alunoNome === session.nome));
+    if (jaInscrito) return;
+
+    Storage.create(this.SK_INSCR, {
+      turmaId,
+      turmaNome:      turma.nome,
+      alunoId:        session.alunoId || session.id,
+      alunoNome:      session.nome,
+      status:         'ativo',
+      dataInscricao:  new Date().toISOString(),
+    });
+
+    UI.toast(`Inscrição na grade "${turma.nome}" realizada!`, 'success');
+    this._reRenderContent();
+  },
+
+  async cancelarInscricaoAluno(inscricaoId) {
+    const inscricao = Storage.getById(this.SK_INSCR, inscricaoId);
+    if (!inscricao) return;
+    const ok = await UI.confirm(`Cancelar inscrição na grade "${inscricao.turmaNome}"?`, 'Cancelar inscrição');
+    if (!ok) return;
+    Storage.delete(this.SK_INSCR, inscricaoId);
+    UI.toast('Inscrição cancelada.', 'success');
+    this._reRenderContent();
+  },
+
+  /* ================================================================== */
+  /*  ABA 2 — Aulas                                                      */
+  /* ================================================================== */
+
+  _renderAulas() {
+    const session     = Auth.getSession();
+    const isProfessor = session?.perfil === 'professor';
+    const isAluno     = session?.perfil === 'aluno';
+
+    // Auto-filtro para professor ou aluno
+    if ((isProfessor || isAluno) && !this._state.aulaFilterTurma) {
+      this._state.aulaFilterTurma = '__meu__';
+    }
+
+    const hoje = new Date().toISOString().slice(0, 10);
+
+    // Coleta aulas
+    let aulas = Storage.getAll(this.SK_AULA);
+
+    if (this._state.aulaFilterTurma === '__meu__') {
+      let minhasTurmas;
+      if (isProfessor) {
+        minhasTurmas = new Set(
+          Storage.getAll(this.SK).filter(t =>
+            session.professorId ? t.professorId === session.professorId : t.professorNome === session.nome
+          ).map(t => t.id)
+        );
+      } else if (isAluno) {
+        minhasTurmas = new Set(
+          Storage.getAll(this.SK_INSCR)
+            .filter(i => session.alunoId ? i.alunoId === session.alunoId : i.alunoNome === session.nome)
+            .map(i => i.turmaId)
+        );
+      } else {
+        minhasTurmas = new Set(Storage.getAll(this.SK).map(t => t.id));
+      }
+      aulas = aulas.filter(a => minhasTurmas.has(a.turmaId));
+    } else if (this._state.aulaFilterTurma) {
+      aulas = aulas.filter(a => a.turmaId === this._state.aulaFilterTurma);
+    }
+
+    if (this._state.aulaFilterData) {
+      aulas = aulas.filter(a => a.data === this._state.aulaFilterData);
+    }
+    if (this._state.aulaFilterSt) {
+      aulas = aulas.filter(a => a.status === this._state.aulaFilterSt);
+    }
+    if (this._state.aulaFilterArena) {
+      aulas = aulas.filter(a => a.arenaId === this._state.aulaFilterArena);
+    }
+
+    aulas = aulas.sort((a, b) => {
+      const d = (b.data || '').localeCompare(a.data || '');
+      return d !== 0 ? d : (a.horarioInicio || '').localeCompare(b.horarioInicio || '');
+    });
+
+    // Opções de turma para o filtro
+    const turmas = Storage.getAll(this.SK).sort((a, b) => a.nome.localeCompare(b.nome));
+    const minhaLabel = isProfessor ? 'Minhas grades' : isAluno ? 'Minhas grades' : '';
+    let turmaOpts = `<option value="">Todas as grades</option>`;
+    if (isProfessor || isAluno) {
+      turmaOpts = `<option value="__meu__" ${this._state.aulaFilterTurma === '__meu__' ? 'selected' : ''}>${minhaLabel}</option>
+        <option value="">Todas as grades</option>`;
+    }
+    turmaOpts += turmas.map(t =>
+      `<option value="${t.id}" ${this._state.aulaFilterTurma === t.id ? 'selected' : ''}>${UI.escape(t.nome)}</option>`
+    ).join('');
+
+    const statusOpts = `<option value="">Todos os status</option>` +
+      Object.entries(this.STATUS_AULA).map(([k, v]) =>
+        `<option value="${k}" ${this._state.aulaFilterSt === k ? 'selected' : ''}>${v.label}</option>`
+      ).join('');
+
+    const arenas = Storage.getAll('arenas').sort((a, b) => a.nome.localeCompare(b.nome));
+    const arenaOpts = `<option value="">Todas as arenas</option>` +
+      arenas.map(a =>
+        `<option value="${a.id}" ${this._state.aulaFilterArena === a.id ? 'selected' : ''}>${UI.escape(a.nome)}</option>`
+      ).join('');
+
+    const rows = aulas.map(a => {
+      const st      = this.STATUS_AULA[a.status] || { label: a.status, badge: 'badge-gray' };
+      const [y,m,d] = (a.data || '').split('-');
+      const dataFmt = a.data ? `${d}/${m}/${y}` : '—';
+      const hora    = [a.horarioInicio, a.horarioFim].filter(Boolean).join(' – ') || '—';
+      const isHoje  = a.data === hoje;
+      const pStats  = PresencaModule.getStats(a.id);
+      const presTag = pStats.total
+        ? `<span class="badge badge-success" style="font-size:0.7rem;">${pStats.presentes}/${pStats.total}</span>`
+        : '<span class="text-muted text-sm">—</span>';
+
+      // Alunos inscritos na grade desta aula
+      const inscritos = a.turmaId
+        ? Storage.getAll(this.SK_INSCR).filter(i => i.turmaId === a.turmaId && i.status === 'ativo')
+        : [];
+      const alunosHtml = inscritos.length
+        ? inscritos.slice(0, 4).map(i =>
+            `<span class="turma-aluno-chip" title="${UI.escape(i.alunoNome)}">${UI.escape(i.alunoNome.split(' ')[0])}</span>`
+          ).join('') + (inscritos.length > 4 ? `<span class="turma-aluno-chip">+${inscritos.length - 4}</span>` : '')
+        : '<span class="text-muted text-sm">—</span>';
+
+      // Botões de ação rápida
+      let acoes = '';
+      if (a.status === 'agendada' || a.status === 'em_andamento') {
+        acoes += `<button class="btn btn-ghost btn-sm" title="Lançar presença"
+          onclick="TurmasModule.abrirPresencaRapida('${a.id}')">📋</button>`;
+      }
+      if (a.status === 'agendada') {
+        acoes += `<button class="btn btn-ghost btn-sm" title="Iniciar aula"
+          onclick="TurmasModule.professorCheckin('${a.id}')">▶</button>`;
+      }
+      if (a.status === 'em_andamento') {
+        acoes += `<button class="btn btn-ghost btn-sm" title="Concluir aula"
+          onclick="TurmasModule.professorCheckout('${a.id}')">■</button>`;
+      }
+      // Botão reposição: aluno vê nas suas aulas agendadas; admin/recepção vê em todas
+      if (isAluno && a.status === 'agendada') {
+        const estaInscrito = a.turmaId && Storage.getAll(this.SK_INSCR).find(i =>
+          i.turmaId === a.turmaId &&
+          (session.alunoId ? i.alunoId === session.alunoId : i.alunoNome === session.nome)
+        );
+        if (estaInscrito) {
+          acoes += `<button class="btn btn-ghost btn-sm" title="Solicitar reposição"
+            onclick="TurmasModule.solicitarReposicao('${a.id}')">🔄</button>`;
+        }
+      } else if (!isAluno && !isProfessor && a.status === 'agendada') {
+        acoes += `<button class="btn btn-ghost btn-sm" title="Agendar reposição"
+          onclick="TurmasModule.solicitarReposicaoAdmin('${a.id}')">🔄</button>`;
+      }
+      acoes += `<button class="btn btn-ghost btn-sm" title="Detalhe"
+        onclick="TurmasModule.openModalAulaDetalhe('${a.id}')">👁</button>`;
+      if (!isAluno) {
+        acoes += `<button class="btn btn-ghost btn-sm" title="Editar"
+          onclick="TurmasModule.openModalAula('${a.id}')">✏️</button>`;
+      }
+
+      return `
+        <tr ${isHoje ? 'style="background:var(--today-row,rgba(59,130,246,0.05));"' : ''}>
+          <td>
+            <div class="aluno-nome">${UI.escape(a.titulo)}</div>
+            <div class="aluno-sub">${UI.escape(a.nivel ? (this.NIVEL[a.nivel] || a.nivel) : '')}</div>
+          </td>
+          <td>
+            <div style="font-size:13px;font-weight:600;">${UI.escape(a.turmaNome || '—')}</div>
+            <div class="aluno-sub">${UI.escape(a.arenaNome || '—')}</div>
+          </td>
+          <td>
+            <div style="font-weight:600;">${dataFmt}${isHoje ? ' <span class="badge badge-blue" style="font-size:0.65rem;">Hoje</span>' : ''}</div>
+            <div class="aluno-sub">${UI.escape(hora)}</div>
+          </td>
+          <td><div class="turma-alunos-chips">${alunosHtml}</div></td>
+          <td>${UI.escape(a.professorNome || '—')}</td>
+          <td><span class="badge ${st.badge}">${st.label}</span></td>
+          <td>${presTag}</td>
+          <td class="aluno-row-actions">${acoes}</td>
+        </tr>`;
+    }).join('');
+
+    return `
+      <div class="filters-bar">
+        <select class="filter-select" style="min-width:200px;"
+          onchange="TurmasModule._state.aulaFilterTurma=this.value;TurmasModule._reRenderContent()">
+          ${turmaOpts}
+        </select>
+        <input type="date" class="filter-select"
+          value="${this._state.aulaFilterData}"
+          onchange="TurmasModule._state.aulaFilterData=this.value;TurmasModule._reRenderContent()" />
+        <select class="filter-select"
+          onchange="TurmasModule._state.aulaFilterArena=this.value;TurmasModule._reRenderContent()">
+          ${arenaOpts}
+        </select>
+        <select class="filter-select"
+          onchange="TurmasModule._state.aulaFilterSt=this.value;TurmasModule._reRenderContent()">
+          ${statusOpts}
+        </select>
+        <span class="results-count">${aulas.length} aula${aulas.length !== 1 ? 's' : ''}</span>
+      </div>
+      ${aulas.length ? `
+        <div class="table-card">
+          <table class="data-table">
+            <thead><tr>
+              <th>Aula</th><th>Grade</th><th>Período</th>
+              <th>Alunos</th><th>Professor</th><th>Status</th><th>Presença</th><th></th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>` : `
+        <div class="empty-state">
+          <div class="empty-icon">🏸</div>
+          <div class="empty-title">Nenhuma aula encontrada</div>
+          <div class="empty-desc">Ajuste os filtros ou gere aulas a partir da aba Grade.</div>
+        </div>`}`;
+  },
+
+  /* Lança presença rápida: todos presentes por padrão, desmarca faltosos */
+  abrirPresencaRapida(aulaId) {
+    const aula = Storage.getById(this.SK_AULA, aulaId);
+    if (!aula) return;
+
+    const inscritos = aula.turmaId
+      ? this.getAlunosInscritos(aula.turmaId)
+      : [];
+
+    if (!inscritos.length) {
+      UI.toast('Nenhum aluno inscrito nesta turma. Adicione alunos antes de lançar presença.', 'warning');
+      return;
+    }
+
+    const presencas   = Storage.getAll('presencas');
+    const [y, m, d]   = (aula.data || '').split('-');
+    const dataFmt     = aula.data ? `${d}/${m}/${y}` : '—';
+    const hora        = [aula.horarioInicio, aula.horarioFim].filter(Boolean).join(' – ') || '';
+
+    // Alunos de reposição nesta aula
+    const repostos = Storage.getAll('reposicoes')
+      .filter(r => r.aulaReposicaoId === aulaId && r.status === 'agendada');
+
+    // Combina inscritos regulares + alunos de reposição (sem duplicar)
+    const inscritosIds = new Set(inscritos.map(i => i.alunoId));
+    const todosAlunos = [
+      ...inscritos.map(i => ({ alunoId: i.alunoId, alunoNome: i.alunoNome, reposicao: false })),
+      ...repostos.filter(r => !inscritosIds.has(r.alunoId))
+                 .map(r => ({ alunoId: r.alunoId, alunoNome: r.alunoNome, reposicao: true, repId: r.id })),
+    ];
+
+    const rows = todosAlunos.map(insc => {
+      const reg = presencas.find(p => p.aulaId === aulaId && p.alunoId === insc.alunoId);
+      const presente = reg ? reg.presente : true;
+      const repBadge = insc.reposicao
+        ? `<span class="badge badge-warning" style="font-size:0.65rem;margin-left:4px;" title="Reposição">R</span>`
+        : '';
+      return `
+        <tr>
+          <td>${UI.escape(insc.alunoNome)}${repBadge}</td>
+          <td style="text-align:center;">
+            <label style="display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;">
+              <input type="checkbox" class="presenca-check"
+                data-aluno-id="${insc.alunoId}"
+                data-aluno-nome="${UI.escape(insc.alunoNome)}"
+                data-reposicao-id="${insc.repId || ''}"
+                ${presente ? 'checked' : ''} />
+              <span class="presenca-label">${presente ? '✅ Presente' : '❌ Faltou'}</span>
+            </label>
+          </td>
+        </tr>`;
+    }).join('');
+
+    const content = `
+      <div class="info-box" style="margin-bottom:12px;">
+        <strong>${UI.escape(aula.titulo)}</strong>
+        <span class="text-muted" style="margin-left:8px;">${dataFmt}${hora ? ' · ' + hora : ''}</span>
+      </div>
+      <p class="text-muted text-sm" style="margin-bottom:8px;">Todos marcados como <strong>presentes</strong> por padrão. Desmarque quem faltou.</p>
+      <div class="table-card" style="margin:0;">
+        <table class="data-table">
+          <thead><tr><th>Aluno</th><th style="text-align:center;">Presença</th></tr></thead>
+          <tbody id="presenca-rapida-rows">${rows}</tbody>
+        </table>
+      </div>`;
+
+    // Atualiza label ao clicar
+    setTimeout(() => {
+      document.querySelectorAll('.presenca-check').forEach(cb => {
+        cb.addEventListener('change', () => {
+          const label = cb.parentElement.querySelector('.presenca-label');
+          if (label) label.textContent = cb.checked ? '✅ Presente' : '❌ Faltou';
+        });
+      });
+    }, 100);
+
+    UI.openModal({
+      title:        `Presença — ${aula.titulo}`,
+      content,
+      confirmLabel: 'Salvar Presença',
+      onConfirm:    () => this._salvarPresencaRapida(aulaId, aula),
+    });
+  },
+
+  _salvarPresencaRapida(aulaId, aula) {
+    const checks   = document.querySelectorAll('.presenca-check');
+    const presencas = Storage.getAll('presencas');
+    let salvos = 0;
+
+    checks.forEach(cb => {
+      const alunoId     = cb.dataset.alunoId;
+      const alunoNome   = cb.dataset.alunoNome;
+      const presente    = cb.checked;
+      const reposicaoId = cb.dataset.reposicaoId;
+      const existing    = presencas.find(p => p.aulaId === aulaId && p.alunoId === alunoId);
+
+      if (existing) {
+        Storage.update('presencas', existing.id, { presente });
+      } else {
+        Storage.create('presencas', {
+          aulaId,
+          alunoId,
+          alunoNome,
+          turmaId:   aula.turmaId   || '',
+          turmaNome: aula.turmaNome || '',
+          data:      aula.data      || '',
+          presente,
+        });
+      }
+      // Marca reposição como concluída se aluno esteve presente
+      if (reposicaoId && presente) {
+        Storage.update('reposicoes', reposicaoId, { status: 'concluida' });
+      }
+      salvos++;
+    });
+
+    // Marca a aula como concluída se ainda estiver agendada/em andamento
+    if (['agendada', 'em_andamento'].includes(aula.status)) {
+      Storage.update(this.SK_AULA, aulaId, { status: 'concluida' });
+    }
+
+    UI.closeModal();
+    UI.toast(`Presença de ${salvos} aluno${salvos !== 1 ? 's' : ''} salva! Aula marcada como concluída.`, 'success');
+    this._reRenderContent();
+  },
+
+  /* ================================================================== */
+  /*  REPOSIÇÃO DE AULAS                                                  */
+  /* ================================================================== */
+
+  _syncReposicoes() {
+    const hoje = new Date().toISOString().slice(0, 10);
+    Storage.getAll('reposicoes')
+      .filter(r => r.status === 'agendada' && r.dataLimite < hoje)
+      .forEach(r => Storage.update('reposicoes', r.id, { status: 'perdida' }));
+  },
+
+  _getSaldoReposicao(alunoId, alunoNome, turmaId, ano, mes) {
+    const mesStr   = `${ano}-${mes}`;
+    const total    = Storage.getAll(this.SK_AULA)
+      .filter(a => a.turmaId === turmaId && (a.data || '').startsWith(mesStr) && a.status !== 'cancelada')
+      .length;
+    const maxRep   = Math.floor(total * 0.5);
+    const usadas   = Storage.getAll('reposicoes')
+      .filter(r =>
+        r.turmaId === turmaId &&
+        (alunoId ? r.alunoId === alunoId : r.alunoNome === alunoNome) &&
+        (r.aulaOriginalData || '').startsWith(mesStr) &&
+        r.status !== 'perdida'
+      ).length;
+    return Math.max(0, maxRep - usadas);
+  },
+
+  _modalReposicao(aulaId, alunoId, alunoNome, onConfirm) {
+    this._syncReposicoes();
+    const aula = Storage.getById(this.SK_AULA, aulaId);
+    if (!aula || !aula.turmaId) return;
+
+    const [ano, mes, dia] = (aula.data || '').split('-');
+    const dataFmt  = aula.data ? `${dia}/${mes}/${ano}` : '—';
+    const saldo    = this._getSaldoReposicao(alunoId, alunoNome, aula.turmaId, ano, mes);
+
+    const hoje     = new Date().toISOString().slice(0, 10);
+    const limite   = new Date(aula.data + 'T00:00:00');
+    limite.setDate(limite.getDate() + 30);
+    const limStr   = limite.toISOString().slice(0, 10);
+
+    const proximas = Storage.getAll(this.SK_AULA)
+      .filter(a =>
+        a.turmaId === aula.turmaId &&
+        a.id !== aulaId &&
+        a.data > hoje &&
+        a.data <= limStr &&
+        a.status === 'agendada'
+      )
+      .sort((a, b) => a.data.localeCompare(b.data));
+
+    const aulaOpts = proximas.map(a => {
+      const [ay, am, ad] = (a.data || '').split('-');
+      const df  = `${ad}/${am}/${ay}`;
+      const hr  = [a.horarioInicio, a.horarioFim].filter(Boolean).join(' – ');
+      const ins = Storage.getAll(this.SK_INSCR).filter(i => i.turmaId === a.turmaId && i.status === 'ativo').length;
+      const vg  = a.vagas > 0 ? Math.max(0, a.vagas - ins) : null;
+      const vgLabel = vg !== null ? `${vg} vaga${vg !== 1 ? 's' : ''}` : 'sem limite';
+      return `<option value="${a.id}">${df} · ${hr} · ${vgLabel}</option>`;
+    }).join('');
+
+    const semVaga  = !proximas.length;
+    const semSaldo = saldo <= 0;
+
+    const content = `
+      <div class="info-box" style="margin-bottom:12px;">
+        <div><strong>Aluno:</strong> ${UI.escape(alunoNome)}</div>
+        <div><strong>Aula:</strong> ${UI.escape(aula.titulo)} — ${dataFmt}</div>
+        <div><strong>Grade:</strong> ${UI.escape(aula.turmaNome || '—')}</div>
+        <div style="margin-top:8px;">
+          <span class="badge ${saldo > 0 ? 'badge-success' : 'badge-danger'}">
+            Saldo de reposições neste mês: ${saldo}
+          </span>
+        </div>
+      </div>
+      ${semSaldo ? `<div class="login-error" style="display:flex;margin-bottom:12px;">Limite de 50% de reposições atingido para este mês.</div>` : ''}
+      ${!semVaga ? `
+        <div class="form-group">
+          <label class="form-label">Escolha a aula de reposição <span class="required-star">*</span></label>
+          <select id="rep-aula-sel" class="form-select" ${semSaldo ? 'disabled' : ''}>
+            <option value="">— Selecionar data —</option>
+            ${aulaOpts}
+          </select>
+          <div class="form-hint" style="margin-top:4px;">Próximas aulas da mesma grade nos próximos 30 dias.</div>
+        </div>` : `
+        <div class="empty-state" style="padding:16px 0;">
+          <div class="empty-icon">📅</div>
+          <div class="empty-title" style="font-size:14px;">Nenhuma aula disponível</div>
+          <div class="empty-desc">Não há aulas agendadas nesta grade nos próximos 30 dias.</div>
+        </div>`}`;
+
+    UI.openModal({
+      title:        '🔄 Solicitar Reposição',
+      content,
+      confirmLabel: 'Confirmar Reposição',
+      cancelLabel:  (!semVaga && !semSaldo) ? 'Cancelar' : 'Fechar',
+      hideFooter:   semVaga || semSaldo,
+      onConfirm:    () => onConfirm(aula),
+    });
+  },
+
+  solicitarReposicao(aulaId) {
+    const session   = Auth.getSession();
+    const alunoId   = session?.alunoId || session?.id;
+    const alunoNome = session?.nome;
+    this._modalReposicao(aulaId, alunoId, alunoNome, (aula) => {
+      this._confirmarReposicao(aulaId, alunoId, alunoNome, aula);
+    });
+  },
+
+  solicitarReposicaoAdmin(aulaId) {
+    const aula = Storage.getById(this.SK_AULA, aulaId);
+    if (!aula || !aula.turmaId) return;
+
+    const inscritos = Storage.getAll(this.SK_INSCR)
+      .filter(i => i.turmaId === aula.turmaId && i.status === 'ativo')
+      .sort((a, b) => a.alunoNome.localeCompare(b.alunoNome));
+
+    if (!inscritos.length) {
+      UI.toast('Nenhum aluno inscrito nesta grade.', 'warning');
+      return;
+    }
+
+    const opts = `<option value="">— Selecionar aluno —</option>` +
+      inscritos.map(i => `<option value="${i.alunoId}" data-nome="${UI.escape(i.alunoNome)}">${UI.escape(i.alunoNome)}</option>`).join('');
+
+    UI.openModal({
+      title:        '🔄 Reposição — Selecionar Aluno',
+      content:      `<div class="form-group">
+        <label class="form-label">Aluno <span class="required-star">*</span></label>
+        <select id="rep-aluno-sel" class="form-select">${opts}</select>
+      </div>`,
+      confirmLabel: 'Continuar',
+      onConfirm: () => {
+        const sel  = document.getElementById('rep-aluno-sel');
+        const opt  = sel?.selectedOptions[0];
+        if (!sel?.value) { UI.toast('Selecione um aluno.', 'warning'); return; }
+        const alunoId   = sel.value;
+        const alunoNome = opt?.dataset?.nome || opt?.textContent || '';
+        UI.closeModal();
+        setTimeout(() => {
+          this._modalReposicao(aulaId, alunoId, alunoNome, (aula) => {
+            this._confirmarReposicao(aulaId, alunoId, alunoNome, aula);
+          });
+        }, 350);
+      },
+    });
+  },
+
+  _confirmarReposicao(aulaOriginalId, alunoId, alunoNome, aulaOriginal) {
+    const sel = document.getElementById('rep-aula-sel');
+    if (!sel?.value) { UI.toast('Selecione uma aula de reposição.', 'warning'); return; }
+
+    const aulaRep = Storage.getById(this.SK_AULA, sel.value);
+    if (!aulaRep) return;
+
+    const limite = new Date((aulaOriginal.data || '') + 'T00:00:00');
+    limite.setDate(limite.getDate() + 30);
+
+    Storage.create('reposicoes', {
+      alunoId,
+      alunoNome,
+      turmaId:          aulaOriginal.turmaId,
+      turmaNome:        aulaOriginal.turmaNome || '',
+      aulaOriginalId,
+      aulaOriginalData: aulaOriginal.data,
+      aulaReposicaoId:  aulaRep.id,
+      aulaReposicaoData:aulaRep.data,
+      dataLimite:       limite.toISOString().slice(0, 10),
+      status:           'agendada',
+    });
+
+    UI.toast(`Reposição agendada para ${aulaRep.data.split('-').reverse().join('/')}!`, 'success');
+    UI.closeModal();
+    this._reRenderContent();
+  },
+
+  /* ================================================================== */
+  /*  ABA 3 — Calendário                                                 */
   /* ================================================================== */
 
   _renderCalendario() {
@@ -258,12 +872,32 @@ const TurmasModule = {
       .toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
     const titulo = mesNome.charAt(0).toUpperCase() + mesNome.slice(1);
 
+    const arenas = Storage.getAll('arenas').sort((a, b) => a.nome.localeCompare(b.nome));
+    const arenaOpts = `<option value="">Todas as arenas</option>` +
+      arenas.map(a =>
+        `<option value="${a.id}" ${this._state.calFilterArena === a.id ? 'selected' : ''}>${UI.escape(a.nome)}</option>`
+      ).join('');
+
+    const turmas = Storage.getAll(this.SK).sort((a, b) => a.nome.localeCompare(b.nome));
+    const turmaOpts = `<option value="">Todas as turmas</option>` +
+      turmas.map(t =>
+        `<option value="${t.id}" ${this._state.calFilterTurma === t.id ? 'selected' : ''}>${UI.escape(t.nome)}</option>`
+      ).join('');
+
     return `
       <div class="cal-header">
         <button class="btn btn-ghost btn-sm cal-nav" onclick="TurmasModule._navCal(-1)">&#8249;</button>
         <span class="cal-title">${titulo}</span>
         <button class="btn btn-ghost btn-sm cal-nav" onclick="TurmasModule._navCal(1)">&#8250;</button>
         <button class="btn btn-secondary btn-sm" style="margin-left:12px;" onclick="TurmasModule._navCalHoje()">Hoje</button>
+        <select class="filter-select" style="margin-left:auto;"
+          onchange="TurmasModule._state.calFilterArena=this.value;TurmasModule._reRenderContent()">
+          ${arenaOpts}
+        </select>
+        <select class="filter-select"
+          onchange="TurmasModule._state.calFilterTurma=this.value;TurmasModule._reRenderContent()">
+          ${turmaOpts}
+        </select>
       </div>
       ${this._renderGrade(calAno, calMes)}`;
   },
@@ -296,7 +930,12 @@ const TurmasModule = {
     const fimStr    = `${ano}-${mesStr}-${String(diasDoMes).padStart(2, '0')}`;
 
     const aulasDoMes = Storage.getAll(this.SK_AULA)
-      .filter(a => a.data && a.data >= inicioStr && a.data <= fimStr)
+      .filter(a => {
+        if (!a.data || a.data < inicioStr || a.data > fimStr) return false;
+        if (this._state.calFilterArena && a.arenaId !== this._state.calFilterArena) return false;
+        if (this._state.calFilterTurma && a.turmaId !== this._state.calFilterTurma) return false;
+        return true;
+      })
       .sort((a, b) => (a.horarioInicio || '').localeCompare(b.horarioInicio || ''));
 
     const hoje    = new Date();

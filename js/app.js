@@ -9,11 +9,11 @@ const App = {
     { route: 'dashboard',   icon: '📊', label: 'Dashboard'            },
     { route: 'arenas',      icon: '🏟️', label: 'Arenas'              },
     { route: 'alunos',      icon: '👥', label: 'Alunos'              },
-    { route: 'matriculas',  icon: '📝', label: 'Matrículas'          },
     { route: 'planos',      icon: '📋', label: 'Planos de Contratação'},
     { route: 'professores', icon: '🎓', label: 'Professores'         },
-    { route: 'turmas',      icon: '🏸', label: 'Turmas'              },
+    { route: 'turmas',      icon: '🏸', label: 'Grade'               },
     { route: 'eventos',     icon: '🏆', label: 'Eventos'             },
+    { route: 'dayuse',      icon: '🚪', label: 'Day Use'             },
     { route: 'financeiro',  icon: '💰', label: 'Financeiro'          },
     { route: 'manutencao',  icon: '🔧', label: 'Manutenção'          },
     { route: 'relatorios',  icon: '📈', label: 'Relatórios'          },
@@ -22,19 +22,23 @@ const App = {
   ],
 
   SEED_PERFIS: [
-    { key: 'admin',         label: 'Administrador',    descricao: 'Acesso total ao sistema, incluindo gestão de usuários',    cor: 'badge-danger',  modulos: ['dashboard','arenas','alunos','matriculas','planos','professores','turmas','eventos','financeiro','manutencao','relatorios','cadastros','admin'] },
-    { key: 'gerente',       label: 'Gerente',          descricao: 'Acesso a todos os módulos operacionais',                   cor: 'badge-warning', modulos: ['dashboard','arenas','alunos','matriculas','planos','professores','turmas','eventos','financeiro','manutencao','relatorios','cadastros'] },
-    { key: 'recepcionista', label: 'Recepcionista',    descricao: 'Atendimento ao aluno, matrículas e turmas',               cor: 'badge-blue',    modulos: ['dashboard','alunos','matriculas','turmas','eventos'] },
-    { key: 'financeiro',    label: 'Financeiro',       descricao: 'Controle financeiro e planos de contratação',              cor: 'badge-success', modulos: ['dashboard','financeiro','planos','alunos','matriculas','relatorios'] },
+    { key: 'admin',         label: 'Administrador',    descricao: 'Acesso total ao sistema, incluindo gestão de usuários',    cor: 'badge-danger',  modulos: ['dashboard','arenas','alunos','planos','professores','turmas','eventos','dayuse','financeiro','manutencao','relatorios','cadastros','admin'] },
+    { key: 'gerente',       label: 'Gerente',          descricao: 'Acesso a todos os módulos operacionais',                   cor: 'badge-warning', modulos: ['dashboard','arenas','alunos','planos','professores','turmas','eventos','dayuse','financeiro','manutencao','relatorios','cadastros'] },
+    { key: 'recepcionista', label: 'Recepcionista',    descricao: 'Atendimento ao aluno, matrículas e turmas',               cor: 'badge-blue',    modulos: ['dashboard','alunos','turmas','eventos','dayuse'] },
+    { key: 'financeiro',    label: 'Financeiro',       descricao: 'Controle financeiro e planos de contratação',              cor: 'badge-success', modulos: ['dashboard','financeiro','planos','alunos','dayuse','relatorios'] },
     { key: 'manutencao',    label: 'Manutenção',       descricao: 'Gestão de arenas e chamados de manutenção',               cor: 'badge-gray',    modulos: ['dashboard','arenas','manutencao'] },
+    { key: 'professor',     label: 'Professor',        descricao: 'Acesso às grades e aulas do próprio professor',            cor: 'badge-blue',    modulos: ['dashboard','turmas'] },
+    { key: 'aluno',         label: 'Aluno',            descricao: 'Acesso às grades e aulas em que está inscrito',             cor: 'badge-success', modulos: ['dashboard','turmas'] },
   ],
 
   SEED_USUARIOS: [
-    { nome: 'Administrador',    login: 'admin',    email: 'admin@pickle.com',    perfil: 'admin',         status: 'ativo',   senha: 'YWRtaW4xMjM=' },
-    { nome: 'João Gerente',     login: 'gerente',  email: 'gerente@pickle.com',  perfil: 'gerente',       status: 'ativo',   senha: 'MTIzNDU2'     },
-    { nome: 'Maria Recepção',   login: 'recepcao', email: 'recepcao@pickle.com', perfil: 'recepcionista', status: 'ativo',   senha: 'MTIzNDU2'     },
-    { nome: 'Pedro Financeiro', login: 'financ',   email: 'fin@pickle.com',      perfil: 'financeiro',    status: 'ativo',   senha: 'MTIzNDU2'     },
-    { nome: 'Carlos Manutenção',login: 'manut',    email: 'manut@pickle.com',    perfil: 'manutencao',    status: 'inativo', senha: 'MTIzNDU2'     },
+    { nome: 'Administrador',    login: 'admin',       email: 'admin@pickle.com',    perfil: 'admin',         status: 'ativo',   senha: 'YWRtaW4xMjM=' },
+    { nome: 'João Gerente',     login: 'gerente',     email: 'gerente@pickle.com',  perfil: 'gerente',       status: 'ativo',   senha: 'MTIzNDU2'     },
+    { nome: 'Maria Recepção',   login: 'recepcao',    email: 'recepcao@pickle.com', perfil: 'recepcionista', status: 'ativo',   senha: 'MTIzNDU2'     },
+    { nome: 'Pedro Financeiro', login: 'financ',      email: 'fin@pickle.com',      perfil: 'financeiro',    status: 'ativo',   senha: 'MTIzNDU2'     },
+    { nome: 'Carlos Manutenção',login: 'manut',       email: 'manut@pickle.com',    perfil: 'manutencao',    status: 'inativo', senha: 'MTIzNDU2'     },
+    { nome: 'Ricardo Alves',    login: 'prof.ricardo',email: 'prof@pickle.com',     perfil: 'professor',     status: 'ativo',   senha: 'cHJvZjEyMw==' },
+    { nome: 'Ana Paula Ferreira',login: 'ana.paula',  email: 'aluno@pickle.com',    perfil: 'aluno',         status: 'ativo',   senha: 'YWx1bm8xMjM=' },
   ],
 
   SEED_ARENAS: [
@@ -184,10 +188,12 @@ const App = {
    */
   _migratePerfis() {
     const novosPorPerfil = {
-      admin:         ['matriculas', 'relatorios', 'turmas'],
-      gerente:       ['matriculas', 'relatorios', 'turmas'],
-      recepcionista: ['matriculas', 'turmas'],
-      financeiro:    ['matriculas', 'relatorios'],
+      admin:         ['relatorios', 'turmas', 'dayuse'],
+      gerente:       ['relatorios', 'turmas', 'dayuse'],
+      recepcionista: ['turmas', 'dayuse'],
+      financeiro:    ['relatorios', 'dayuse'],
+      professor:     ['turmas'],
+      aluno:         ['turmas'],
     };
 
     const perfis = Storage.getAll('perfis');
@@ -235,7 +241,6 @@ const App = {
       .add('dashboard',   () => Auth.hasPermission('dashboard')   ? renderStub('dashboard')          : this._forbidden())
       .add('arenas',      () => Auth.hasPermission('arenas')      ? ArenaModule.render()             : this._forbidden())
       .add('alunos',      () => Auth.hasPermission('alunos')      ? AlunoModule.render()             : this._forbidden())
-      .add('matriculas',  () => Auth.hasPermission('matriculas')  ? MatriculaModule.render()         : this._forbidden())
       .add('planos',      () => Auth.hasPermission('planos')      ? PlanoModule.render()             : this._forbidden())
       .add('professores', () => Auth.hasPermission('professores') ? ProfessorModule.render()         : this._forbidden())
       .add('turmas',      () => Auth.hasPermission('turmas')      ? TurmasModule.render()            : this._forbidden())
@@ -244,6 +249,7 @@ const App = {
       .add('manutencao',  () => Auth.hasPermission('manutencao')  ? ManutencaoModule.render()        : this._forbidden())
       .add('relatorios',  () => Auth.hasPermission('relatorios')  ? RelatoriosModule.render()        : this._forbidden())
       .add('cadastros',   () => Auth.hasPermission('cadastros')   ? CadastrosModule.render()         : this._forbidden())
+      .add('dayuse',      () => Auth.hasPermission('dayuse')      ? DayUseModule.render()            : this._forbidden())
       .add('admin',       () => Auth.hasPermission('admin')       ? AdminModule.render()             : this._forbidden());
 
     Router.init();
@@ -300,7 +306,7 @@ const App = {
             <span class="badge ${cor}" style="font-size:10px;">${UI.escape(perfilLabel)}</span>
           </div>
           <div class="header-avatar" title="${UI.escape(session.nome)}">${session.avatar}</div>
-          <button class="btn btn-ghost btn-sm" onclick="Auth.logout()" title="Sair">⏻</button>
+          <button class="btn btn-ghost btn-sm" onclick="Auth.confirmLogout()" title="Sair">⏻</button>
         </div>`;
     }
 
@@ -314,7 +320,7 @@ const App = {
             <div class="sidebar-user-name">${UI.escape(session.nome)}</div>
             <div class="sidebar-user-perfil">${UI.escape(perfilLabel)}</div>
           </div>
-          <button class="btn btn-ghost btn-sm sidebar-logout" onclick="Auth.logout()" title="Sair">⏻</button>
+          <button class="btn btn-ghost btn-sm sidebar-logout" onclick="Auth.confirmLogout()" title="Sair">⏻</button>
         </div>`;
     }
   },

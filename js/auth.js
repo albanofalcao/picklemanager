@@ -69,11 +69,13 @@ const Auth = {
 
   setSession(user) {
     localStorage.setItem(this.SESSION_KEY, JSON.stringify({
-      id:     user.id,
-      nome:   user.nome,
-      login:  user.login,
-      perfil: user.perfil,
-      avatar: user.nome.trim().charAt(0).toUpperCase(),
+      id:          user.id,
+      nome:        user.nome,
+      login:       user.login,
+      perfil:      user.perfil,
+      professorId: user.professorId || null,
+      alunoId:     user.alunoId     || null,
+      avatar:      user.nome.trim().charAt(0).toUpperCase(),
     }));
   },
 
@@ -109,6 +111,27 @@ const Auth = {
     InactivityLock.stop();
     this.clearSession();
     window.location.reload();
+  },
+
+  async confirmLogout() {
+    const ok = await UI.confirm('Deseja realmente sair do sistema?', 'Sair');
+    if (ok) this.logout();
+  },
+
+  showEsqueciSenha() {
+    UI.openModal({
+      title: '🔑 Esqueci minha senha',
+      content: `
+        <div style="text-align:center;padding:8px 0;">
+          <p style="margin-bottom:12px;">As senhas são gerenciadas pelo administrador do sistema.</p>
+          <p style="margin-bottom:16px;">Entre em contato com o administrador para solicitar a redefinição da sua senha.</p>
+          <div class="info-box" style="background:var(--bg-secondary,#f4f4f4);border-radius:8px;padding:12px;text-align:left;">
+            <div style="margin-bottom:6px;"><strong>O administrador pode redefinir sua senha em:</strong></div>
+            <div>⚙️ Administração → Usuários → botão 🔑</div>
+          </div>
+        </div>`,
+      hideFooter: true,
+    });
   },
 
   showLogin() {

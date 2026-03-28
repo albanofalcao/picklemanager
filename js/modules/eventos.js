@@ -10,6 +10,7 @@ const EventoModule = {
     search:       '',
     filterStatus: '',
     filterTipo:   '',
+    filterArena:  '',
   },
 
   STATUS: {
@@ -51,7 +52,7 @@ const EventoModule = {
   },
 
   getFiltered() {
-    const { search, filterStatus, filterTipo } = this._state;
+    const { search, filterStatus, filterTipo, filterArena } = this._state;
     return this.getAll()
       .slice()
       .sort((a, b) => (b.data || '').localeCompare(a.data || ''))
@@ -63,7 +64,8 @@ const EventoModule = {
           (e.arenaNome && e.arenaNome.toLowerCase().includes(q));
         const matchStatus = !filterStatus || e.status === filterStatus;
         const matchTipo   = !filterTipo   || e.tipo   === filterTipo;
-        return matchSearch && matchStatus && matchTipo;
+        const matchArena  = !filterArena  || e.arenaId === filterArena;
+        return matchSearch && matchStatus && matchTipo && matchArena;
       });
   },
 
@@ -151,6 +153,12 @@ const EventoModule = {
           <option value="">Todos os tipos</option>
           ${CadastrosModule.getTiposEvento().map(t =>
             `<option value="${UI.escape(t.nome)}" ${this._state.filterTipo === t.nome ? 'selected' : ''}>${UI.escape(t.nome)}</option>`
+          ).join('')}
+        </select>
+        <select class="filter-select" onchange="EventoModule._state.filterArena=this.value;EventoModule.render()">
+          <option value="">Todas as arenas</option>
+          ${Storage.getAll('arenas').sort((a,b)=>a.nome.localeCompare(b.nome)).map(a =>
+            `<option value="${a.id}" ${this._state.filterArena === a.id ? 'selected' : ''}>${UI.escape(a.nome)}</option>`
           ).join('')}
         </select>
         <span class="results-count">
@@ -459,6 +467,7 @@ const EventoModule = {
     this._state.search       = '';
     this._state.filterStatus = '';
     this._state.filterTipo   = '';
+    this._state.filterArena  = '';
     this.render();
   },
 
