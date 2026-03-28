@@ -2756,29 +2756,58 @@ img, svg { display: block; max-width: 100%; }
   letter-spacing: 0.5px;
 }
 
+.cal-legenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.cal-legenda-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+.cal-legenda-cor {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
 .cal-cells {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
 }
 
 .cal-cell {
-  min-height: 90px;
+  min-height: 110px;
   border-right: 1px solid var(--card-border);
   border-bottom: 1px solid var(--card-border);
-  padding: 4px;
+  padding: 6px 5px 4px;
   vertical-align: top;
-  transition: background 0.1s;
+  transition: background 0.15s;
 }
 
 .cal-cell:nth-child(7n) { border-right: none; }
 
 .cal-cell-outside {
   background: var(--gray-light);
-  opacity: 0.5;
+  opacity: 0.4;
+}
+
+.cal-cell-fds {
+  background: color-mix(in srgb, var(--text-muted) 4%, transparent);
+}
+
+.cal-cell-passado {
+  opacity: 0.65;
 }
 
 .cal-cell-hoje {
-  background: color-mix(in srgb, var(--primary) 6%, transparent);
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
 }
 
 .cal-day-num {
@@ -2786,57 +2815,102 @@ img, svg { display: block; max-width: 100%; }
   font-weight: 600;
   color: var(--text-muted);
   line-height: 1;
-  padding: 2px 4px;
-  display: inline-block;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   margin-bottom: 4px;
-  border-radius: var(--radius-sm);
+  border-radius: 50%;
 }
 
 .cal-day-hoje {
   background: var(--primary);
   color: #fff;
   font-weight: 800;
-  min-width: 20px;
-  text-align: center;
+}
+
+.cal-dow-fds {
+  color: #ef4444 !important;
+  opacity: 0.85;
+}
+
+.cal-cell-fds .cal-day-num {
+  color: #ef4444;
 }
 
 .cal-events {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
 }
 
 .cal-event {
   display: flex;
-  align-items: center;
-  gap: 3px;
-  padding: 2px 5px;
-  border-radius: 3px;
-  border-left: 3px solid transparent;
-  background: var(--gray-light);
+  flex-direction: column;
+  gap: 1px;
+  padding: 3px 6px;
+  border-radius: 5px;
+  border-left: 3px solid var(--ev-cor, #6b7280);
+  background: color-mix(in srgb, var(--ev-cor, #6b7280) 12%, var(--card-bg));
   cursor: pointer;
-  transition: opacity 0.15s;
+  transition: transform 0.1s, box-shadow 0.1s;
   overflow: hidden;
 }
 
-.cal-event:hover { opacity: 0.8; }
+.cal-event:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0,0,0,.12);
+}
+
+.cal-ev-top {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cal-ev-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
 
 .cal-event-hora {
   font-size: 10px;
   font-weight: 700;
-  color: inherit;
+  color: var(--ev-cor, var(--text-secondary));
   flex-shrink: 0;
-  opacity: 0.85;
 }
 
 .cal-event-nome {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
-  color: inherit;
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+.cal-event-grade {
+  font-size: 10px;
+  color: var(--ev-cor, var(--text-muted));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+  opacity: 0.85;
+}
+
+.cal-event-mais {
+  font-size: 10px;
+  color: var(--primary);
+  font-weight: 600;
+  padding: 1px 4px;
+  cursor: pointer;
+  border-radius: 3px;
+}
+.cal-event-mais:hover { text-decoration: underline; }
 
 /* ============================================================
    Turmas — Frequência
@@ -2975,6 +3049,8 @@ img, svg { display: block; max-width: 100%; }
 /* Dark mode */
 [data-theme="dark"] .cal-cell-outside { background: rgba(255,255,255,.02); }
 [data-theme="dark"] .cal-cell-hoje    { background: rgba(var(--primary-rgb, 76,120,86), .12); }
+[data-theme="dark"] .cal-cell-fds     { background: rgba(255,255,255,.03); }
+[data-theme="dark"] .cal-event        { background: color-mix(in srgb, var(--ev-cor, #6b7280) 18%, var(--card-bg)); }
 [data-theme="dark"] .freq-col-aluno,
 [data-theme="dark"] .freq-aluno-nome  { background: var(--card-bg); }
 [data-theme="dark"] .info-box         { background: rgba(255,255,255,.04); }

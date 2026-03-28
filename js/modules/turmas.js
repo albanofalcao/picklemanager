@@ -919,6 +919,14 @@ const TurmasModule = {
     this._reRenderContent();
   },
 
+  _getGradeCor(turmaId) {
+    if (!turmaId) return '#6b7280';
+    const CORES = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#f97316','#ec4899','#14b8a6','#a855f7'];
+    const turmas = Storage.getAll(this.SK).sort((a, b) => a.nome.localeCompare(b.nome));
+    const idx    = turmas.findIndex(t => t.id === turmaId);
+    return CORES[idx >= 0 ? idx % CORES.length : 0];
+  },
+
   _renderGrade(ano, mes) {
     const primeiroDia = new Date(ano, mes, 1);
     const ultimoDia   = new Date(ano, mes + 1, 0);
@@ -941,33 +949,50 @@ const TurmasModule = {
     const hoje    = new Date();
     const hojeStr = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
 
-    const HEADER = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+    const HEADER  = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+    const WKEND   = [0, 6]; // domingo e sábado
     let cells = '';
 
     // Células em branco antes do dia 1
     for (let i = 0; i < inicioSem; i++) {
-      cells += `<div class="cal-cell cal-cell-outside"></div>`;
+      const diaSem = i;
+      cells += `<div class="cal-cell cal-cell-outside${WKEND.includes(diaSem) ? ' cal-cell-fds' : ''}"></div>`;
     }
 
     for (let d = 1; d <= diasDoMes; d++) {
-      const dataStr = `${ano}-${mesStr}-${String(d).padStart(2, '0')}`;
+      const dataStr   = `${ano}-${mesStr}-${String(d).padStart(2, '0')}`;
       const aulasHoje = aulasDoMes.filter(a => a.data === dataStr);
       const isHoje    = dataStr === hojeStr;
+      const isPast    = dataStr < hojeStr;
+      const diaSem    = new Date(ano, mes, d).getDay();
+      const isFds     = WKEND.includes(diaSem);
 
-      const eventos = aulasHoje.map(a => {
-        const cor = (this.STATUS_AULA[a.status] || {}).cor || '#6b7280';
+      const MAX = 3;
+      const visiveis = aulasHoje.slice(0, MAX);
+      const extras   = aulasHoje.length - MAX;
+
+      const eventos = visiveis.map(a => {
+        const cor   = this._getGradeCor(a.turmaId);
+        const hr    = (a.horarioInicio || '').slice(0, 5);
+        const st    = this.STATUS_AULA[a.status] || {};
+        const stDot = `<span class="cal-ev-dot" style="background:${st.cor || cor};"></span>`;
         return `
-          <div class="cal-event" style="border-left-color:${cor};"
+          <div class="cal-event" style="--ev-cor:${cor};"
             onclick="TurmasModule.openModalAulaDetalhe('${a.id}')">
-            <span class="cal-event-hora">${a.horarioInicio || ''}</span>
-            <span class="cal-event-nome">${UI.escape(a.titulo)}</span>
+            <div class="cal-ev-top">${stDot}<span class="cal-event-hora">${hr}</span></div>
+            <div class="cal-event-nome">${UI.escape(a.titulo)}</div>
+            ${a.turmaNome ? `<div class="cal-event-grade">${UI.escape(a.turmaNome)}</div>` : ''}
           </div>`;
       }).join('');
 
+      const mais = extras > 0
+        ? `<div class="cal-event-mais" onclick="TurmasModule._state.aulaFilterData='${dataStr}';TurmasModule._setTab('aulas')">+${extras} mais</div>`
+        : '';
+
       cells += `
-        <div class="cal-cell${isHoje ? ' cal-cell-hoje' : ''}">
+        <div class="cal-cell${isHoje ? ' cal-cell-hoje' : ''}${isPast ? ' cal-cell-passado' : ''}${isFds ? ' cal-cell-fds' : ''}">
           <div class="cal-day-num${isHoje ? ' cal-day-hoje' : ''}">${d}</div>
-          <div class="cal-events">${eventos}</div>
+          <div class="cal-events">${eventos}${mais}</div>
         </div>`;
     }
 
@@ -976,14 +1001,27 @@ const TurmasModule = {
     const resto = total % 7;
     if (resto > 0) {
       for (let i = resto; i < 7; i++) {
-        cells += `<div class="cal-cell cal-cell-outside"></div>`;
+        const diaSem = i;
+        cells += `<div class="cal-cell cal-cell-outside${WKEND.includes(diaSem) ? ' cal-cell-fds' : ''}"></div>`;
       }
     }
 
+    // Legenda de grades
+    const turmasNoMes = [...new Set(aulasDoMes.filter(a => a.turmaId).map(a => a.turmaId))];
+    const legenda = turmasNoMes.length > 1 ? `
+      <div class="cal-legenda">
+        ${turmasNoMes.map(tid => {
+          const t   = Storage.getById(this.SK, tid);
+          const cor = this._getGradeCor(tid);
+          return t ? `<span class="cal-legenda-item"><span class="cal-legenda-cor" style="background:${cor};"></span>${UI.escape(t.nome)}</span>` : '';
+        }).join('')}
+      </div>` : '';
+
     return `
+      ${legenda}
       <div class="cal-grid">
         <div class="cal-dow-header">
-          ${HEADER.map(d => `<div class="cal-dow">${d}</div>`).join('')}
+          ${HEADER.map((h, i) => `<div class="cal-dow${WKEND.includes(i) ? ' cal-dow-fds' : ''}">${h}</div>`).join('')}
         </div>
         <div class="cal-cells">${cells}</div>
       </div>`;
