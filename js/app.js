@@ -256,6 +256,10 @@ const App = {
     UI.initModal();
     Auth.bindLockForm();
     InactivityLock.start();
+
+    // Portal dedicado para professor e aluno
+    if (PortalModule.init()) return;
+
     this.renderSidebar();
     this.updateHeaderUser();
     this.updateDate();

@@ -76,8 +76,27 @@
   <!-- ========== AVISO DE INATIVIDADE ========== -->
   <div id="lock-warn" class="lock-warn-bar" style="display:none;"></div>
 
+  <!-- ========== PORTAL (professor / aluno) ========== -->
+  <div id="portal-wrap" class="portal-wrap" style="display:none;">
+    <header class="portal-header">
+      <div class="portal-brand">
+        <img src="img/pickleball-paddle.svg" alt="" style="width:28px;height:28px;">
+        <div>
+          <div class="portal-brand-name">PickleManager</div>
+          <div class="portal-brand-sub">Academia de Pickleball</div>
+        </div>
+      </div>
+      <div class="portal-header-right">
+        <span class="portal-user-badge" id="portal-user-badge"></span>
+        <button class="btn btn-icon" onclick="Theme.toggle()" title="Modo escuro">🌙</button>
+        <button class="btn btn-icon" onclick="Auth.confirmLogout()" title="Sair">⏻</button>
+      </div>
+    </header>
+    <main id="portal-content" class="portal-content"></main>
+  </div>
+
   <!-- ========== LAYOUT WRAPPER ========== -->
-  <div class="app-layout">
+  <div class="app-layout" id="app-layout">
 
     <!-- SIDEBAR -->
     <aside class="sidebar" id="sidebar">
@@ -209,6 +228,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="js/modules/stubs.js"></script>
   <script src="js/notifications.js"></script>
+  <script src="js/portal.js"></script>
   <script src="js/app.js"></script>
 
 </body>
