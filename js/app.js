@@ -204,6 +204,30 @@ const App = {
         Storage.update('perfis', p.id, { modulos: modulosAtualizados });
       }
     });
+
+    // Garante que os perfis professor e aluno existam
+    const perfisFaltantes = [
+      { key: 'professor', label: 'Professor',  descricao: 'Acesso às grades e aulas do próprio professor', cor: 'badge-blue',    modulos: ['dashboard','turmas'] },
+      { key: 'aluno',     label: 'Aluno',      descricao: 'Acesso às grades e aulas em que está inscrito',  cor: 'badge-success', modulos: ['dashboard','turmas'] },
+    ];
+    const now = new Date().toISOString();
+    perfisFaltantes.forEach(p => {
+      const existe = Storage.getAll('perfis').find(x => x.key === p.key);
+      if (!existe) Storage.create('perfis', p);
+    });
+
+    // Garante que os usuários professor e aluno de demonstração existam
+    const usuariosFaltantes = [
+      { nome: 'Ricardo Alves',      login: 'prof.ricardo', email: 'prof@pickle.com',  perfil: 'professor', status: 'ativo', senha: 'cHJvZjEyMw==' },
+      { nome: 'Ana Paula Ferreira', login: 'ana.paula',    email: 'aluno@pickle.com', perfil: 'aluno',     status: 'ativo', senha: 'YWx1bm8xMjM=' },
+    ];
+    usuariosFaltantes.forEach(u => {
+      const existe = Storage.getAll('usuarios').find(x => x.login === u.login);
+      if (!existe) Storage.create('usuarios', u);
+    });
+
+    // Recarrega os perfis na memória
+    Auth.loadPerfis();
   },
 
   /** Seed all demo data — runs before UI init, safe to call multiple times */
