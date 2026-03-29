@@ -11,7 +11,7 @@ const App = {
     { route: 'alunos',      icon: '👥', label: 'Alunos'              },
     { route: 'planos',      icon: '📋', label: 'Planos de Contratação'},
     { route: 'professores', icon: '🎓', label: 'Professores'         },
-    { route: 'turmas',      icon: '🏸', label: 'Grade'               },
+    { route: 'turmas',      icon: '🏸', label: 'Grades'              },
     { route: 'eventos',     icon: '🏆', label: 'Eventos'             },
     { route: 'dayuse',      icon: '🚪', label: 'Day Use'             },
     { route: 'financeiro',  icon: '💰', label: 'Financeiro'          },
