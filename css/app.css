@@ -3465,6 +3465,18 @@ img, svg { display: block; max-width: 100%; }
 
 .mat-add-grade { margin-top: 4px; }
 
+.mat-grade-mensal {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.mat-grade-mensal-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
 [data-theme="dark"] .grade-row           { background: rgba(255,255,255,.04); }
 [data-theme="dark"] .mat-aulas-resumo    { background: rgba(255,255,255,.04); }
 [data-theme="dark"] .mat-aula-item       { background: rgba(255,255,255,.04); border-color: rgba(255,255,255,.1); }

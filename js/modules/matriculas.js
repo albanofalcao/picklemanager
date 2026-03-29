@@ -291,9 +291,13 @@ const MatriculaModule = {
 
     // Calcular aulasIncluidas do plano selecionado (para edição)
     let aulasIncluidas = 0;
+    let planoTipo = '';
     if (mat && mat.planoId) {
       const planoAtual = Storage.getById('planos', mat.planoId);
-      if (planoAtual) aulasIncluidas = planoAtual.aulasIncluidas || 0;
+      if (planoAtual) {
+        aulasIncluidas = planoAtual.aulasIncluidas || 0;
+        planoTipo      = planoAtual.tipo || '';
+      }
     }
 
     const gradeRows = this._state._grades;
@@ -341,7 +345,7 @@ const MatriculaModule = {
         </div>
 
         <div id="mat-grades-section">
-          ${this._renderGradesSection(aulasIncluidas, gradeRows)}
+          ${this._renderGradesSection(aulasIncluidas, gradeRows, planoTipo)}
         </div>
 
         <div class="form-group">
@@ -363,27 +367,42 @@ const MatriculaModule = {
   /*  Grades section                                                      */
   /* ------------------------------------------------------------------ */
 
-  _renderGradesSection(aulasIncluidas, gradeRows) {
-    aulasIncluidas = parseInt(aulasIncluidas) || 0;
-    const rows = gradeRows || this._state._grades;
+  // Planos curtos (mensal/trimestral) → escolha individual de aulas
+  // Planos longos (semestral/anual)   → quantidade por mês + geração automática
+  _PLANO_CURTO: ['mensal', 'trimestral'],
 
+  _renderGradesSection(aulasIncluidas, gradeRows, planoTipo) {
+    aulasIncluidas = parseInt(aulasIncluidas) || 0;
+    const rows     = gradeRows || this._state._grades;
     if (aulasIncluidas <= 0) return '';
 
-    const totalSelecionadas = rows.reduce((sum, r) => sum + (r.aulasEscolhidas || []).length, 0);
+    const isCurto  = this._PLANO_CURTO.includes(planoTipo);
+    const grades   = Storage.getAll('turmas').filter(t => t.status === 'ativa');
 
-    let counterColor = totalSelecionadas === aulasIncluidas ? '#16a34a'
-      : totalSelecionadas > aulasIncluidas ? '#dc2626' : '#d97706';
-
-    const grades = Storage.getAll('turmas').filter(t => t.status === 'ativa');
-
-    // Lê datas do formulário para filtrar aulas do período
-    const inicioEl  = document.getElementById('mat-inicio');
-    const fimEl     = document.getElementById('mat-fim');
+    const inicioEl   = document.getElementById('mat-inicio');
+    const fimEl      = document.getElementById('mat-fim');
     const dataInicio = inicioEl ? inicioEl.value : '';
     const dataFim    = fimEl    ? fimEl.value    : '';
 
     const DIAS_LABEL = { 0:'Dom',1:'Seg',2:'Ter',3:'Qua',4:'Qui',5:'Sex',6:'Sáb' };
 
+    // ── Resumo contador ──────────────────────────────────────
+    let totalUsado, counterColor, resumoDetalhe;
+    if (isCurto) {
+      totalUsado   = rows.reduce((s, r) => s + (r.aulasEscolhidas || []).length, 0);
+      counterColor = totalUsado === aulasIncluidas ? '#16a34a'
+        : totalUsado > aulasIncluidas ? '#dc2626' : '#d97706';
+      resumoDetalhe = `<span style="font-weight:700;color:${counterColor}">${totalUsado} selecionada${totalUsado !== 1 ? 's' : ''}</span>
+        ${totalUsado > aulasIncluidas ? '<span class="mat-resumo-alerta"> (limite excedido)</span>' : ''}`;
+    } else {
+      totalUsado   = rows.reduce((s, r) => s + (parseInt(r.aulas) || 0), 0);
+      counterColor = totalUsado === aulasIncluidas ? '#16a34a'
+        : totalUsado > aulasIncluidas ? '#dc2626' : '#d97706';
+      resumoDetalhe = `<span style="font-weight:700;color:${counterColor}">${totalUsado} distribuída${totalUsado !== 1 ? 's' : ''} / mês</span>
+        ${totalUsado > aulasIncluidas ? '<span class="mat-resumo-alerta"> (limite excedido)</span>' : ''}`;
+    }
+
+    // ── Linhas de grade ──────────────────────────────────────
     const rowsHtml = rows.map((row, idx) => {
       const optsHtml = `<option value="">— Selecionar grade —</option>` +
         grades.map(g =>
@@ -391,85 +410,109 @@ const MatriculaModule = {
             ${row.turmaId === g.id ? 'selected' : ''}>${UI.escape(g.nome)}</option>`
         ).join('');
 
-      const escolhidas = new Set(row.aulasEscolhidas || []);
-      // slots disponíveis para ESTA grade = total permitido menos os de outras grades
-      const usadasOutras = rows
-        .filter((_, i) => i !== idx)
-        .reduce((s, r) => s + (r.aulasEscolhidas || []).length, 0);
-      const restante = aulasIncluidas - usadasOutras;
+      let expandHtml = '';
 
-      let aulasListHtml = '';
-      if (row.turmaId) {
-        const aulasDisp = Storage.getAll('aulas')
-          .filter(a => {
-            if (a.turmaId !== row.turmaId || a.status === 'cancelada') return false;
-            if (dataInicio && a.data < dataInicio) return false;
-            if (dataFim    && a.data > dataFim)    return false;
-            return true;
-          })
-          .sort((a, b) => a.data.localeCompare(b.data));
+      if (isCurto) {
+        // ── Modo curto: picker de aulas individuais ──────────
+        const escolhidas = new Set(row.aulasEscolhidas || []);
+        const usadasOutras = rows
+          .filter((_, i) => i !== idx)
+          .reduce((s, r) => s + (r.aulasEscolhidas || []).length, 0);
+        const restante = aulasIncluidas - usadasOutras;
 
-        if (!aulasDisp.length) {
-          aulasListHtml = `
-            <div class="mat-aulas-vazio">
-              Nenhuma aula agendada nesta grade para o período selecionado.
-            </div>`;
-        } else {
-          const items = aulasDisp.map(a => {
-            const checked  = escolhidas.has(a.id);
-            const disabled = !checked && restante <= 0;
-            const [ano, mes, dia] = (a.data || '').split('-');
-            const diaNome = DIAS_LABEL[new Date(a.data + 'T12:00:00').getDay()] || '';
-            const hora    = [a.horarioInicio, a.horarioFim].filter(Boolean).join('–');
-            return `
-              <label class="mat-aula-item${checked ? ' checked' : ''}${disabled ? ' disabled' : ''}">
-                <input type="checkbox" ${checked ? 'checked' : ''} ${disabled ? 'disabled' : ''}
-                  onchange="MatriculaModule._toggleAulaEscolhida(${idx}, '${a.id}', this.checked)" />
-                <span class="mat-aula-data">${diaNome} ${dia}/${mes}</span>
-                ${hora ? `<span class="mat-aula-hora">${hora}</span>` : ''}
-              </label>`;
-          }).join('');
+        if (row.turmaId) {
+          const aulasDisp = Storage.getAll('aulas')
+            .filter(a => {
+              if (a.turmaId !== row.turmaId || a.status === 'cancelada') return false;
+              if (dataInicio && a.data < dataInicio) return false;
+              if (dataFim    && a.data > dataFim)    return false;
+              return true;
+            })
+            .sort((a, b) => a.data.localeCompare(b.data));
 
-          aulasListHtml = `
-            <div class="mat-aulas-lista">
-              <div class="mat-aulas-cabecalho">
-                <span>${escolhidas.size} de ${Math.min(restante + escolhidas.size, aulasDisp.length)} aulas disponíveis selecionadas</span>
-                <button type="button" class="mat-btn-selmax"
-                  onclick="MatriculaModule._selecionarMaxGrade(${idx})">Selecionar máx.</button>
-                ${escolhidas.size > 0 ? `<button type="button" class="mat-btn-selmax"
-                  onclick="MatriculaModule._limparGrade(${idx})">Limpar</button>` : ''}
-              </div>
-              <div class="mat-aulas-grid">${items}</div>
-            </div>`;
+          if (!aulasDisp.length) {
+            expandHtml = `<div class="mat-aulas-vazio">Nenhuma aula agendada nesta grade para o período.</div>`;
+          } else {
+            const items = aulasDisp.map(a => {
+              const checked  = escolhidas.has(a.id);
+              const disabled = !checked && restante <= 0;
+              const [, mes, dia] = (a.data || '').split('-');
+              const diaNome = DIAS_LABEL[new Date(a.data + 'T12:00:00').getDay()] || '';
+              const hora    = [a.horarioInicio, a.horarioFim].filter(Boolean).join('–');
+              return `
+                <label class="mat-aula-item${checked ? ' checked' : ''}${disabled ? ' disabled' : ''}">
+                  <input type="checkbox" ${checked ? 'checked' : ''} ${disabled ? 'disabled' : ''}
+                    onchange="MatriculaModule._toggleAulaEscolhida(${idx}, '${a.id}', this.checked)" />
+                  <span class="mat-aula-data">${diaNome} ${dia}/${mes}</span>
+                  ${hora ? `<span class="mat-aula-hora">${hora}</span>` : ''}
+                </label>`;
+            }).join('');
+
+            expandHtml = `
+              <div class="mat-aulas-lista">
+                <div class="mat-aulas-cabecalho">
+                  <span>${escolhidas.size} de ${Math.min(restante + escolhidas.size, aulasDisp.length)} selecionadas</span>
+                  <button type="button" class="mat-btn-selmax"
+                    onclick="MatriculaModule._selecionarMaxGrade(${idx})">Selecionar máx.</button>
+                  ${escolhidas.size > 0 ? `<button type="button" class="mat-btn-selmax"
+                    onclick="MatriculaModule._limparGrade(${idx})">Limpar</button>` : ''}
+                </div>
+                <div class="mat-aulas-grid">${items}</div>
+              </div>`;
+          }
         }
-      }
 
-      return `
-        <div class="grade-row-wrap">
-          <div class="grade-row">
-            <select class="form-select"
-              onchange="MatriculaModule._onGradeSelect(${idx}, this.value, this.selectedOptions[0])">
-              ${optsHtml}
-            </select>
-            ${row.turmaId ? `<span class="mat-grade-badge">${escolhidas.size} aula${escolhidas.size !== 1 ? 's' : ''}</span>` : ''}
-            <button type="button" class="btn btn-ghost btn-sm danger"
-              onclick="MatriculaModule._removeGradeRow(${idx})" title="Remover">🗑️</button>
-          </div>
-          ${aulasListHtml}
-        </div>`;
+        const badge = row.turmaId
+          ? `<span class="mat-grade-badge">${escolhidas.size} aula${escolhidas.size !== 1 ? 's' : ''}</span>` : '';
+
+        return `
+          <div class="grade-row-wrap">
+            <div class="grade-row">
+              <select class="form-select"
+                onchange="MatriculaModule._onGradeSelect(${idx}, this.value, this.selectedOptions[0])">
+                ${optsHtml}
+              </select>
+              ${badge}
+              <button type="button" class="btn btn-ghost btn-sm danger"
+                onclick="MatriculaModule._removeGradeRow(${idx})" title="Remover">🗑️</button>
+            </div>
+            ${expandHtml}
+          </div>`;
+
+      } else {
+        // ── Modo longo: quantidade por mês ───────────────────
+        const aulasMes = parseInt(row.aulas) || 1;
+        return `
+          <div class="grade-row-wrap">
+            <div class="grade-row">
+              <select class="form-select"
+                onchange="MatriculaModule._onGradeSelect(${idx}, this.value, this.selectedOptions[0])">
+                ${optsHtml}
+              </select>
+              <div class="mat-grade-mensal">
+                <input type="number" class="form-input" style="width:70px;" min="1" max="${aulasIncluidas}"
+                  value="${aulasMes}" title="Aulas por mês"
+                  onchange="MatriculaModule._updateGradeRow(${idx}, 'aulas', parseInt(this.value) || 1)" />
+                <span class="mat-grade-mensal-label">/ mês</span>
+              </div>
+              <button type="button" class="btn btn-ghost btn-sm danger"
+                onclick="MatriculaModule._removeGradeRow(${idx})" title="Remover">🗑️</button>
+            </div>
+          </div>`;
+      }
     }).join('');
+
+    const tipoLabel = isCurto
+      ? `Escolha as aulas individuais dentro de cada grade`
+      : `Defina quantas aulas por mês em cada grade (geração automática no cronograma)`;
 
     return `
       <div class="form-group">
-        <label class="form-label">Grades e Aulas do Período</label>
+        <label class="form-label">Grades e Aulas</label>
         <div class="mat-aulas-resumo">
-          Plano inclui <strong>${aulasIncluidas}</strong> aula${aulasIncluidas !== 1 ? 's' : ''}
-          &nbsp;·&nbsp;
-          <span style="font-weight:700;color:${counterColor}">
-            ${totalSelecionadas} selecionada${totalSelecionadas !== 1 ? 's' : ''}
-          </span>
-          ${totalSelecionadas > aulasIncluidas
-            ? '<span class="mat-resumo-alerta"> (limite excedido)</span>' : ''}
+          <span>${tipoLabel}</span><br>
+          Plano: <strong>${aulasIncluidas}</strong> aula${aulasIncluidas !== 1 ? 's' : ''} incluídas
+          &nbsp;·&nbsp; ${resumoDetalhe}
         </div>
         ${rowsHtml}
         <button type="button" class="btn btn-secondary btn-sm mat-add-grade"
@@ -565,18 +608,28 @@ const MatriculaModule = {
 
     const planoSel = document.getElementById('mat-plano');
     let aulasIncluidas = 0;
+    let planoTipo = '';
 
     if (planoSel && planoSel.value) {
       const opt = planoSel.selectedOptions[0];
-      if (opt && opt.dataset.aulas) {
-        aulasIncluidas = parseInt(opt.dataset.aulas) || 0;
-      } else {
+      aulasIncluidas = parseInt(opt?.dataset?.aulas) || 0;
+      planoTipo      = opt?.dataset?.tipo || '';
+      if (!aulasIncluidas || !planoTipo) {
         const plano = Storage.getById('planos', planoSel.value);
-        if (plano) aulasIncluidas = plano.aulasIncluidas || 0;
+        if (plano) {
+          aulasIncluidas = aulasIncluidas || plano.aulasIncluidas || 0;
+          planoTipo      = planoTipo      || plano.tipo || '';
+        }
       }
     }
 
-    section.innerHTML = this._renderGradesSection(aulasIncluidas, this._state._grades);
+    // Ao mudar tipo de plano, limpa aulasEscolhidas (incompatível com modo longo)
+    const isCurto = this._PLANO_CURTO.includes(planoTipo);
+    if (!isCurto) {
+      this._state._grades.forEach(r => { r.aulasEscolhidas = []; });
+    }
+
+    section.innerHTML = this._renderGradesSection(aulasIncluidas, this._state._grades, planoTipo);
   },
 
   /* ------------------------------------------------------------------ */
