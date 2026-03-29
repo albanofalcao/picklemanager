@@ -27,8 +27,8 @@ const App = {
     { key: 'recepcionista', label: 'Recepcionista',    descricao: 'Atendimento ao aluno, matrículas e turmas',               cor: 'badge-blue',    modulos: ['dashboard','alunos','turmas','eventos','dayuse'] },
     { key: 'financeiro',    label: 'Financeiro',       descricao: 'Controle financeiro e planos de contratação',              cor: 'badge-success', modulos: ['dashboard','financeiro','planos','alunos','dayuse','relatorios'] },
     { key: 'manutencao',    label: 'Manutenção',       descricao: 'Gestão de arenas e chamados de manutenção',               cor: 'badge-gray',    modulos: ['dashboard','arenas','manutencao'] },
-    { key: 'professor',     label: 'Professor',        descricao: 'Acesso às grades e aulas do próprio professor',            cor: 'badge-blue',    modulos: ['dashboard','turmas'] },
-    { key: 'aluno',         label: 'Aluno',            descricao: 'Acesso às grades e aulas em que está inscrito',             cor: 'badge-success', modulos: ['dashboard','turmas'] },
+    { key: 'professor',     label: 'Professor',        descricao: 'Acesso às grades e aulas do próprio professor',            cor: 'badge-blue',    modulos: ['turmas'] },
+    { key: 'aluno',         label: 'Aluno',            descricao: 'Acesso às grades e aulas em que está inscrito',             cor: 'badge-success', modulos: ['turmas'] },
   ],
 
   SEED_USUARIOS: [
@@ -196,19 +196,24 @@ const App = {
       aluno:         ['turmas'],
     };
 
+    // Remove dashboard de professor e aluno (eles usam o portal dedicado)
+    const modulosBloqueados = { professor: ['dashboard'], aluno: ['dashboard'] };
+
     const perfis = Storage.getAll('perfis');
     perfis.forEach(p => {
-      const novos = novosPorPerfil[p.key] || [];
-      const modulosAtualizados = Array.from(new Set([...(p.modulos || []), ...novos]));
-      if (modulosAtualizados.length !== (p.modulos || []).length) {
+      const novos      = novosPorPerfil[p.key] || [];
+      const bloqueados = modulosBloqueados[p.key] || [];
+      let modulosAtualizados = Array.from(new Set([...(p.modulos || []), ...novos]));
+      modulosAtualizados = modulosAtualizados.filter(m => !bloqueados.includes(m));
+      if (JSON.stringify(modulosAtualizados) !== JSON.stringify(p.modulos || [])) {
         Storage.update('perfis', p.id, { modulos: modulosAtualizados });
       }
     });
 
     // Garante que os perfis professor e aluno existam
     const perfisFaltantes = [
-      { key: 'professor', label: 'Professor',  descricao: 'Acesso às grades e aulas do próprio professor', cor: 'badge-blue',    modulos: ['dashboard','turmas'] },
-      { key: 'aluno',     label: 'Aluno',      descricao: 'Acesso às grades e aulas em que está inscrito',  cor: 'badge-success', modulos: ['dashboard','turmas'] },
+      { key: 'professor', label: 'Professor',  descricao: 'Acesso às grades e aulas do próprio professor', cor: 'badge-blue',    modulos: ['turmas'] },
+      { key: 'aluno',     label: 'Aluno',      descricao: 'Acesso às grades e aulas em que está inscrito',  cor: 'badge-success', modulos: ['turmas'] },
     ];
     const now = new Date().toISOString();
     perfisFaltantes.forEach(p => {
