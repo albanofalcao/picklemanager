@@ -590,57 +590,63 @@ const TurmasModule = {
                  .map(r => ({ alunoId: r.alunoId, alunoNome: r.alunoNome, reposicao: true, repId: r.id })),
     ];
 
-    const rows = todosAlunos.map(insc => {
-      const reg = presencas.find(p => p.aulaId === aulaId && p.alunoId === insc.alunoId);
+    const rows = todosAlunos.map((insc, idx) => {
+      const reg      = presencas.find(p => p.aulaId === aulaId && p.alunoId === insc.alunoId);
       const presente = reg ? reg.presente : true;
       const repBadge = insc.reposicao
-        ? `<span class="badge badge-warning" style="font-size:0.65rem;margin-left:4px;" title="Reposição">R</span>`
+        ? `<span class="badge badge-warning" style="font-size:0.65rem;margin-left:6px;" title="Reposição">R</span>`
         : '';
+      const initials = insc.alunoNome.trim().split(' ').slice(0,2).map(p => p[0]).join('').toUpperCase();
       return `
-        <tr>
-          <td>${UI.escape(insc.alunoNome)}${repBadge}</td>
-          <td style="text-align:center;">
-            <label style="display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;">
-              <input type="checkbox" class="presenca-check"
-                data-aluno-id="${insc.alunoId}"
-                data-aluno-nome="${UI.escape(insc.alunoNome)}"
-                data-reposicao-id="${insc.repId || ''}"
-                ${presente ? 'checked' : ''} />
-              <span class="presenca-label">${presente ? '✅ Presente' : '❌ Faltou'}</span>
-            </label>
-          </td>
-        </tr>`;
+        <div class="presenca-row-card" id="prc-${idx}">
+          <div class="presenca-row-aluno">
+            <div class="presenca-avatar">${initials}</div>
+            <span class="presenca-nome">${UI.escape(insc.alunoNome)}${repBadge}</span>
+          </div>
+          <div class="presenca-toggle-group">
+            <button type="button"
+              class="presenca-toggle-btn presenca-presente ${presente ? 'active' : ''}"
+              onclick="TurmasModule._togglePresenca(${idx}, true)"
+              data-idx="${idx}">✅ Presente</button>
+            <button type="button"
+              class="presenca-toggle-btn presenca-faltou ${!presente ? 'active' : ''}"
+              onclick="TurmasModule._togglePresenca(${idx}, false)"
+              data-idx="${idx}">❌ Faltou</button>
+          </div>
+          <input type="hidden" class="presenca-check"
+            data-aluno-id="${insc.alunoId}"
+            data-aluno-nome="${UI.escape(insc.alunoNome)}"
+            data-reposicao-id="${insc.repId || ''}"
+            data-presente="${presente ? '1' : '0'}" />
+        </div>`;
     }).join('');
 
+    const total    = todosAlunos.length;
     const content = `
-      <div class="info-box" style="margin-bottom:12px;">
-        <strong>${UI.escape(aula.titulo)}</strong>
-        <span class="text-muted" style="margin-left:8px;">${dataFmt}${hora ? ' · ' + hora : ''}</span>
+      <div class="info-box" style="margin-bottom:14px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+          <div>
+            <strong>${UI.escape(aula.titulo)}</strong>
+            <span class="text-muted" style="margin-left:8px;">${dataFmt}${hora ? ' · ' + hora : ''}</span>
+          </div>
+          <div style="display:flex;gap:6px;">
+            <button type="button" class="btn btn-ghost btn-sm" onclick="TurmasModule._marcarTodos(true)">✅ Todos presentes</button>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="TurmasModule._marcarTodos(false)">❌ Todos faltaram</button>
+          </div>
+        </div>
       </div>
-      <p class="text-muted text-sm" style="margin-bottom:8px;">Todos marcados como <strong>presentes</strong> por padrão. Desmarque quem faltou.</p>
-      <div class="table-card" style="margin:0;">
-        <table class="data-table">
-          <thead><tr><th>Aluno</th><th style="text-align:center;">Presença</th></tr></thead>
-          <tbody id="presenca-rapida-rows">${rows}</tbody>
-        </table>
-      </div>`;
-
-    // Atualiza label ao clicar
-    setTimeout(() => {
-      document.querySelectorAll('.presenca-check').forEach(cb => {
-        cb.addEventListener('change', () => {
-          const label = cb.parentElement.querySelector('.presenca-label');
-          if (label) label.textContent = cb.checked ? '✅ Presente' : '❌ Faltou';
-        });
-      });
-    }, 100);
+      <div class="presenca-lista" id="presenca-lista">${rows}</div>
+      <div class="presenca-resumo" id="presenca-resumo"></div>`;
 
     UI.openModal({
-      title:        `Presença — ${aula.titulo}`,
+      title:        `📋 Presença — ${aula.titulo}`,
       content,
       confirmLabel: 'Salvar Presença',
+      cancelLabel:  'Cancelar',
       onConfirm:    () => this._salvarPresencaRapida(aulaId, aula),
     });
+
+    setTimeout(() => this._atualizarResumoPresenca(total), 80);
   },
 
   _salvarPresencaRapida(aulaId, aula) {
@@ -651,7 +657,7 @@ const TurmasModule = {
     checks.forEach(cb => {
       const alunoId     = cb.dataset.alunoId;
       const alunoNome   = cb.dataset.alunoNome;
-      const presente    = cb.checked;
+      const presente    = cb.dataset.presente === '1';
       const reposicaoId = cb.dataset.reposicaoId;
       const existing    = presencas.find(p => p.aulaId === aulaId && p.alunoId === alunoId);
 
@@ -683,6 +689,44 @@ const TurmasModule = {
     UI.closeModal();
     UI.toast(`Presença de ${salvos} aluno${salvos !== 1 ? 's' : ''} salva! Aula marcada como concluída.`, 'success');
     this._reRenderContent();
+  },
+
+  _togglePresenca(idx, presente) {
+    const card   = document.getElementById(`prc-${idx}`);
+    if (!card) return;
+    const hidden = card.querySelector('.presenca-check');
+    const btnP   = card.querySelector('.presenca-presente');
+    const btnF   = card.querySelector('.presenca-faltou');
+    if (hidden) hidden.dataset.presente = presente ? '1' : '0';
+    if (btnP)   btnP.classList.toggle('active', presente);
+    if (btnF)   btnF.classList.toggle('active', !presente);
+    const total = document.querySelectorAll('.presenca-check').length;
+    this._atualizarResumoPresenca(total);
+  },
+
+  _marcarTodos(presente) {
+    document.querySelectorAll('.presenca-check').forEach((hidden, idx) => {
+      hidden.dataset.presente = presente ? '1' : '0';
+      const card = document.getElementById(`prc-${idx}`);
+      if (!card) return;
+      card.querySelector('.presenca-presente')?.classList.toggle('active', presente);
+      card.querySelector('.presenca-faltou')?.classList.toggle('active', !presente);
+    });
+    const total = document.querySelectorAll('.presenca-check').length;
+    this._atualizarResumoPresenca(total);
+  },
+
+  _atualizarResumoPresenca(total) {
+    const resumo = document.getElementById('presenca-resumo');
+    if (!resumo) return;
+    const presentes = [...document.querySelectorAll('.presenca-check')].filter(h => h.dataset.presente === '1').length;
+    const faltas    = total - presentes;
+    resumo.innerHTML = `
+      <div class="presenca-resumo-bar">
+        <span class="presenca-resumo-item presenca-resumo-p">✅ ${presentes} presente${presentes !== 1 ? 's' : ''}</span>
+        <span class="presenca-resumo-item presenca-resumo-f">❌ ${faltas} falta${faltas !== 1 ? 's' : ''}</span>
+        <span class="presenca-resumo-item">👥 ${total} total</span>
+      </div>`;
   },
 
   /* ================================================================== */
