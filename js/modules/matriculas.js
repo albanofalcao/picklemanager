@@ -10,6 +10,7 @@ const MatriculaModule = {
     search:       '',
     filterStatus: '',
     filterPlano:  '',
+    _grades:      [],
   },
 
   STATUS: {
@@ -248,6 +249,19 @@ const MatriculaModule = {
     const isEdit = !!mat;
     const v      = (field, fallback = '') => mat ? UI.escape(String(mat[field] ?? fallback)) : fallback;
 
+    // Resetar grades ao abrir o modal
+    this._state._grades = [];
+
+    // Se for edição, carregar turmaAlunos existentes para _state._grades
+    if (isEdit) {
+      const turmaAlunos = Storage.getAll('turmaAlunos').filter(ta => ta.matriculaId === id);
+      this._state._grades = turmaAlunos.map(ta => ({
+        turmaId:   ta.turmaId   || '',
+        turmaNome: ta.turmaNome || '',
+        aulas:     ta.aulasAlocadas || 1,
+      }));
+    }
+
     const alunos = Storage.getAll('alunos').filter(a => a.status === 'ativo');
     const planos = Storage.getAll('planos').filter(p => p.status === 'ativo');
 
@@ -259,7 +273,7 @@ const MatriculaModule = {
 
     const planoOpts = `<option value="">— Selecionar plano —</option>` +
       planos.map(p =>
-        `<option value="${p.id}" data-nome="${UI.escape(p.nome)}" data-tipo="${p.tipo}" data-valor="${p.valor}"
+        `<option value="${p.id}" data-nome="${UI.escape(p.nome)}" data-tipo="${p.tipo}" data-valor="${p.valor}" data-aulas="${p.aulasIncluidas || 0}"
           ${mat && mat.planoId === p.id ? 'selected' : ''}>${UI.escape(p.nome)} — ${this._fmtMoeda(p.valor)}</option>`
       ).join('');
 
@@ -273,6 +287,15 @@ const MatriculaModule = {
       ).join('');
 
     const hoje = new Date().toISOString().slice(0, 10);
+
+    // Calcular aulasIncluidas do plano selecionado (para edição)
+    let aulasIncluidas = 0;
+    if (mat && mat.planoId) {
+      const planoAtual = Storage.getById('planos', mat.planoId);
+      if (planoAtual) aulasIncluidas = planoAtual.aulasIncluidas || 0;
+    }
+
+    const gradeRows = this._state._grades;
 
     const content = `
       <div class="form-grid">
@@ -316,6 +339,10 @@ const MatriculaModule = {
           <select id="mat-status" class="form-select">${statusOpts}</select>
         </div>
 
+        <div id="mat-grades-section">
+          ${this._renderGradesSection(aulasIncluidas, gradeRows)}
+        </div>
+
         <div class="form-group">
           <label class="form-label" for="mat-obs">Observações</label>
           <textarea id="mat-obs" class="form-textarea"
@@ -331,6 +358,110 @@ const MatriculaModule = {
     });
   },
 
+  /* ------------------------------------------------------------------ */
+  /*  Grades section                                                      */
+  /* ------------------------------------------------------------------ */
+
+  _renderGradesSection(aulasIncluidas, gradeRows) {
+    aulasIncluidas = parseInt(aulasIncluidas) || 0;
+    const rows = gradeRows || this._state._grades;
+
+    if (aulasIncluidas <= 0) {
+      return '';
+    }
+
+    const totalDistribuido = rows.reduce((sum, r) => sum + (parseInt(r.aulas) || 0), 0);
+
+    let counterColor = 'color:#d97706;'; // amarelo
+    if (totalDistribuido === aulasIncluidas) {
+      counterColor = 'color:#16a34a;'; // verde
+    } else if (totalDistribuido > aulasIncluidas) {
+      counterColor = 'color:#dc2626;'; // vermelho
+    }
+
+    const grades = Storage.getAll('turmas').filter(t => t.status === 'ativa');
+
+    const gradeOpts = `<option value="">— Selecionar grade —</option>` +
+      grades.map(g =>
+        `<option value="${g.id}" data-nome="${UI.escape(g.nome)}">${UI.escape(g.nome)}</option>`
+      ).join('');
+
+    const rowsHtml = rows.map((row, idx) => {
+      const optsHtml = `<option value="">— Selecionar grade —</option>` +
+        grades.map(g =>
+          `<option value="${g.id}" data-nome="${UI.escape(g.nome)}"
+            ${row.turmaId === g.id ? 'selected' : ''}>${UI.escape(g.nome)}</option>`
+        ).join('');
+
+      return `
+        <div class="grade-row" style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
+          <select class="form-select" style="flex:1;"
+            onchange="MatriculaModule._updateGradeRow(${idx}, 'turmaId', this.value); MatriculaModule._updateGradeRow(${idx}, 'turmaNome', this.selectedOptions[0] ? (this.selectedOptions[0].dataset.nome || this.selectedOptions[0].textContent) : '')">
+            ${optsHtml}
+          </select>
+          <input type="number" class="form-input" style="width:80px;" min="1" max="${aulasIncluidas}"
+            value="${parseInt(row.aulas) || 1}"
+            onchange="MatriculaModule._updateGradeRow(${idx}, 'aulas', parseInt(this.value) || 1)" />
+          <button type="button" class="btn btn-ghost btn-sm danger" style="flex-shrink:0;"
+            onclick="MatriculaModule._removeGradeRow(${idx})" title="Remover">🗑️</button>
+        </div>`;
+    }).join('');
+
+    return `
+      <div class="form-group">
+        <label class="form-label">Distribuição de Aulas por Grade</label>
+        <div style="font-size:13px;color:#6b7280;margin-bottom:6px;">
+          Este plano inclui <strong>${aulasIncluidas}</strong> aula${aulasIncluidas !== 1 ? 's' : ''} por período
+        </div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:10px;${counterColor}">
+          ${totalDistribuido} de ${aulasIncluidas} aula${aulasIncluidas !== 1 ? 's' : ''} distribuída${aulasIncluidas !== 1 ? 's' : ''}
+        </div>
+        ${rowsHtml}
+        <button type="button" class="btn btn-secondary btn-sm" style="margin-top:4px;"
+          onclick="MatriculaModule._addGradeRow()">+ Adicionar Grade</button>
+      </div>`;
+  },
+
+  _addGradeRow() {
+    this._state._grades.push({ turmaId: '', turmaNome: '', aulas: 1 });
+    this._reRenderGradesSection();
+  },
+
+  _removeGradeRow(idx) {
+    this._state._grades.splice(idx, 1);
+    this._reRenderGradesSection();
+  },
+
+  _updateGradeRow(idx, field, value) {
+    if (!this._state._grades[idx]) return;
+    this._state._grades[idx][field] = value;
+    this._reRenderGradesSection();
+  },
+
+  _reRenderGradesSection() {
+    const section = document.getElementById('mat-grades-section');
+    if (!section) return;
+
+    const planoSel = document.getElementById('mat-plano');
+    let aulasIncluidas = 0;
+
+    if (planoSel && planoSel.value) {
+      const opt = planoSel.selectedOptions[0];
+      if (opt && opt.dataset.aulas) {
+        aulasIncluidas = parseInt(opt.dataset.aulas) || 0;
+      } else {
+        const plano = Storage.getById('planos', planoSel.value);
+        if (plano) aulasIncluidas = plano.aulasIncluidas || 0;
+      }
+    }
+
+    section.innerHTML = this._renderGradesSection(aulasIncluidas, this._state._grades);
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Plan change handler                                                 */
+  /* ------------------------------------------------------------------ */
+
   /** Ao selecionar plano + início, calcula e preenche data fim automaticamente */
   _onPlanoChange() {
     const planoSel = document.getElementById('mat-plano');
@@ -341,14 +472,14 @@ const MatriculaModule = {
     const opt   = planoSel.selectedOptions[0];
     const tipo  = opt ? opt.dataset.tipo : '';
     const inicio = inicioEl.value;
-    if (!inicio || !tipo) return;
-
-    const d = new Date(inicio + 'T00:00:00');
-    const meses = { mensal: 1, trimestral: 3, semestral: 6, anual: 12 };
-    if (meses[tipo]) {
-      d.setMonth(d.getMonth() + meses[tipo]);
-      d.setDate(d.getDate() - 1);
-      fimEl.value = d.toISOString().slice(0, 10);
+    if (inicio && tipo) {
+      const d = new Date(inicio + 'T00:00:00');
+      const meses = { mensal: 1, trimestral: 3, semestral: 6, anual: 12 };
+      if (meses[tipo]) {
+        d.setMonth(d.getMonth() + meses[tipo]);
+        d.setDate(d.getDate() - 1);
+        fimEl.value = d.toISOString().slice(0, 10);
+      }
     }
 
     // Preenche valor do plano se campo vazio
@@ -356,6 +487,9 @@ const MatriculaModule = {
     if (valorEl && !valorEl.value && opt && opt.dataset.valor) {
       valorEl.value = opt.dataset.valor;
     }
+
+    // Atualiza a seção de distribuição de grades
+    this._reRenderGradesSection();
   },
 
   /* ------------------------------------------------------------------ */
@@ -397,16 +531,150 @@ const MatriculaModule = {
       observacoes:   g('obs')    ? g('obs').value.trim() : '',
     };
 
+    let matriculaId = id;
+
     if (id) {
       Storage.update(this.STORAGE_KEY, id, data);
       UI.toast(`Matrícula de "${data.alunoNome}" atualizada!`, 'success');
     } else {
-      Storage.create(this.STORAGE_KEY, data);
+      const nova = Storage.create(this.STORAGE_KEY, data);
+      matriculaId = nova ? nova.id : null;
       UI.toast(`Matrícula de "${data.alunoNome}" criada com sucesso!`, 'success');
+    }
+
+    // Sincronizar turmaAlunos com _state._grades
+    if (matriculaId) {
+      const alunoId   = data.alunoId;
+      const alunoNome = data.alunoNome;
+
+      // Buscar turmaAlunos existentes para esta matrícula
+      const existentes = Storage.getAll('turmaAlunos').filter(ta => ta.matriculaId === matriculaId);
+
+      // Grades válidas do estado atual (com turmaId definido e aulas > 0)
+      const gradesValidas = this._state._grades.filter(g => g.turmaId && (parseInt(g.aulas) || 0) > 0);
+
+      // Para cada grade válida: criar ou atualizar
+      gradesValidas.forEach(gradeEntry => {
+        const turmaId      = gradeEntry.turmaId;
+        const turmaNome    = gradeEntry.turmaNome || '';
+        const aulasAlocadas = parseInt(gradeEntry.aulas) || 1;
+
+        const existente = existentes.find(ta => ta.turmaId === turmaId);
+
+        if (!existente) {
+          // Criar novo registro
+          Storage.create('turmaAlunos', {
+            turmaId,
+            turmaNome,
+            alunoId,
+            alunoNome,
+            aulasAlocadas,
+            matriculaId,
+            status:        'ativo',
+            dataInscricao: new Date().toISOString(),
+          });
+        } else if (existente.aulasAlocadas !== aulasAlocadas) {
+          // Atualizar somente se mudou
+          Storage.update('turmaAlunos', existente.id, { aulasAlocadas });
+        }
+      });
+
+      // Remover turmaAlunos que não estão mais em _state._grades
+      const turmaIdsValidas = new Set(gradesValidas.map(g => g.turmaId));
+      existentes.forEach(ta => {
+        if (!turmaIdsValidas.has(ta.turmaId)) {
+          Storage.delete('turmaAlunos', ta.id);
+        }
+      });
+    }
+
+    // Gerar aulas no cronograma para cada grade contratada
+    if (matriculaId) {
+      const count = this._gerarAulasMatricula(matriculaId, data.dataInicio, data.dataFim, data.alunoId, data.alunoNome);
+      if (count > 0) UI.toast(`${count} aula${count !== 1 ? 's' : ''} gerada${count !== 1 ? 's' : ''} no cronograma.`, 'info');
     }
 
     UI.closeModal();
     this.render();
+  },
+
+  /**
+   * Gera aulas no cronograma para cada grade da matrícula,
+   * respeitando diasSemana da grade e o limite de aulasAlocadas por mês.
+   */
+  _gerarAulasMatricula(matriculaId, dataInicio, dataFim, alunoId, alunoNome) {
+    if (!dataInicio || !dataFim) return 0;
+
+    const DIAS_JS = { dom:0, seg:1, ter:2, qua:3, qui:4, sex:5, sab:6 };
+    const gradesVinculadas = Storage.getAll('turmaAlunos')
+      .filter(ta => ta.matriculaId === matriculaId && ta.status === 'ativo');
+
+    let totalGeradas = 0;
+
+    gradesVinculadas.forEach(ta => {
+      const turma = Storage.getById('turmas', ta.turmaId);
+      if (!turma || !(turma.diasSemana || []).length) return;
+
+      const diasJs   = turma.diasSemana.map(d => DIAS_JS[d]).filter(d => d !== undefined);
+      const aulasMax = parseInt(ta.aulasAlocadas) || 0; // total de aulas por mês
+      if (aulasMax <= 0) return;
+
+      // Aulas já existentes desta turma no período (para não duplicar)
+      const aulasExistentes = new Set(
+        Storage.getAll('aulas')
+          .filter(a => a.turmaId === ta.turmaId && a.data >= dataInicio && a.data <= dataFim)
+          .map(a => a.data)
+      );
+
+      // Percorre cada dia do período
+      const cur = new Date(dataInicio + 'T12:00:00');
+      const fim = new Date(dataFim   + 'T12:00:00');
+
+      // Controla aulas geradas por mês
+      let mesAtual = '';
+      let aulasNoMes = 0;
+
+      while (cur <= fim) {
+        const mesStr  = cur.toISOString().slice(0, 7); // 'YYYY-MM'
+        const dataStr = cur.toISOString().slice(0, 10);
+        const diaSem  = cur.getDay();
+
+        // Reseta contador ao entrar num novo mês
+        if (mesStr !== mesAtual) {
+          mesAtual   = mesStr;
+          aulasNoMes = 0;
+        }
+
+        if (diasJs.includes(diaSem) && aulasNoMes < aulasMax) {
+          if (!aulasExistentes.has(dataStr)) {
+            Storage.create('aulas', {
+              titulo:         turma.nome,
+              turmaId:        turma.id,
+              turmaNome:      turma.nome,
+              professorId:    turma.professorId   || '',
+              professorNome:  turma.professorNome || '',
+              arenaId:        turma.arenaId       || '',
+              arenaNome:      turma.arenaNome     || '',
+              data:           dataStr,
+              horarioInicio:  turma.horarioInicio || '',
+              horarioFim:     turma.horarioFim    || '',
+              vagas:          turma.vagas         || 0,
+              tipo:           turma.tipo          || 'grupo',
+              nivel:          turma.nivel         || '',
+              status:         'agendada',
+              observacoes:    `Gerado automaticamente — matrícula ${matriculaId}`,
+            });
+            aulasExistentes.add(dataStr);
+            totalGeradas++;
+          }
+          aulasNoMes++;
+        }
+
+        cur.setDate(cur.getDate() + 1);
+      }
+    });
+
+    return totalGeradas;
   },
 
   async deleteMatricula(id) {
