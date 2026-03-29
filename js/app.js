@@ -231,6 +231,18 @@ const App = {
       if (!existe) Storage.create('usuarios', u);
     });
 
+    // Vincula alunoId / professorId nos usuários que ainda não têm o vínculo
+    Storage.getAll('usuarios').forEach(u => {
+      if (u.perfil === 'aluno' && !u.alunoId) {
+        const aluno = Storage.getAll('alunos').find(a => a.nome === u.nome);
+        if (aluno) Storage.update('usuarios', u.id, { alunoId: aluno.id });
+      }
+      if (u.perfil === 'professor' && !u.professorId) {
+        const prof = Storage.getAll('professores').find(p => p.nome === u.nome);
+        if (prof) Storage.update('usuarios', u.id, { professorId: prof.id });
+      }
+    });
+
     // Recarrega os perfis na memória
     Auth.loadPerfis();
   },
