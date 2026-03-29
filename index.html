@@ -35,8 +35,19 @@
         <button type="button" class="btn btn-ghost btn-sm" style="color:var(--color-primary,#3b9e8f);font-size:13px;"
           onclick="Auth.showEsqueciSenha()">Esqueci minha senha</button>
       </div>
-      <div class="login-hint">
-        Login padrão: <strong>admin</strong> &nbsp;/&nbsp; Senha: <strong>admin123</strong>
+      <div class="login-hint" style="margin-bottom:0;">
+        <div style="margin-bottom:6px;font-weight:600;color:var(--text-secondary);">Logins de demonstração:</div>
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <div onclick="document.getElementById('li-login').value='admin';document.getElementById('li-senha').value='admin123';" style="cursor:pointer;padding:5px 8px;border-radius:6px;background:var(--gray-light);font-size:12px;" title="Clique para preencher">
+            👑 <strong>admin</strong> / admin123 <span style="color:var(--text-muted);font-size:11px;">— Administrador</span>
+          </div>
+          <div onclick="document.getElementById('li-login').value='prof.ricardo';document.getElementById('li-senha').value='prof123';" style="cursor:pointer;padding:5px 8px;border-radius:6px;background:var(--gray-light);font-size:12px;" title="Clique para preencher">
+            🎓 <strong>prof.ricardo</strong> / prof123 <span style="color:var(--text-muted);font-size:11px;">— Professor</span>
+          </div>
+          <div onclick="document.getElementById('li-login').value='ana.paula';document.getElementById('li-senha').value='aluno123';" style="cursor:pointer;padding:5px 8px;border-radius:6px;background:var(--gray-light);font-size:12px;" title="Clique para preencher">
+            🧑‍🎓 <strong>ana.paula</strong> / aluno123 <span style="color:var(--text-muted);font-size:11px;">— Aluno</span>
+          </div>
+        </div>
       </div>
     </div>
   </div>
