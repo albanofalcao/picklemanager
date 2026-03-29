@@ -1529,6 +1529,29 @@ img, svg { display: block; max-width: 100%; }
   margin-top: 2px;
 }
 
+.aluno-vinculo-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 5px;
+}
+
+.aluno-plano-badge,
+.aluno-grade-chip {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 20px;
+  line-height: 1.5;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.aluno-grade-chip {
+  background: color-mix(in srgb, var(--accent-blue, #3b82f6) 12%, transparent);
+  color: var(--accent-blue, #3b82f6);
+  border: 1px solid color-mix(in srgb, var(--accent-blue, #3b82f6) 30%, transparent);
+}
+
 .aluno-row-actions {
   display: flex;
   gap: 4px;
@@ -3312,6 +3335,140 @@ img, svg { display: block; max-width: 100%; }
 /* Dark mode */
 [data-theme="dark"] .portal-user-badge { background: rgba(255,255,255,.08); }
 [data-theme="dark"] .portal-card-destaque { background: color-mix(in srgb, var(--primary) 8%, var(--card-bg)); }
+
+/* ============================================================
+   Matrícula — Seletor de aulas por grade
+   ============================================================ */
+
+.mat-aulas-resumo {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+  padding: 6px 10px;
+  background: var(--bg-secondary, #f8f9fa);
+  border-radius: 6px;
+}
+
+.mat-resumo-alerta {
+  color: #dc2626;
+  font-size: 11px;
+}
+
+.grade-row-wrap {
+  margin-bottom: 10px;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.grade-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  background: var(--bg-secondary, #f8f9fa);
+}
+
+.mat-grade-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--accent-blue, #3b82f6) 12%, transparent);
+  color: var(--accent-blue, #3b82f6);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.mat-aulas-lista {
+  padding: 8px 10px 10px;
+  background: var(--card-bg, #fff);
+}
+
+.mat-aulas-cabecalho {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.mat-btn-selmax {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--accent-blue, #3b82f6);
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.mat-btn-selmax:hover { opacity: .75; }
+
+.mat-aulas-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.mat-aula-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1.5px solid var(--border-color, #e5e7eb);
+  background: var(--bg-secondary, #f8f9fa);
+  color: var(--text-secondary);
+  transition: background .15s, border-color .15s, color .15s;
+  user-select: none;
+}
+
+.mat-aula-item input[type="checkbox"] {
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--accent-blue, #3b82f6);
+}
+
+.mat-aula-item.checked {
+  background: color-mix(in srgb, var(--accent-blue, #3b82f6) 10%, transparent);
+  border-color: var(--accent-blue, #3b82f6);
+  color: var(--accent-blue, #3b82f6);
+}
+
+.mat-aula-item.disabled {
+  opacity: .4;
+  cursor: not-allowed;
+}
+
+.mat-aula-data { font-weight: 600; }
+
+.mat-aula-hora {
+  font-size: 10px;
+  opacity: .75;
+}
+
+.mat-aulas-vazio {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+  padding: 8px 10px;
+  background: var(--card-bg, #fff);
+}
+
+.mat-add-grade { margin-top: 4px; }
+
+[data-theme="dark"] .grade-row           { background: rgba(255,255,255,.04); }
+[data-theme="dark"] .mat-aulas-resumo    { background: rgba(255,255,255,.04); }
+[data-theme="dark"] .mat-aula-item       { background: rgba(255,255,255,.04); border-color: rgba(255,255,255,.1); }
+[data-theme="dark"] .mat-aula-item.checked { background: rgba(59,130,246,.15); }
 
 /* ============================================================
    Presença — Modal redesenhado

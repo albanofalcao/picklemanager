@@ -172,18 +172,50 @@ const AlunoModule = {
   },
 
   renderTable(alunos) {
+    // Pre-load for performance
+    const todasMatriculas  = Storage.getAll('matriculas');
+    const todasInscricoes  = Storage.getAll('turmaAlunos');
+    const todasTurmas      = Storage.getAll('turmas');
+
     const rows = alunos.map(a => {
-      const status   = this.STATUS[a.status] || { label: a.status, badge: 'badge-gray' };
+      const status     = this.STATUS[a.status] || { label: a.status, badge: 'badge-gray' };
       const nivelLabel = this.NIVEL[a.nivel]   || a.nivel || '—';
       const nivelBadge = this.NIVEL_BADGE[a.nivel] || 'badge-gray';
-      const idade    = a.dataNascimento ? this._calcIdade(a.dataNascimento) : '—';
-      const cadastro = UI.formatDate(a.createdAt);
+      const idade      = a.dataNascimento ? this._calcIdade(a.dataNascimento) : '—';
+      const cadastro   = UI.formatDate(a.createdAt);
+
+      // Matrícula ativa mais recente
+      const matriculaAtiva = todasMatriculas
+        .filter(m => m.alunoId === a.id && m.status === 'ativa')
+        .sort((x, y) => (y.createdAt || '').localeCompare(x.createdAt || ''))[0] || null;
+
+      const planoHtml = matriculaAtiva
+        ? `<span class="badge badge-success aluno-plano-badge" title="Plano ativo">📋 ${UI.escape(matriculaAtiva.planoNome || 'Plano')}</span>`
+        : `<span class="badge badge-gray aluno-plano-badge" style="opacity:.65;">Sem matrícula</span>`;
+
+      // Grades ativas
+      const inscricoes = todasInscricoes.filter(i => i.alunoId === a.id && i.status === 'ativo');
+      let gradesHtml = '';
+      if (inscricoes.length) {
+        gradesHtml = inscricoes.map(i => {
+          const turma = todasTurmas.find(t => t.id === i.turmaId);
+          const nome  = turma ? UI.escape(turma.nome) : '?';
+          return `<span class="badge badge-blue aluno-grade-chip" title="${nome} · ${i.aulasAlocadas || '?'} aulas/mês">${nome}</span>`;
+        }).join('');
+      }
+
+      const vinculoHtml = `
+        <div class="aluno-vinculo-row">
+          ${planoHtml}
+          ${gradesHtml}
+        </div>`;
 
       return `
         <tr>
           <td>
             <div class="aluno-nome">${UI.escape(a.nome)}</div>
             <div class="aluno-sub">${UI.escape(a.email || '—')}</div>
+            ${vinculoHtml}
           </td>
           <td>${UI.escape(a.cpf || '—')}</td>
           <td>${UI.escape(a.telefone || '—')}</td>
@@ -204,7 +236,7 @@ const AlunoModule = {
         <table class="data-table">
           <thead>
             <tr>
-              <th>Nome / E-mail</th>
+              <th>Nome / E-mail / Vínculo</th>
               <th>CPF</th>
               <th>Telefone</th>
               <th>Idade</th>
@@ -531,7 +563,7 @@ const AlunoModule = {
     // Monta seção de turmas
     let turmasHtml;
     if (!inscricoes.length) {
-      turmasHtml = `<p class="text-muted" style="font-style:italic;margin:4px 0;">Nenhuma turma.</p>`;
+      turmasHtml = `<p class="text-muted" style="font-style:italic;margin:4px 0;">Nenhuma grade.</p>`;
     } else {
       turmasHtml = inscricoes.map(insc => {
         const turma = Storage.getById('turmas', insc.turmaId);
@@ -655,7 +687,7 @@ const AlunoModule = {
       </div>
 
       <div class="detalhe-section">
-        <div class="detalhe-section-title">Turmas inscritas (${inscricoes.length})</div>
+        <div class="detalhe-section-title">Grades inscritas (${inscricoes.length})</div>
         ${turmasHtml}
       </div>
 

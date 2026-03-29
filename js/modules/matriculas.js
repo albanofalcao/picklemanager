@@ -256,9 +256,10 @@ const MatriculaModule = {
     if (isEdit) {
       const turmaAlunos = Storage.getAll('turmaAlunos').filter(ta => ta.matriculaId === id);
       this._state._grades = turmaAlunos.map(ta => ({
-        turmaId:   ta.turmaId   || '',
-        turmaNome: ta.turmaNome || '',
-        aulas:     ta.aulasAlocadas || 1,
+        turmaId:        ta.turmaId        || '',
+        turmaNome:      ta.turmaNome      || '',
+        aulas:          ta.aulasAlocadas  || 1,
+        aulasEscolhidas: ta.aulasEscolhidas || [],
       }));
     }
 
@@ -366,25 +367,22 @@ const MatriculaModule = {
     aulasIncluidas = parseInt(aulasIncluidas) || 0;
     const rows = gradeRows || this._state._grades;
 
-    if (aulasIncluidas <= 0) {
-      return '';
-    }
+    if (aulasIncluidas <= 0) return '';
 
-    const totalDistribuido = rows.reduce((sum, r) => sum + (parseInt(r.aulas) || 0), 0);
+    const totalSelecionadas = rows.reduce((sum, r) => sum + (r.aulasEscolhidas || []).length, 0);
 
-    let counterColor = 'color:#d97706;'; // amarelo
-    if (totalDistribuido === aulasIncluidas) {
-      counterColor = 'color:#16a34a;'; // verde
-    } else if (totalDistribuido > aulasIncluidas) {
-      counterColor = 'color:#dc2626;'; // vermelho
-    }
+    let counterColor = totalSelecionadas === aulasIncluidas ? '#16a34a'
+      : totalSelecionadas > aulasIncluidas ? '#dc2626' : '#d97706';
 
     const grades = Storage.getAll('turmas').filter(t => t.status === 'ativa');
 
-    const gradeOpts = `<option value="">— Selecionar grade —</option>` +
-      grades.map(g =>
-        `<option value="${g.id}" data-nome="${UI.escape(g.nome)}">${UI.escape(g.nome)}</option>`
-      ).join('');
+    // Lê datas do formulário para filtrar aulas do período
+    const inicioEl  = document.getElementById('mat-inicio');
+    const fimEl     = document.getElementById('mat-fim');
+    const dataInicio = inicioEl ? inicioEl.value : '';
+    const dataFim    = fimEl    ? fimEl.value    : '';
+
+    const DIAS_LABEL = { 0:'Dom',1:'Seg',2:'Ter',3:'Qua',4:'Qui',5:'Sex',6:'Sáb' };
 
     const rowsHtml = rows.map((row, idx) => {
       const optsHtml = `<option value="">— Selecionar grade —</option>` +
@@ -393,37 +391,94 @@ const MatriculaModule = {
             ${row.turmaId === g.id ? 'selected' : ''}>${UI.escape(g.nome)}</option>`
         ).join('');
 
+      const escolhidas = new Set(row.aulasEscolhidas || []);
+      // slots disponíveis para ESTA grade = total permitido menos os de outras grades
+      const usadasOutras = rows
+        .filter((_, i) => i !== idx)
+        .reduce((s, r) => s + (r.aulasEscolhidas || []).length, 0);
+      const restante = aulasIncluidas - usadasOutras;
+
+      let aulasListHtml = '';
+      if (row.turmaId) {
+        const aulasDisp = Storage.getAll('aulas')
+          .filter(a => {
+            if (a.turmaId !== row.turmaId || a.status === 'cancelada') return false;
+            if (dataInicio && a.data < dataInicio) return false;
+            if (dataFim    && a.data > dataFim)    return false;
+            return true;
+          })
+          .sort((a, b) => a.data.localeCompare(b.data));
+
+        if (!aulasDisp.length) {
+          aulasListHtml = `
+            <div class="mat-aulas-vazio">
+              Nenhuma aula agendada nesta grade para o período selecionado.
+            </div>`;
+        } else {
+          const items = aulasDisp.map(a => {
+            const checked  = escolhidas.has(a.id);
+            const disabled = !checked && restante <= 0;
+            const [ano, mes, dia] = (a.data || '').split('-');
+            const diaNome = DIAS_LABEL[new Date(a.data + 'T12:00:00').getDay()] || '';
+            const hora    = [a.horarioInicio, a.horarioFim].filter(Boolean).join('–');
+            return `
+              <label class="mat-aula-item${checked ? ' checked' : ''}${disabled ? ' disabled' : ''}">
+                <input type="checkbox" ${checked ? 'checked' : ''} ${disabled ? 'disabled' : ''}
+                  onchange="MatriculaModule._toggleAulaEscolhida(${idx}, '${a.id}', this.checked)" />
+                <span class="mat-aula-data">${diaNome} ${dia}/${mes}</span>
+                ${hora ? `<span class="mat-aula-hora">${hora}</span>` : ''}
+              </label>`;
+          }).join('');
+
+          aulasListHtml = `
+            <div class="mat-aulas-lista">
+              <div class="mat-aulas-cabecalho">
+                <span>${escolhidas.size} de ${Math.min(restante + escolhidas.size, aulasDisp.length)} aulas disponíveis selecionadas</span>
+                <button type="button" class="mat-btn-selmax"
+                  onclick="MatriculaModule._selecionarMaxGrade(${idx})">Selecionar máx.</button>
+                ${escolhidas.size > 0 ? `<button type="button" class="mat-btn-selmax"
+                  onclick="MatriculaModule._limparGrade(${idx})">Limpar</button>` : ''}
+              </div>
+              <div class="mat-aulas-grid">${items}</div>
+            </div>`;
+        }
+      }
+
       return `
-        <div class="grade-row" style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
-          <select class="form-select" style="flex:1;"
-            onchange="MatriculaModule._updateGradeRow(${idx}, 'turmaId', this.value); MatriculaModule._updateGradeRow(${idx}, 'turmaNome', this.selectedOptions[0] ? (this.selectedOptions[0].dataset.nome || this.selectedOptions[0].textContent) : '')">
-            ${optsHtml}
-          </select>
-          <input type="number" class="form-input" style="width:80px;" min="1" max="${aulasIncluidas}"
-            value="${parseInt(row.aulas) || 1}"
-            onchange="MatriculaModule._updateGradeRow(${idx}, 'aulas', parseInt(this.value) || 1)" />
-          <button type="button" class="btn btn-ghost btn-sm danger" style="flex-shrink:0;"
-            onclick="MatriculaModule._removeGradeRow(${idx})" title="Remover">🗑️</button>
+        <div class="grade-row-wrap">
+          <div class="grade-row">
+            <select class="form-select"
+              onchange="MatriculaModule._onGradeSelect(${idx}, this.value, this.selectedOptions[0])">
+              ${optsHtml}
+            </select>
+            ${row.turmaId ? `<span class="mat-grade-badge">${escolhidas.size} aula${escolhidas.size !== 1 ? 's' : ''}</span>` : ''}
+            <button type="button" class="btn btn-ghost btn-sm danger"
+              onclick="MatriculaModule._removeGradeRow(${idx})" title="Remover">🗑️</button>
+          </div>
+          ${aulasListHtml}
         </div>`;
     }).join('');
 
     return `
       <div class="form-group">
-        <label class="form-label">Distribuição de Aulas por Grade</label>
-        <div style="font-size:13px;color:#6b7280;margin-bottom:6px;">
-          Este plano inclui <strong>${aulasIncluidas}</strong> aula${aulasIncluidas !== 1 ? 's' : ''} por período
-        </div>
-        <div style="font-size:13px;font-weight:600;margin-bottom:10px;${counterColor}">
-          ${totalDistribuido} de ${aulasIncluidas} aula${aulasIncluidas !== 1 ? 's' : ''} distribuída${aulasIncluidas !== 1 ? 's' : ''}
+        <label class="form-label">Grades e Aulas do Período</label>
+        <div class="mat-aulas-resumo">
+          Plano inclui <strong>${aulasIncluidas}</strong> aula${aulasIncluidas !== 1 ? 's' : ''}
+          &nbsp;·&nbsp;
+          <span style="font-weight:700;color:${counterColor}">
+            ${totalSelecionadas} selecionada${totalSelecionadas !== 1 ? 's' : ''}
+          </span>
+          ${totalSelecionadas > aulasIncluidas
+            ? '<span class="mat-resumo-alerta"> (limite excedido)</span>' : ''}
         </div>
         ${rowsHtml}
-        <button type="button" class="btn btn-secondary btn-sm" style="margin-top:4px;"
+        <button type="button" class="btn btn-secondary btn-sm mat-add-grade"
           onclick="MatriculaModule._addGradeRow()">+ Adicionar Grade</button>
       </div>`;
   },
 
   _addGradeRow() {
-    this._state._grades.push({ turmaId: '', turmaNome: '', aulas: 1 });
+    this._state._grades.push({ turmaId: '', turmaNome: '', aulas: 0, aulasEscolhidas: [] });
     this._reRenderGradesSection();
   },
 
@@ -432,9 +487,75 @@ const MatriculaModule = {
     this._reRenderGradesSection();
   },
 
+  _onGradeSelect(idx, turmaId, opt) {
+    if (!this._state._grades[idx]) return;
+    this._state._grades[idx].turmaId        = turmaId;
+    this._state._grades[idx].turmaNome      = opt ? (opt.dataset.nome || opt.textContent.trim()) : '';
+    this._state._grades[idx].aulasEscolhidas = [];
+    this._state._grades[idx].aulas           = 0;
+    this._reRenderGradesSection();
+  },
+
   _updateGradeRow(idx, field, value) {
     if (!this._state._grades[idx]) return;
     this._state._grades[idx][field] = value;
+    this._reRenderGradesSection();
+  },
+
+  _toggleAulaEscolhida(gradeIdx, aulaId, checked) {
+    const row = this._state._grades[gradeIdx];
+    if (!row) return;
+    const escolhidas = row.aulasEscolhidas || [];
+    if (checked) {
+      if (!escolhidas.includes(aulaId)) escolhidas.push(aulaId);
+    } else {
+      const i = escolhidas.indexOf(aulaId);
+      if (i > -1) escolhidas.splice(i, 1);
+    }
+    row.aulasEscolhidas = escolhidas;
+    row.aulas           = escolhidas.length;
+    this._reRenderGradesSection();
+  },
+
+  _selecionarMaxGrade(gradeIdx) {
+    const row = this._state._grades[gradeIdx];
+    if (!row || !row.turmaId) return;
+
+    const planoSel = document.getElementById('mat-plano');
+    const aulasMax = planoSel && planoSel.value
+      ? (parseInt((planoSel.selectedOptions[0] || {}).dataset?.aulas) || 0) : 0;
+
+    const usadasOutras = this._state._grades
+      .filter((_, i) => i !== gradeIdx)
+      .reduce((s, r) => s + (r.aulasEscolhidas || []).length, 0);
+    const limite = aulasMax - usadasOutras;
+    if (limite <= 0) return;
+
+    const inicioEl  = document.getElementById('mat-inicio');
+    const fimEl     = document.getElementById('mat-fim');
+    const dataInicio = inicioEl ? inicioEl.value : '';
+    const dataFim    = fimEl    ? fimEl.value    : '';
+
+    const aulasDisp = Storage.getAll('aulas')
+      .filter(a => {
+        if (a.turmaId !== row.turmaId || a.status === 'cancelada') return false;
+        if (dataInicio && a.data < dataInicio) return false;
+        if (dataFim    && a.data > dataFim)    return false;
+        return true;
+      })
+      .sort((a, b) => a.data.localeCompare(b.data))
+      .slice(0, limite);
+
+    row.aulasEscolhidas = aulasDisp.map(a => a.id);
+    row.aulas           = row.aulasEscolhidas.length;
+    this._reRenderGradesSection();
+  },
+
+  _limparGrade(gradeIdx) {
+    const row = this._state._grades[gradeIdx];
+    if (!row) return;
+    row.aulasEscolhidas = [];
+    row.aulas           = 0;
     this._reRenderGradesSection();
   },
 
@@ -555,27 +676,27 @@ const MatriculaModule = {
 
       // Para cada grade válida: criar ou atualizar
       gradesValidas.forEach(gradeEntry => {
-        const turmaId      = gradeEntry.turmaId;
-        const turmaNome    = gradeEntry.turmaNome || '';
-        const aulasAlocadas = parseInt(gradeEntry.aulas) || 1;
+        const turmaId        = gradeEntry.turmaId;
+        const turmaNome      = gradeEntry.turmaNome || '';
+        const aulasEscolhidas = gradeEntry.aulasEscolhidas || [];
+        const aulasAlocadas  = aulasEscolhidas.length || parseInt(gradeEntry.aulas) || 1;
 
         const existente = existentes.find(ta => ta.turmaId === turmaId);
 
         if (!existente) {
-          // Criar novo registro
           Storage.create('turmaAlunos', {
             turmaId,
             turmaNome,
             alunoId,
             alunoNome,
             aulasAlocadas,
+            aulasEscolhidas,
             matriculaId,
             status:        'ativo',
             dataInscricao: new Date().toISOString(),
           });
-        } else if (existente.aulasAlocadas !== aulasAlocadas) {
-          // Atualizar somente se mudou
-          Storage.update('turmaAlunos', existente.id, { aulasAlocadas });
+        } else {
+          Storage.update('turmaAlunos', existente.id, { aulasAlocadas, aulasEscolhidas });
         }
       });
 
@@ -612,11 +733,14 @@ const MatriculaModule = {
     let totalGeradas = 0;
 
     gradesVinculadas.forEach(ta => {
+      // Se o aluno escolheu aulas específicas, não gera automaticamente
+      if (ta.aulasEscolhidas && ta.aulasEscolhidas.length > 0) return;
+
       const turma = Storage.getById('turmas', ta.turmaId);
       if (!turma || !(turma.diasSemana || []).length) return;
 
       const diasJs   = turma.diasSemana.map(d => DIAS_JS[d]).filter(d => d !== undefined);
-      const aulasMax = parseInt(ta.aulasAlocadas) || 0; // total de aulas por mês
+      const aulasMax = parseInt(ta.aulasAlocadas) || 0;
       if (aulasMax <= 0) return;
 
       // Aulas já existentes desta turma no período (para não duplicar)
