@@ -39,6 +39,8 @@ const TurmasModule = {
     filterStatus:   '',
     calAno:         null,
     calMes:         null,
+    calView:        'mes',
+    calDia:         new Date().getDate(),
     turmaSel:       '',
     aulaFilterTurma:'',
     aulaFilterData: '',
@@ -921,48 +923,106 @@ const TurmasModule = {
   /* ================================================================== */
 
   _renderCalendario() {
-    const { calAno, calMes } = this._state;
-    const mesNome = new Date(calAno, calMes, 1)
-      .toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-    const titulo = mesNome.charAt(0).toUpperCase() + mesNome.slice(1);
+    const { calAno, calMes, calView } = this._state;
+    const hoje = new Date();
 
-    const arenas = Storage.getAll('arenas').sort((a, b) => a.nome.localeCompare(b.nome));
+    // Calcula label do período conforme a view
+    let titulo = '';
+    if (calView === 'dia') {
+      const d = new Date(calAno, calMes, this._state.calDia);
+      titulo = d.toLocaleDateString('pt-BR', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+      titulo = titulo.charAt(0).toUpperCase() + titulo.slice(1);
+    } else if (calView === 'semana') {
+      const { inicio, fim } = this._getSemanaAtual();
+      const di = inicio.toLocaleDateString('pt-BR', { day:'numeric', month:'short' });
+      const df = fim.toLocaleDateString('pt-BR',   { day:'numeric', month:'short', year:'numeric' });
+      titulo = `${di} – ${df}`;
+    } else if (calView === 'mes') {
+      const mn = new Date(calAno, calMes, 1).toLocaleDateString('pt-BR', { month:'long', year:'numeric' });
+      titulo = mn.charAt(0).toUpperCase() + mn.slice(1);
+    } else {
+      titulo = 'Próximas Aulas';
+    }
+
+    const arenas = Storage.getAll('arenas').sort((a,b) => a.nome.localeCompare(b.nome));
+    const turmas = Storage.getAll(this.SK).sort((a,b) => a.nome.localeCompare(b.nome));
+
     const arenaOpts = `<option value="">Todas as arenas</option>` +
-      arenas.map(a =>
-        `<option value="${a.id}" ${this._state.calFilterArena === a.id ? 'selected' : ''}>${UI.escape(a.nome)}</option>`
-      ).join('');
-
-    const turmas = Storage.getAll(this.SK).sort((a, b) => a.nome.localeCompare(b.nome));
+      arenas.map(a => `<option value="${a.id}" ${this._state.calFilterArena===a.id?'selected':''}>${UI.escape(a.nome)}</option>`).join('');
     const turmaOpts = `<option value="">Todas as grades</option>` +
-      turmas.map(t =>
-        `<option value="${t.id}" ${this._state.calFilterTurma === t.id ? 'selected' : ''}>${UI.escape(t.nome)}</option>`
-      ).join('');
+      turmas.map(t => `<option value="${t.id}" ${this._state.calFilterTurma===t.id?'selected':''}>${UI.escape(t.nome)}</option>`).join('');
+
+    // Legenda de cores por grade
+    const legendaHtml = turmas.slice(0,8).map(t => {
+      const cor = this._getGradeCor(t.id);
+      return `<span class="cal-leg-item"><span class="cal-leg-dot" style="background:${cor}"></span>${UI.escape(t.nome)}</span>`;
+    }).join('');
 
     return `
-      <div class="cal-header">
-        <button class="btn btn-ghost btn-sm cal-nav" onclick="TurmasModule._navCal(-1)">&#8249;</button>
-        <span class="cal-title">${titulo}</span>
-        <button class="btn btn-ghost btn-sm cal-nav" onclick="TurmasModule._navCal(1)">&#8250;</button>
-        <button class="btn btn-secondary btn-sm" style="margin-left:12px;" onclick="TurmasModule._navCalHoje()">Hoje</button>
-        <select class="filter-select" style="margin-left:auto;"
-          onchange="TurmasModule._state.calFilterArena=this.value;TurmasModule._reRenderContent()">
-          ${arenaOpts}
-        </select>
-        <select class="filter-select"
-          onchange="TurmasModule._state.calFilterTurma=this.value;TurmasModule._reRenderContent()">
-          ${turmaOpts}
-        </select>
+      <div class="cal-toolbar">
+        <div class="cal-toolbar-nav">
+          <button class="btn btn-ghost btn-sm cal-nav" onclick="TurmasModule._navCal(-1)">&#8249;</button>
+          <span class="cal-title">${titulo}</span>
+          <button class="btn btn-ghost btn-sm cal-nav" onclick="TurmasModule._navCal(1)">&#8250;</button>
+          <button class="btn btn-secondary btn-sm cal-hoje-btn" onclick="TurmasModule._navCalHoje()">Hoje</button>
+        </div>
+        <div class="cal-view-switcher">
+          ${['dia','semana','mes','agenda'].map(v =>
+            `<button class="cal-view-btn${calView===v?' active':''}" onclick="TurmasModule._setCalView('${v}')">
+              ${{dia:'Dia',semana:'Semana',mes:'Mês',agenda:'Agenda'}[v]}
+            </button>`
+          ).join('')}
+        </div>
+        <div class="cal-toolbar-filters">
+          <select class="filter-select filter-select-sm"
+            onchange="TurmasModule._state.calFilterArena=this.value;TurmasModule._reRenderContent()">${arenaOpts}</select>
+          <select class="filter-select filter-select-sm"
+            onchange="TurmasModule._state.calFilterTurma=this.value;TurmasModule._reRenderContent()">${turmaOpts}</select>
+        </div>
       </div>
-      ${this._renderGrade(calAno, calMes)}`;
+      <div class="cal-legenda">${legendaHtml}</div>
+      <div class="cal-body">
+        ${calView === 'dia'     ? this._renderViewDia()     : ''}
+        ${calView === 'semana'  ? this._renderViewSemana()  : ''}
+        ${calView === 'mes'     ? this._renderViewMes()     : ''}
+        ${calView === 'agenda'  ? this._renderViewAgenda()  : ''}
+      </div>`;
+  },
+
+  _setCalView(view) {
+    this._state.calView = view;
+    this._reRenderContent();
   },
 
   _navCal(delta) {
-    let { calAno, calMes } = this._state;
-    calMes += delta;
-    if (calMes < 0)  { calMes = 11; calAno--; }
-    if (calMes > 11) { calMes = 0;  calAno++; }
-    this._state.calAno = calAno;
-    this._state.calMes = calMes;
+    const view = this._state.calView;
+    if (view === 'dia') {
+      const d = new Date(this._state.calAno, this._state.calMes, this._state.calDia);
+      d.setDate(d.getDate() + delta);
+      this._state.calAno = d.getFullYear();
+      this._state.calMes = d.getMonth();
+      this._state.calDia = d.getDate();
+    } else if (view === 'semana') {
+      const d = new Date(this._state.calAno, this._state.calMes, this._state.calDia);
+      d.setDate(d.getDate() + delta * 7);
+      this._state.calAno = d.getFullYear();
+      this._state.calMes = d.getMonth();
+      this._state.calDia = d.getDate();
+    } else if (view === 'mes') {
+      let { calAno, calMes } = this._state;
+      calMes += delta;
+      if (calMes < 0)  { calMes = 11; calAno--; }
+      if (calMes > 11) { calMes = 0;  calAno++; }
+      this._state.calAno = calAno;
+      this._state.calMes = calMes;
+    } else {
+      // agenda: avança 14 dias
+      const d = new Date(this._state.calAno, this._state.calMes, this._state.calDia);
+      d.setDate(d.getDate() + delta * 14);
+      this._state.calAno = d.getFullYear();
+      this._state.calMes = d.getMonth();
+      this._state.calDia = d.getDate();
+    }
     this._reRenderContent();
   },
 
@@ -970,7 +1030,27 @@ const TurmasModule = {
     const now = new Date();
     this._state.calAno = now.getFullYear();
     this._state.calMes = now.getMonth();
+    this._state.calDia = now.getDate();
     this._reRenderContent();
+  },
+
+  _getSemanaAtual() {
+    const ref = new Date(this._state.calAno, this._state.calMes, this._state.calDia);
+    const diaSem = ref.getDay(); // 0=dom
+    const inicio = new Date(ref); inicio.setDate(ref.getDate() - diaSem);
+    const fim    = new Date(inicio); fim.setDate(inicio.getDate() + 6);
+    return { inicio, fim };
+  },
+
+  _getAulasFiltradas(dataIni, dataFim) {
+    const ini = dataIni.toISOString().slice(0,10);
+    const fim = dataFim.toISOString().slice(0,10);
+    return Storage.getAll(this.SK_AULA).filter(a => {
+      if (!a.data || a.data < ini || a.data > fim) return false;
+      if (this._state.calFilterArena && a.arenaId !== this._state.calFilterArena) return false;
+      if (this._state.calFilterTurma && a.turmaId !== this._state.calFilterTurma) return false;
+      return true;
+    }).sort((a,b) => (a.horarioInicio||'').localeCompare(b.horarioInicio||''));
   },
 
   _getGradeCor(turmaId) {
@@ -981,103 +1061,211 @@ const TurmasModule = {
     return CORES[idx >= 0 ? idx % CORES.length : 0];
   },
 
-  _renderGrade(ano, mes) {
-    const primeiroDia = new Date(ano, mes, 1);
-    const ultimoDia   = new Date(ano, mes + 1, 0);
+  _renderViewDia() {
+    const { calAno, calMes, calDia } = this._state;
+    const aulas   = this._getAulasFiltradas(new Date(calAno, calMes, calDia), new Date(calAno, calMes, calDia));
+
+    if (!aulas.length) {
+      return `<div class="cal-dia-vazio"><span>📭</span><p>Nenhuma aula neste dia.</p></div>`;
+    }
+
+    const cards = aulas.map(a => this._renderCardAula(a, 'lg')).join('');
+    return `<div class="cal-dia-lista">${cards}</div>`;
+  },
+
+  _renderViewSemana() {
+    const { inicio, fim } = this._getSemanaAtual();
+    const aulas = this._getAulasFiltradas(inicio, fim);
+    const hojeStr = new Date().toISOString().slice(0,10);
+    const DIAS = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+
+    // Colunas de cada dia
+    const dias = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(inicio);
+      d.setDate(inicio.getDate() + i);
+      dias.push(d);
+    }
+
+    const cols = dias.map((d, i) => {
+      const ds = d.toISOString().slice(0,10);
+      const isHoje = ds === hojeStr;
+      const aulasD = aulas.filter(a => a.data === ds);
+      const cards  = aulasD.length
+        ? aulasD.map(a => this._renderCardAula(a, 'sm')).join('')
+        : `<div class="cal-sem-vazio">—</div>`;
+      return `
+        <div class="cal-sem-col${isHoje ? ' cal-sem-hoje' : ''}">
+          <div class="cal-sem-header">
+            <span class="cal-sem-diaNome">${DIAS[i]}</span>
+            <span class="cal-sem-diaNum${isHoje ? ' hoje' : ''}">${d.getDate()}</span>
+          </div>
+          <div class="cal-sem-aulas">${cards}</div>
+        </div>`;
+    }).join('');
+
+    return `<div class="cal-semana-grid">${cols}</div>`;
+  },
+
+  _renderViewMes() {
+    const { calAno, calMes } = this._state;
+    const primeiroDia = new Date(calAno, calMes, 1);
+    const ultimoDia   = new Date(calAno, calMes + 1, 0);
     const diasDoMes   = ultimoDia.getDate();
-    const inicioSem   = primeiroDia.getDay(); // 0=dom
+    const inicioSem   = primeiroDia.getDay();
+    const mesStr      = String(calMes + 1).padStart(2, '0');
+    const hojeStr     = new Date().toISOString().slice(0, 10);
+    const HEADER      = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+    const WKEND       = [0, 6];
 
-    const mesStr    = String(mes + 1).padStart(2, '0');
-    const inicioStr = `${ano}-${mesStr}-01`;
-    const fimStr    = `${ano}-${mesStr}-${String(diasDoMes).padStart(2, '0')}`;
+    const aulasDoMes = this._getAulasFiltradas(primeiroDia, ultimoDia);
 
-    const aulasDoMes = Storage.getAll(this.SK_AULA)
-      .filter(a => {
-        if (!a.data || a.data < inicioStr || a.data > fimStr) return false;
-        if (this._state.calFilterArena && a.arenaId !== this._state.calFilterArena) return false;
-        if (this._state.calFilterTurma && a.turmaId !== this._state.calFilterTurma) return false;
-        return true;
-      })
-      .sort((a, b) => (a.horarioInicio || '').localeCompare(b.horarioInicio || ''));
+    const headerCols = HEADER.map(h =>
+      `<div class="cal-mes-th">${h}</div>`).join('');
 
-    const hoje    = new Date();
-    const hojeStr = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
-
-    const HEADER  = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-    const WKEND   = [0, 6]; // domingo e sábado
     let cells = '';
-
-    // Células em branco antes do dia 1
     for (let i = 0; i < inicioSem; i++) {
-      const diaSem = i;
-      cells += `<div class="cal-cell cal-cell-outside${WKEND.includes(diaSem) ? ' cal-cell-fds' : ''}"></div>`;
+      cells += `<div class="cal-cell cal-cell-outside${WKEND.includes(i)?' cal-cell-fds':''}"></div>`;
     }
 
     for (let d = 1; d <= diasDoMes; d++) {
-      const dataStr   = `${ano}-${mesStr}-${String(d).padStart(2, '0')}`;
+      const dataStr   = `${calAno}-${mesStr}-${String(d).padStart(2, '0')}`;
       const aulasHoje = aulasDoMes.filter(a => a.data === dataStr);
       const isHoje    = dataStr === hojeStr;
       const isPast    = dataStr < hojeStr;
-      const diaSem    = new Date(ano, mes, d).getDay();
+      const diaSem    = new Date(calAno, calMes, d).getDay();
       const isFds     = WKEND.includes(diaSem);
-
-      const MAX = 3;
-      const visiveis = aulasHoje.slice(0, MAX);
-      const extras   = aulasHoje.length - MAX;
+      const MAX       = 3;
+      const visiveis  = aulasHoje.slice(0, MAX);
+      const extras    = aulasHoje.length - MAX;
 
       const eventos = visiveis.map(a => {
-        const cor   = this._getGradeCor(a.turmaId);
-        const hr    = (a.horarioInicio || '').slice(0, 5);
-        const st    = this.STATUS_AULA[a.status] || {};
-        const stDot = `<span class="cal-ev-dot" style="background:${st.cor || cor};"></span>`;
+        const cor = this._getGradeCor(a.turmaId);
+        const hr  = (a.horarioInicio || '').slice(0, 5);
+        const st  = this.STATUS_AULA[a.status] || {};
         return `
           <div class="cal-event" style="--ev-cor:${cor};"
             onclick="TurmasModule.openModalAulaDetalhe('${a.id}')">
-            <div class="cal-ev-top">${stDot}<span class="cal-event-hora">${hr}</span></div>
-            <div class="cal-event-nome">${UI.escape(a.titulo)}</div>
-            ${a.turmaNome ? `<div class="cal-event-grade">${UI.escape(a.turmaNome)}</div>` : ''}
+            <span class="cal-ev-dot" style="background:${st.cor||cor};"></span>
+            <span class="cal-event-hora">${hr}</span>
+            <span class="cal-event-nome">${UI.escape(a.titulo || a.turmaNome || '')}</span>
           </div>`;
       }).join('');
 
       const mais = extras > 0
-        ? `<div class="cal-event-mais" onclick="TurmasModule._state.aulaFilterData='${dataStr}';TurmasModule._setTab('aulas')">+${extras} mais</div>`
+        ? `<div class="cal-event-mais" onclick="TurmasModule._setCalView('dia');TurmasModule._state.calDia=${d};TurmasModule._reRenderContent()">+${extras} mais</div>`
         : '';
 
       cells += `
-        <div class="cal-cell${isHoje ? ' cal-cell-hoje' : ''}${isPast ? ' cal-cell-passado' : ''}${isFds ? ' cal-cell-fds' : ''}">
-          <div class="cal-day-num${isHoje ? ' cal-day-hoje' : ''}">${d}</div>
-          <div class="cal-events">${eventos}${mais}</div>
+        <div class="cal-cell${isHoje?' cal-cell-hoje':''}${isPast?' cal-cell-passado':''}${isFds?' cal-cell-fds':''}">
+          <div class="cal-cell-num${isHoje?' hoje':''}">${d}</div>
+          ${eventos}${mais}
         </div>`;
     }
 
-    // Preencher colunas restantes
-    const total = inicioSem + diasDoMes;
-    const resto = total % 7;
-    if (resto > 0) {
-      for (let i = resto; i < 7; i++) {
-        const diaSem = i;
-        cells += `<div class="cal-cell cal-cell-outside${WKEND.includes(diaSem) ? ' cal-cell-fds' : ''}"></div>`;
-      }
+    return `
+      <div class="cal-mes-wrap">
+        <div class="cal-mes-header">${headerCols}</div>
+        <div class="cal-mes-grid">${cells}</div>
+      </div>`;
+  },
+
+  _renderViewAgenda() {
+    const ref  = new Date(this._state.calAno, this._state.calMes, this._state.calDia);
+    const fim  = new Date(ref); fim.setDate(ref.getDate() + 30);
+    const aulas = this._getAulasFiltradas(ref, fim);
+
+    if (!aulas.length) {
+      return `<div class="cal-dia-vazio"><span>📭</span><p>Nenhuma aula nos próximos 30 dias.</p></div>`;
     }
 
-    // Legenda de grades
-    const turmasNoMes = [...new Set(aulasDoMes.filter(a => a.turmaId).map(a => a.turmaId))];
-    const legenda = turmasNoMes.length > 1 ? `
-      <div class="cal-legenda">
-        ${turmasNoMes.map(tid => {
-          const t   = Storage.getById(this.SK, tid);
-          const cor = this._getGradeCor(tid);
-          return t ? `<span class="cal-legenda-item"><span class="cal-legenda-cor" style="background:${cor};"></span>${UI.escape(t.nome)}</span>` : '';
-        }).join('')}
-      </div>` : '';
+    // Agrupa por data
+    const grupos = {};
+    aulas.forEach(a => {
+      if (!grupos[a.data]) grupos[a.data] = [];
+      grupos[a.data].push(a);
+    });
 
+    const hojeStr = new Date().toISOString().slice(0,10);
+
+    return `<div class="cal-agenda-wrap">` +
+      Object.entries(grupos).sort(([a],[b]) => a.localeCompare(b)).map(([data, aulasD]) => {
+        const [ano, mes, dia] = data.split('-');
+        const dateObj = new Date(+ano, +mes-1, +dia);
+        const label   = dateObj.toLocaleDateString('pt-BR', { weekday:'long', day:'numeric', month:'long' });
+        const isHoje  = data === hojeStr;
+        const cards   = aulasD.map(a => this._renderCardAula(a, 'md')).join('');
+        return `
+          <div class="cal-agenda-grupo">
+            <div class="cal-agenda-data${isHoje?' hoje':''}">
+              ${label.charAt(0).toUpperCase() + label.slice(1)}
+              ${isHoje ? '<span class="cal-agenda-hoje-badge">Hoje</span>' : ''}
+            </div>
+            <div class="cal-agenda-aulas">${cards}</div>
+          </div>`;
+      }).join('') + `</div>`;
+  },
+
+  _renderCardAula(a, size = 'md') {
+    const cor    = this._getGradeCor(a.turmaId);
+    const st     = this.STATUS_AULA[a.status] || { label: a.status, cor: '#6b7280' };
+    const hr     = [a.horarioInicio, a.horarioFim].filter(Boolean).join('–') || '—';
+
+    // Conta alunos inscritos nesta turma
+    const inscritos = Storage.getAll('turmaAlunos').filter(ta => ta.turmaId === a.turmaId && ta.status === 'ativo').length;
+
+    if (size === 'sm') {
+      return `
+        <div class="cal-card cal-card-sm" style="--ev-cor:${cor};"
+          onclick="TurmasModule.openModalAulaDetalhe('${a.id}')">
+          <div class="cal-card-hora">${(a.horarioInicio||'').slice(0,5)}</div>
+          <div class="cal-card-titulo">${UI.escape(a.titulo || a.turmaNome || '—')}</div>
+          <span class="cal-card-st-dot" style="background:${st.cor};" title="${st.label}"></span>
+        </div>`;
+    }
+
+    if (size === 'md') {
+      return `
+        <div class="cal-card cal-card-md" style="--ev-cor:${cor};"
+          onclick="TurmasModule.openModalAulaDetalhe('${a.id}')">
+          <div class="cal-card-left-bar" style="background:${cor};"></div>
+          <div class="cal-card-body">
+            <div class="cal-card-row1">
+              <span class="cal-card-hora">${hr}</span>
+              <span class="cal-card-badge" style="background:${st.cor}20;color:${st.cor};">${st.label}</span>
+            </div>
+            <div class="cal-card-titulo">${UI.escape(a.titulo || a.turmaNome || '—')}</div>
+            <div class="cal-card-sub">
+              ${a.professorNome ? `👤 ${UI.escape(a.professorNome)}` : ''}
+              ${a.arenaNome     ? `· 📍 ${UI.escape(a.arenaNome)}`   : ''}
+              ${inscritos       ? `· 👥 ${inscritos}`                : ''}
+            </div>
+          </div>
+        </div>`;
+    }
+
+    // lg
     return `
-      ${legenda}
-      <div class="cal-grid">
-        <div class="cal-dow-header">
-          ${HEADER.map((h, i) => `<div class="cal-dow${WKEND.includes(i) ? ' cal-dow-fds' : ''}">${h}</div>`).join('')}
+      <div class="cal-card cal-card-lg" style="--ev-cor:${cor};"
+        onclick="TurmasModule.openModalAulaDetalhe('${a.id}')">
+        <div class="cal-card-left-bar" style="background:${cor};"></div>
+        <div class="cal-card-body">
+          <div class="cal-card-row1">
+            <span class="cal-card-hora-lg">${hr}</span>
+            <span class="cal-card-badge" style="background:${st.cor}20;color:${st.cor};">${st.label}</span>
+          </div>
+          <div class="cal-card-titulo-lg">${UI.escape(a.titulo || a.turmaNome || '—')}</div>
+          <div class="cal-card-meta">
+            ${a.turmaNome     ? `<span>🏷️ ${UI.escape(a.turmaNome)}</span>`     : ''}
+            ${a.professorNome ? `<span>👤 ${UI.escape(a.professorNome)}</span>` : ''}
+            ${a.arenaNome     ? `<span>📍 ${UI.escape(a.arenaNome)}</span>`     : ''}
+            ${inscritos       ? `<span>👥 ${inscritos} aluno${inscritos!==1?'s':''}</span>` : ''}
+          </div>
         </div>
-        <div class="cal-cells">${cells}</div>
+        <div class="cal-card-actions">
+          <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();TurmasModule.abrirPresencaRapida('${a.id}')" title="Presença">📋</button>
+          <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();TurmasModule.openModalAula('${a.id}')" title="Editar">✏️</button>
+        </div>
       </div>`;
   },
 
