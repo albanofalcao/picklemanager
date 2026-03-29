@@ -686,6 +686,16 @@ const TurmasModule = {
       Storage.update(this.SK_AULA, aulaId, { status: 'concluida' });
     }
 
+    // Verificar alunos que esgotaram o saldo mensal
+    const presentes = [...checks].filter(cb => cb.dataset.presente === '1').map(cb => ({ alunoId: cb.dataset.alunoId }));
+    const semSaldo = presentes.filter(a => {
+      const s = SaldoService.getSaldo(a.alunoId);
+      return s.total > 0 && s.disponivel === 0;
+    });
+    if (semSaldo.length) {
+      UI.toast(`⚠️ ${semSaldo.length} aluno${semSaldo.length !== 1 ? 's' : ''} esgotou o saldo mensal.`, 'warning');
+    }
+
     UI.closeModal();
     UI.toast(`Presença de ${salvos} aluno${salvos !== 1 ? 's' : ''} salva! Aula marcada como concluída.`, 'success');
     this._reRenderContent();

@@ -1,5 +1,67 @@
 'use strict';
 
+/* ============================================================
+   SaldoService — Saldo de aulas por plano/mês
+   ============================================================ */
+const SaldoService = {
+  /** Retorna saldo do aluno no mês informado (YYYY-MM). Se mesAno omitido, usa mês atual. */
+  getSaldo(alunoId, mesAno) {
+    if (!mesAno) mesAno = new Date().toISOString().slice(0, 7);
+
+    // Matrícula ativa
+    const matricula = Storage.getAll('matriculas')
+      .filter(m => m.alunoId === alunoId && m.status === 'ativa')
+      .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))[0];
+
+    if (!matricula) return { total: 0, usado: 0, disponivel: 0, matricula: null, plano: null };
+
+    const plano = Storage.getById('planos', matricula.planoId);
+    const total = plano ? (parseInt(plano.aulasIncluidas) || 0) : 0;
+
+    // Aulas do mês com presença confirmada
+    const aulasDoMes = Storage.getAll('aulas')
+      .filter(a => a.data && a.data.slice(0, 7) === mesAno)
+      .map(a => a.id);
+
+    const usado = Storage.getAll('presencas')
+      .filter(p => p.alunoId === alunoId && p.presente === true && aulasDoMes.includes(p.aulaId))
+      .length;
+
+    return { total, usado, disponivel: Math.max(0, total - usado), matricula, plano };
+  },
+
+  /** Renderiza badge compacto de saldo */
+  badgeSaldo(alunoId, mesAno) {
+    const s = this.getSaldo(alunoId, mesAno);
+    if (!s.total) return `<span class="badge badge-gray saldo-badge">Sem plano</span>`;
+    const pct = s.total > 0 ? (s.usado / s.total) : 0;
+    const cls = pct >= 1 ? 'badge-danger' : pct >= 0.75 ? 'badge-warning' : 'badge-success';
+    return `<span class="badge ${cls} saldo-badge" title="Saldo de aulas — ${mesAno}">${s.disponivel}/${s.total} aulas</span>`;
+  },
+
+  /** Renderiza barra de progresso de saldo */
+  barSaldo(alunoId, mesAno) {
+    const s = this.getSaldo(alunoId, mesAno);
+    if (!s.total) return `<div class="saldo-vazio">Sem plano ativo</div>`;
+    const pct  = Math.min(100, Math.round((s.usado / s.total) * 100));
+    const cor  = pct >= 100 ? '#dc2626' : pct >= 75 ? '#d97706' : '#16a34a';
+    const mes  = mesAno || new Date().toISOString().slice(0, 7);
+    const [y, m] = mes.split('-');
+    const mesLabel = new Date(+y, +m - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+    return `
+      <div class="saldo-bar-wrap">
+        <div class="saldo-bar-header">
+          <span class="saldo-bar-label">Aulas — ${mesLabel}</span>
+          <span class="saldo-bar-nums" style="color:${cor}">${s.usado} usada${s.usado !== 1 ? 's' : ''} de ${s.total}</span>
+        </div>
+        <div class="saldo-bar-track">
+          <div class="saldo-bar-fill" style="width:${pct}%;background:${cor};"></div>
+        </div>
+        <div class="saldo-bar-plano">${s.plano ? s.plano.nome : ''}</div>
+      </div>`;
+  },
+};
+
 /**
  * App — Bootstrap: seed data, sidebar, date, route registration, init
  */

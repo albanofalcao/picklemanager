@@ -472,6 +472,16 @@ const PortalModule = {
 
     const ativa = matriculas.find(m => m.status === 'ativa');
 
+    // Barras de saldo: mês atual e 2 meses anteriores
+    const agora = new Date();
+    const saldoBars = [0, -1, -2].map(offset => {
+      const d = new Date(agora.getFullYear(), agora.getMonth() + offset, 1);
+      const mes = d.toISOString().slice(0, 7);
+      return SaldoService.barSaldo(alunoId, mes);
+    }).join('');
+
+    const saldoSection = `<div class="portal-fin-saldo">${saldoBars}</div>`;
+
     const resumo = ativa ? `
       <div class="portal-fin-resumo">
         <div class="portal-fin-plano">
@@ -504,7 +514,7 @@ const PortalModule = {
         }).join('')}
       </div>` : '';
 
-    return `<div class="portal-fin">${resumo}${historico}</div>`;
+    return `<div class="portal-fin">${saldoSection}${resumo}${historico}</div>`;
   },
 
   async cancelarInscricao(inscricaoId) {
