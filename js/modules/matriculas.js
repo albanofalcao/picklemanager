@@ -179,6 +179,22 @@ const MatriculaModule = {
         ? `<span class="badge badge-warning" style="font-size:10px;margin-left:4px;">${diasRest <= 0 ? 'Hoje!' : diasRest + 'd'}</span>`
         : '';
 
+      // Badge de status financeiro
+      const lancamentos = Storage.getAll('financeiro').filter(l => l.matriculaId === m.id);
+      let financeiroBadge = '';
+      if (lancamentos.length > 0) {
+        const totalParcelas = lancamentos.length;
+        const totalPagas    = lancamentos.filter(l => l.status === 'pago').length;
+        const totalPendente = lancamentos.filter(l => l.status === 'pendente').length;
+        if (totalPagas === totalParcelas) {
+          financeiroBadge = `<span class="badge badge-success" title="Financeiro">💰 Pago</span>`;
+        } else if (totalPagas > 0) {
+          financeiroBadge = `<span class="badge badge-success" title="Financeiro">✅ ${totalPagas}/${totalParcelas} pagas</span>`;
+        } else if (totalPendente > 0) {
+          financeiroBadge = `<span class="badge badge-warning" title="Financeiro">⏳ Pendente</span>`;
+        }
+      }
+
       return `
         <tr>
           <td>
@@ -194,6 +210,7 @@ const MatriculaModule = {
           </td>
           <td><span class="badge ${status.badge}">${status.label}</span></td>
           <td class="text-muted text-sm">${UI.escape(m.formaPagamento ? (this.FORMA_PAGAMENTO[m.formaPagamento] || m.formaPagamento) : '—')}</td>
+          <td>${financeiroBadge}</td>
           <td class="aluno-row-actions">
             <button class="btn btn-ghost btn-sm" onclick="MatriculaModule.openModal('${m.id}')" title="Editar">✏️</button>
             <button class="btn btn-ghost btn-sm danger" onclick="MatriculaModule.deleteMatricula('${m.id}')" title="Excluir">🗑️</button>
@@ -212,6 +229,7 @@ const MatriculaModule = {
               <th>Vencimento</th>
               <th>Status</th>
               <th>Pagamento</th>
+              <th>Financeiro</th>
               <th></th>
             </tr>
           </thead>
@@ -331,12 +349,34 @@ const MatriculaModule = {
           <div class="form-group">
             <label class="form-label" for="mat-valor">Valor pago (R$)</label>
             <input id="mat-valor" type="number" class="form-input"
-              placeholder="0,00" min="0" step="0.01" value="${v('valorPago')}" />
+              placeholder="0,00" min="0" step="0.01" value="${v('valorPago')}"
+              oninput="MatriculaModule._onParcelasChange()" />
           </div>
           <div class="form-group">
             <label class="form-label" for="mat-fp">Forma de pagamento</label>
             <select id="mat-fp" class="form-select">${fpOpts}</select>
           </div>
+        </div>
+
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label" for="mat-parcelas">Parcelas</label>
+            <select id="mat-parcelas" class="form-select" onchange="MatriculaModule._onParcelasChange()">
+              <option value="1" ${(mat?.numeroParcelas || 1) === 1 ? 'selected' : ''}>1x (à vista)</option>
+              <option value="2" ${(mat?.numeroParcelas || 1) === 2 ? 'selected' : ''}>2x</option>
+              <option value="3" ${(mat?.numeroParcelas || 1) === 3 ? 'selected' : ''}>3x</option>
+              <option value="4" ${(mat?.numeroParcelas || 1) === 4 ? 'selected' : ''}>4x</option>
+              <option value="5" ${(mat?.numeroParcelas || 1) === 5 ? 'selected' : ''}>5x</option>
+              <option value="6" ${(mat?.numeroParcelas || 1) === 6 ? 'selected' : ''}>6x</option>
+              <option value="7" ${(mat?.numeroParcelas || 1) === 7 ? 'selected' : ''}>7x</option>
+              <option value="8" ${(mat?.numeroParcelas || 1) === 8 ? 'selected' : ''}>8x</option>
+              <option value="9" ${(mat?.numeroParcelas || 1) === 9 ? 'selected' : ''}>9x</option>
+              <option value="10" ${(mat?.numeroParcelas || 1) === 10 ? 'selected' : ''}>10x</option>
+              <option value="11" ${(mat?.numeroParcelas || 1) === 11 ? 'selected' : ''}>11x</option>
+              <option value="12" ${(mat?.numeroParcelas || 1) === 12 ? 'selected' : ''}>12x</option>
+            </select>
+          </div>
+          <div id="mat-parcelas-preview" class="mat-parcelas-preview" style="display:none;"></div>
         </div>
 
         <div class="form-group">
@@ -701,6 +741,7 @@ const MatriculaModule = {
       dataFim:       g('fim')    ? g('fim').value    : '',
       valorPago:     g('valor')  ? parseFloat(g('valor').value) || 0 : 0,
       formaPagamento:g('fp')     ? g('fp').value     : '',
+      numeroParcelas:g('parcelas') ? parseInt(g('parcelas').value) || 1 : 1,
       status:        g('status') ? g('status').value : 'ativa',
       observacoes:   g('obs')    ? g('obs').value.trim() : '',
     };
@@ -766,6 +807,11 @@ const MatriculaModule = {
     if (matriculaId) {
       const count = this._gerarAulasMatricula(matriculaId, data.dataInicio, data.dataFim, data.alunoId, data.alunoNome);
       if (count > 0) UI.toast(`${count} aula${count !== 1 ? 's' : ''} gerada${count !== 1 ? 's' : ''} no cronograma.`, 'info');
+    }
+
+    // Sincronizar lançamentos financeiros
+    if (matriculaId) {
+      this._sincronizarFinanceiro(matriculaId, data);
     }
 
     UI.closeModal();
@@ -864,6 +910,11 @@ const MatriculaModule = {
     );
     if (!confirmed) return;
 
+    // Cancelar lançamentos financeiros vinculados (apenas pendentes)
+    Storage.getAll('financeiro')
+      .filter(l => l.matriculaId === id)
+      .forEach(l => Storage.update('financeiro', l.id, { status: 'cancelado' }));
+
     Storage.delete(this.STORAGE_KEY, id);
     UI.toast(`Matrícula de "${mat.alunoNome}" excluída.`, 'success');
     this.render();
@@ -904,6 +955,77 @@ const MatriculaModule = {
     const countEl = document.querySelector('.results-count');
     if (countEl) {
       countEl.textContent = `${filtered.length} matrícula${filtered.length !== 1 ? 's' : ''}`;
+    }
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Parcelas                                                            */
+  /* ------------------------------------------------------------------ */
+
+  _onParcelasChange() {
+    const valorEl    = document.getElementById('mat-valor');
+    const parcelasEl = document.getElementById('mat-parcelas');
+    const preview    = document.getElementById('mat-parcelas-preview');
+    if (!preview) return;
+
+    const total    = parseFloat(valorEl?.value) || 0;
+    const parcelas = parseInt(parcelasEl?.value) || 1;
+
+    if (total > 0 && parcelas > 1) {
+      const valorParc = total / parcelas;
+      preview.style.display = '';
+      preview.textContent   = `${parcelas}x de ${this._fmtMoeda(valorParc)}`;
+    } else {
+      preview.style.display = 'none';
+    }
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Sincronização financeira                                            */
+  /* ------------------------------------------------------------------ */
+
+  _sincronizarFinanceiro(matriculaId, matData) {
+    const alunoNome = matData.alunoNome || '';
+    const planoNome = matData.planoNome || '';
+    const valorPago = parseFloat(matData.valorPago) || 0;
+    const N         = parseInt(matData.numeroParcelas) || 1;
+    const dataInicio = matData.dataInicio || new Date().toISOString().slice(0, 10);
+    const formaPagamento = matData.formaPagamento || '';
+
+    // 1. Remove lançamentos pendentes vinculados a esta matrícula
+    Storage.getAll('financeiro')
+      .filter(l => l.matriculaId === matriculaId && l.status === 'pendente')
+      .forEach(l => Storage.delete('financeiro', l.id));
+
+    // 2. Cria N lançamentos
+    const valorParc = Math.round((valorPago / N) * 100) / 100;
+
+    for (let i = 0; i < N; i++) {
+      const d = new Date(dataInicio + 'T00:00:00');
+      d.setMonth(d.getMonth() + i);
+      const dataLanc = d.toISOString().slice(0, 10);
+
+      const descricao = N === 1
+        ? `Mensalidade — ${alunoNome} — ${planoNome}`
+        : `Mensalidade ${i + 1}/${N} — ${alunoNome} — ${planoNome}`;
+
+      const status = i === 0 && valorPago > 0 && formaPagamento
+        ? 'pago'
+        : 'pendente';
+
+      Storage.create('financeiro', {
+        tipo:           'receita',
+        categoria:      'mensalidade',
+        descricao,
+        valor:          valorParc,
+        data:           dataLanc,
+        formaPagamento,
+        status,
+        referencia:     alunoNome,
+        matriculaId,
+        origem:         'matricula',
+        observacoes:    'Gerado automaticamente pela matrícula',
+      });
     }
   },
 

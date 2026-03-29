@@ -192,11 +192,15 @@ const FinanceiroModule = {
       const sinal  = l.tipo === 'receita' ? '+' : '−';
       const valClass = l.tipo === 'receita' ? 'fin-val-pos' : 'fin-val-neg';
 
+      const matriculaBadge = l.matriculaId
+        ? `<span class="badge badge-blue" style="font-size:10px;margin-left:4px;">📋 Matrícula</span>`
+        : '';
+
       return `
         <tr class="${l.status === 'cancelado' ? 'aula-row-cancelada' : ''}">
           <td>${UI.escape(data)}</td>
           <td>
-            <div class="aluno-nome">${UI.escape(l.descricao)}</div>
+            <div class="aluno-nome">${UI.escape(l.descricao)}${matriculaBadge}</div>
             <div class="aluno-sub">${UI.escape(cat)}${l.referencia ? ' · ' + UI.escape(l.referencia) : ''}</div>
           </td>
           <td><span class="badge ${tipo.badge}">${tipo.label}</span></td>
@@ -408,8 +412,12 @@ const FinanceiroModule = {
     const lanc = Storage.getById(this.STORAGE_KEY, id);
     if (!lanc) return;
 
+    const aviso = lanc.matriculaId
+      ? `\n\nEste lançamento foi gerado automaticamente por uma matrícula.`
+      : '';
+
     const confirmed = await UI.confirm(
-      `Deseja realmente excluir o lançamento "${lanc.descricao}"?`,
+      `Deseja realmente excluir o lançamento "${lanc.descricao}"?${aviso}`,
       'Excluir Lançamento'
     );
     if (!confirmed) return;
