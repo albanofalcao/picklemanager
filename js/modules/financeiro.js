@@ -7,10 +7,22 @@ const FinanceiroModule = {
   STORAGE_KEY: 'financeiro',
 
   _state: {
+    tab:          'lancamentos',
     search:       '',
     filterTipo:   '',
     filterStatus: '',
     filterMes:    '',
+  },
+
+  STORAGE_KEY_PC: 'planoContas',
+
+  TIPO_PC: {
+    receita:    { label: 'Receita',    badge: 'badge-success' },
+    deducao:    { label: 'Dedução',    badge: 'badge-warning' },
+    custo:      { label: 'Custo',      badge: 'badge-blue'    },
+    despesa:    { label: 'Despesa',    badge: 'badge-danger'  },
+    financeiro: { label: 'Financeiro', badge: 'badge-gray'    },
+    imposto:    { label: 'Imposto',    badge: 'badge-danger'  },
   },
 
   TIPO: {
@@ -96,11 +108,30 @@ const FinanceiroModule = {
   /*  Render                                                              */
   /* ------------------------------------------------------------------ */
 
+  switchTab(tab) {
+    this._state.tab = tab;
+    this.render();
+  },
+
   render() {
+    const area = document.getElementById('content-area');
+    if (!area) return;
+
+    const tab = this._state.tab;
+
+    const tabsBar = `
+      <div class="tabs-bar">
+        <button class="tab-btn ${tab === 'lancamentos' ? 'active' : ''}" onclick="FinanceiroModule.switchTab('lancamentos')">💰 Lançamentos</button>
+        <button class="tab-btn ${tab === 'planoContas' ? 'active' : ''}" onclick="FinanceiroModule.switchTab('planoContas')">📋 Plano de Contas</button>
+      </div>`;
+
+    if (tab === 'planoContas') {
+      area.innerHTML = tabsBar + this._renderPlanoContas();
+      return;
+    }
+
     const stats    = this.getStats();
     const filtered = this.getFiltered();
-    const area     = document.getElementById('content-area');
-    if (!area) return;
 
     const mesSel     = this._state.filterMes || new Date().toISOString().slice(0, 7);
     const mesLabel   = this._formatMesLabel(mesSel);
@@ -112,6 +143,7 @@ const FinanceiroModule = {
     const saldoClass = stats.saldo >= 0 ? 'financeiro-saldo-pos' : 'financeiro-saldo-neg';
 
     area.innerHTML = `
+      ${tabsBar}
       <div class="page-header">
         <div class="page-header-text">
           <h2>Financeiro</h2>
@@ -180,6 +212,285 @@ const FinanceiroModule = {
         ${filtered.length ? this.renderTable(filtered) : this.renderEmpty()}
       </div>
     `;
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Plano de Contas                                                     */
+  /* ------------------------------------------------------------------ */
+
+  _getAllContas() {
+    return Storage.getAll(this.STORAGE_KEY_PC);
+  },
+
+  _sortContas(contas) {
+    return contas.slice().sort((a, b) => {
+      const pa = (a.codigo || '').split('.').map(n => parseInt(n, 10) || 0);
+      const pb = (b.codigo || '').split('.').map(n => parseInt(n, 10) || 0);
+      for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+        const diff = (pa[i] || 0) - (pb[i] || 0);
+        if (diff !== 0) return diff;
+      }
+      return 0;
+    });
+  },
+
+  _hasFilhos(codigo) {
+    return this._getAllContas().some(c => c.codigoPai === codigo);
+  },
+
+  _renderPlanoContas() {
+    const contas = this._sortContas(this._getAllContas());
+
+    const rows = contas.map(c => {
+      const tipoCfg   = this.TIPO_PC[c.tipo] || { label: c.tipo, badge: 'badge-gray' };
+      const natureza  = c.natureza === 'credito' ? 'Crédito' : 'Débito';
+      const ativoIcon = c.ativo ? '✅' : '⚪';
+      const temFilhos = this._hasFilhos(c.codigo);
+
+      let nivelClass  = '';
+      let indentClass = '';
+      if (c.nivel === 1) { nivelClass = 'pc-nivel-1'; indentClass = 'pc-indent-1'; }
+      if (c.nivel === 2) { nivelClass = 'pc-nivel-2'; indentClass = 'pc-indent-2'; }
+      if (c.nivel === 3) { nivelClass = 'pc-nivel-3'; indentClass = 'pc-indent-3'; }
+
+      const subcontaBtn = (c.nivel === 1 || c.nivel === 2)
+        ? `<button class="btn btn-ghost btn-sm" onclick="FinanceiroModule.openModalSubconta('${UI.escape(c.codigo)}')" title="Nova subconta" style="font-size:11px;padding:2px 6px;">+ Subconta</button>`
+        : '';
+
+      const deleteBtn = !temFilhos
+        ? `<button class="btn btn-ghost btn-sm danger" onclick="FinanceiroModule.deleteConta('${c.id}')" title="Excluir">🗑️</button>`
+        : `<button class="btn btn-ghost btn-sm" disabled title="Possui subcontas" style="opacity:.35;cursor:not-allowed;">🗑️</button>`;
+
+      return `
+        <tr class="${nivelClass}">
+          <td class="pc-codigo ${indentClass}">${UI.escape(c.codigo)}</td>
+          <td class="${indentClass}">
+            ${UI.escape(c.descricao)}
+            ${subcontaBtn}
+          </td>
+          <td><span class="badge ${tipoCfg.badge}">${tipoCfg.label}</span></td>
+          <td class="text-sm">${natureza}</td>
+          <td>
+            <button class="btn btn-ghost btn-sm" onclick="FinanceiroModule.toggleAtivoConta('${c.id}')" title="Alternar ativo" style="font-size:16px;padding:2px 4px;">${ativoIcon}</button>
+          </td>
+          <td class="aluno-row-actions">
+            <button class="btn btn-ghost btn-sm" onclick="FinanceiroModule.openModalConta('${c.id}')" title="Editar">✏️</button>
+            ${deleteBtn}
+          </td>
+        </tr>`;
+    }).join('');
+
+    const emptyState = !contas.length ? `
+      <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-muted);">
+        Nenhuma conta cadastrada. Clique em "+ Nova Conta" para começar.
+      </td></tr>` : '';
+
+    return `
+      <div class="page-header">
+        <div class="page-header-text">
+          <h2>Plano de Contas</h2>
+          <p>Estrutura hierárquica de receitas, custos e despesas</p>
+        </div>
+        <button class="btn btn-primary" onclick="FinanceiroModule.openModalConta()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Nova Conta
+        </button>
+      </div>
+      <div class="alunos-table-wrap">
+        <div class="table-card">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Descrição</th>
+                <th>Tipo</th>
+                <th>Natureza</th>
+                <th>Ativo</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>${rows}${emptyState}</tbody>
+          </table>
+        </div>
+      </div>`;
+  },
+
+  openModalConta(id = null) {
+    const conta  = id ? Storage.getById(this.STORAGE_KEY_PC, id) : null;
+    const isEdit = !!conta;
+    const v      = (field, fallback = '') => conta ? UI.escape(String(conta[field] ?? fallback)) : fallback;
+
+    const todasContas = this._sortContas(this._getAllContas());
+    const pais        = todasContas.filter(c => c.nivel === 1 || c.nivel === 2);
+    const paiOptions  = pais.map(c =>
+      `<option value="${UI.escape(c.codigo)}" ${conta && conta.codigoPai === c.codigo ? 'selected' : ''}>${UI.escape(c.codigo)} — ${UI.escape(c.descricao)}</option>`
+    ).join('');
+
+    const tipoOptions = Object.entries(this.TIPO_PC).map(([k, cfg]) =>
+      `<option value="${k}" ${conta && conta.tipo === k ? 'selected' : ''}>${cfg.label}</option>`
+    ).join('');
+
+    const content = `
+      <div class="form-grid">
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label" for="pc-codigo">Código <span class="required-star">*</span></label>
+            <input id="pc-codigo" type="text" class="form-input" placeholder="ex: 1.1.1" value="${v('codigo')}" required autocomplete="off" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="pc-nivel">Nível <span class="required-star">*</span></label>
+            <select id="pc-nivel" class="form-select">
+              <option value="1" ${conta && conta.nivel === 1 ? 'selected' : ''}>1 — Grupo raiz</option>
+              <option value="2" ${conta && conta.nivel === 2 ? 'selected' : ''}>2 — Subgrupo</option>
+              <option value="3" ${(!conta || conta.nivel === 3) ? 'selected' : ''}>3 — Conta</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="pc-descricao">Descrição <span class="required-star">*</span></label>
+          <input id="pc-descricao" type="text" class="form-input" placeholder="ex: Mensalidade — Plano Mensal" value="${v('descricao')}" required autocomplete="off" />
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="pc-pai">Conta Pai</label>
+          <select id="pc-pai" class="form-select" onchange="FinanceiroModule._syncTipoPorPai(this.value)">
+            <option value="">— Nenhuma (grupo raiz) —</option>
+            ${paiOptions}
+          </select>
+        </div>
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label" for="pc-tipo">Tipo <span class="required-star">*</span></label>
+            <select id="pc-tipo" class="form-select">${tipoOptions}</select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="pc-natureza">Natureza <span class="required-star">*</span></label>
+            <select id="pc-natureza" class="form-select">
+              <option value="credito" ${conta && conta.natureza === 'credito' ? 'selected' : ''}>Crédito</option>
+              <option value="debito"  ${conta && conta.natureza === 'debito'  ? 'selected' : ''}>Débito</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">
+            <input type="checkbox" id="pc-ativo" ${(!conta || conta.ativo !== false) ? 'checked' : ''} style="margin-right:6px;" />
+            Conta ativa
+          </label>
+        </div>
+      </div>`;
+
+    UI.openModal({
+      title:        isEdit ? 'Editar Conta' : 'Nova Conta',
+      content,
+      confirmLabel: isEdit ? 'Salvar alterações' : 'Cadastrar',
+      onConfirm:    () => this.saveConta(id),
+    });
+  },
+
+  _syncTipoPorPai(codigoPai) {
+    if (!codigoPai) return;
+    const pai = this._getAllContas().find(c => c.codigo === codigoPai);
+    if (!pai) return;
+    const tipoEl = document.getElementById('pc-tipo');
+    if (tipoEl) tipoEl.value = pai.tipo;
+  },
+
+  openModalSubconta(codigoPai) {
+    const pai = this._getAllContas().find(c => c.codigo === codigoPai);
+    if (!pai) return;
+
+    // Suggest next available code in the group
+    const filhos  = this._getAllContas().filter(c => c.codigoPai === codigoPai);
+    const nextNum = filhos.length
+      ? Math.max(...filhos.map(c => {
+          const parts = c.codigo.split('.');
+          return parseInt(parts[parts.length - 1], 10) || 0;
+        })) + 1
+      : 1;
+    const codigoSugerido = `${codigoPai}.${nextNum}`;
+
+    this.openModalConta(null);
+    // Pre-fill after modal opens
+    requestAnimationFrame(() => {
+      const codEl = document.getElementById('pc-codigo');
+      if (codEl) codEl.value = codigoSugerido;
+      const paiEl = document.getElementById('pc-pai');
+      if (paiEl) { paiEl.value = codigoPai; this._syncTipoPorPai(codigoPai); }
+      const nivelEl = document.getElementById('pc-nivel');
+      if (nivelEl) nivelEl.value = String(pai.nivel + 1);
+    });
+  },
+
+  saveConta(id = null) {
+    const g = n => document.getElementById(`pc-${n}`);
+    const codigoEl   = g('codigo');
+    const descEl     = g('descricao');
+
+    let valid = true;
+    [codigoEl, descEl].forEach(el => {
+      if (!el) return;
+      const empty = !el.value.trim();
+      el.classList.toggle('error', empty);
+      if (empty) valid = false;
+    });
+    if (!valid) { UI.toast('Preencha os campos obrigatórios.', 'warning'); return; }
+
+    const codigo = codigoEl.value.trim();
+
+    // Validate unique code
+    const existing = this._getAllContas().find(c => c.codigo === codigo && c.id !== id);
+    if (existing) {
+      codigoEl.classList.add('error');
+      UI.toast('Já existe uma conta com este código.', 'warning');
+      return;
+    }
+
+    const record = {
+      codigo,
+      descricao:  descEl.value.trim(),
+      codigoPai:  g('pai')      ? (g('pai').value      || null)          : null,
+      nivel:      g('nivel')    ? parseInt(g('nivel').value, 10)         : 3,
+      tipo:       g('tipo')     ? g('tipo').value                        : 'despesa',
+      natureza:   g('natureza') ? g('natureza').value                    : 'debito',
+      ativo:      g('ativo')    ? g('ativo').checked                     : true,
+    };
+
+    if (id) {
+      Storage.update(this.STORAGE_KEY_PC, id, record);
+      UI.toast('Conta atualizada com sucesso!', 'success');
+    } else {
+      Storage.create(this.STORAGE_KEY_PC, record);
+      UI.toast('Conta cadastrada com sucesso!', 'success');
+    }
+
+    UI.closeModal();
+    this.render();
+  },
+
+  async deleteConta(id) {
+    const conta = Storage.getById(this.STORAGE_KEY_PC, id);
+    if (!conta) return;
+
+    if (this._hasFilhos(conta.codigo)) {
+      UI.toast('Não é possível excluir uma conta que possui subcontas vinculadas.', 'warning');
+      return;
+    }
+
+    const confirmed = await UI.confirm(
+      `Deseja realmente excluir a conta "${conta.codigo} — ${conta.descricao}"?`,
+      'Excluir Conta'
+    );
+    if (!confirmed) return;
+
+    Storage.delete(this.STORAGE_KEY_PC, id);
+    UI.toast('Conta excluída.', 'success');
+    this.render();
+  },
+
+  toggleAtivoConta(id) {
+    const conta = Storage.getById(this.STORAGE_KEY_PC, id);
+    if (!conta) return;
+    Storage.update(this.STORAGE_KEY_PC, id, { ativo: !conta.ativo });
+    this.render();
   },
 
   renderTable(lancamentos) {
