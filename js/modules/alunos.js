@@ -377,6 +377,62 @@ const AlunoModule = {
     const statusOptions = Object.entries(this.STATUS).map(([k, cfg]) =>
       `<option value="${k}" ${aluno && aluno.status === k ? 'selected' : ''}>${cfg.label}</option>`).join('');
 
+    // Resetar state de grades da matrícula ao abrir
+    MatriculaModule._state._grades = [];
+
+    // Seção de matrícula (só para novo aluno)
+    const hoje = new Date().toISOString().slice(0, 10);
+    const planos = Storage.getAll('planos').filter(p => p.status === 'ativo');
+    const planoOpts = `<option value="">— Selecionar plano —</option>` +
+      planos.map(p =>
+        `<option value="${p.id}" data-nome="${UI.escape(p.nome)}" data-tipo="${p.tipo}"
+          data-valor="${p.valor}" data-aulas="${p.aulasIncluidas || 0}">
+          ${UI.escape(p.nome)} — ${MatriculaModule._fmtMoeda(p.valor)}</option>`
+      ).join('');
+
+    const fpOpts = `<option value="">— Selecionar —</option>` +
+      Object.entries(MatriculaModule.FORMA_PAGAMENTO).map(([k, lbl]) =>
+        `<option value="${k}">${lbl}</option>`).join('');
+
+    const matSection = !isEdit ? `
+      <div class="aluno-mat-divider">
+        <label class="aluno-mat-toggle-label">
+          <input type="checkbox" id="a-mat-toggle"
+            onchange="AlunoModule._toggleMatSection(this.checked)" />
+          <span>Criar matrícula agora</span>
+        </label>
+      </div>
+      <div id="a-mat-section" style="display:none;">
+        <div class="form-group">
+          <label class="form-label" for="mat-plano">Plano <span class="required-star">*</span></label>
+          <select id="mat-plano" class="form-select"
+            onchange="MatriculaModule._onPlanoChange()">${planoOpts}</select>
+        </div>
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label" for="mat-inicio">Início <span class="required-star">*</span></label>
+            <input id="mat-inicio" type="date" class="form-input" value="${hoje}"
+              onchange="MatriculaModule._onPlanoChange()" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="mat-fim">Vencimento</label>
+            <input id="mat-fim" type="date" class="form-input" />
+          </div>
+        </div>
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label" for="mat-valor">Valor pago (R$)</label>
+            <input id="mat-valor" type="number" class="form-input"
+              placeholder="0,00" min="0" step="0.01" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="mat-fp">Forma de pagamento</label>
+            <select id="mat-fp" class="form-select">${fpOpts}</select>
+          </div>
+        </div>
+        <div id="mat-grades-section"></div>
+      </div>` : '';
+
     const content = `
       <div class="form-grid">
         <div class="form-group">
@@ -436,6 +492,8 @@ const AlunoModule = {
           <textarea id="a-obs" name="observacoes" class="form-textarea"
             placeholder="Informações adicionais sobre o aluno…" rows="3">${aluno ? UI.escape(aluno.observacoes || '') : ''}</textarea>
         </div>
+
+        ${matSection}
       </div>`;
 
     UI.openModal({
@@ -443,7 +501,13 @@ const AlunoModule = {
       content,
       confirmLabel: isEdit ? 'Salvar alterações' : 'Cadastrar Aluno',
       onConfirm:    () => this.saveAluno(id),
+      wide:         !isEdit, // modal mais largo para novo aluno (espaço para matrícula)
     });
+  },
+
+  _toggleMatSection(show) {
+    const sec = document.getElementById('a-mat-section');
+    if (sec) sec.style.display = show ? '' : 'none';
   },
 
   /* ------------------------------------------------------------------ */
@@ -482,12 +546,70 @@ const AlunoModule = {
       Storage.update(this.STORAGE_KEY, id, data);
       UI.toast(`Aluno "${data.nome}" atualizado com sucesso!`, 'success');
     } else {
-      Storage.create(this.STORAGE_KEY, data);
+      const novoAluno = Storage.create(this.STORAGE_KEY, data);
       UI.toast(`Aluno "${data.nome}" cadastrado com sucesso!`, 'success');
+
+      // Criar matrícula se o toggle estiver ativado
+      const toggle = document.getElementById('a-mat-toggle');
+      if (toggle && toggle.checked && novoAluno) {
+        this._criarMatriculaComAluno(novoAluno);
+      }
     }
 
     UI.closeModal();
     this.render();
+  },
+
+  _criarMatriculaComAluno(aluno) {
+    const planoSel = document.getElementById('mat-plano');
+    const inicioEl = document.getElementById('mat-inicio');
+    if (!planoSel || !planoSel.value || !inicioEl || !inicioEl.value) return;
+
+    const planoOpt = planoSel.selectedOptions[0];
+    const fimEl    = document.getElementById('mat-fim');
+    const valorEl  = document.getElementById('mat-valor');
+    const fpEl     = document.getElementById('mat-fp');
+
+    const matData = {
+      alunoId:        aluno.id,
+      alunoNome:      aluno.nome,
+      planoId:        planoSel.value,
+      planoNome:      planoOpt ? (planoOpt.dataset.nome || planoOpt.textContent.trim()) : '',
+      dataInicio:     inicioEl.value,
+      dataFim:        fimEl    ? fimEl.value                   : '',
+      valorPago:      valorEl  ? parseFloat(valorEl.value) || 0 : 0,
+      formaPagamento: fpEl     ? fpEl.value                    : '',
+      status:         'ativa',
+      observacoes:    '',
+    };
+
+    const nova = Storage.create('matriculas', matData);
+    if (!nova) return;
+
+    // Sincronizar grades (turmaAlunos)
+    const gradesValidas = MatriculaModule._state._grades
+      .filter(g => g.turmaId && (g.aulasEscolhidas?.length || parseInt(g.aulas) > 0));
+
+    gradesValidas.forEach(gradeEntry => {
+      const aulasEscolhidas = gradeEntry.aulasEscolhidas || [];
+      const aulasAlocadas   = aulasEscolhidas.length || parseInt(gradeEntry.aulas) || 1;
+      Storage.create('turmaAlunos', {
+        turmaId:        gradeEntry.turmaId,
+        turmaNome:      gradeEntry.turmaNome || '',
+        alunoId:        aluno.id,
+        alunoNome:      aluno.nome,
+        aulasAlocadas,
+        aulasEscolhidas,
+        matriculaId:    nova.id,
+        status:         'ativo',
+        dataInscricao:  new Date().toISOString(),
+      });
+    });
+
+    // Gerar aulas automáticas para grades sem seleção manual (planos longos)
+    const count = MatriculaModule._gerarAulasMatricula(nova.id, matData.dataInicio, matData.dataFim, aluno.id, aluno.nome);
+
+    UI.toast(`Matrícula criada${count > 0 ? ` · ${count} aulas geradas` : ''}.`, 'success');
   },
 
   async deleteAluno(id) {
