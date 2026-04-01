@@ -1530,6 +1530,27 @@ img, svg { display: block; max-width: 100%; }
 }
 
 /* Matrícula inline no form de cadastro do aluno */
+.aluno-secao-titulo {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  color: var(--text-muted);
+  margin: 18px 0 8px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-color, #e5e7eb);
+}
+
+.form-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+@media (max-width: 540px) {
+  .form-grid-3 { grid-template-columns: 1fr 1fr; }
+}
+
 .aluno-mat-divider {
   margin: 16px 0 8px;
   padding-top: 16px;
@@ -3953,3 +3974,21 @@ img, svg { display: block; max-width: 100%; }
 [data-theme="dark"] .cal-event    { background: color-mix(in srgb, var(--ev-cor,#6b7280) 18%, var(--card-bg)); }
 [data-theme="dark"] .cal-sem-header,
 [data-theme="dark"] .cal-mes-th   { background: rgba(255,255,255,.04); }
+
+/* ── Quadras ── */
+.quadra-local {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.quadra-arena-link {
+  color: var(--accent-blue, #3b82f6);
+  cursor: pointer;
+  font-size: 11px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  background: none;
+  border: none;
+  padding: 0;
+}
+.quadra-arena-link:hover { opacity: .75; }

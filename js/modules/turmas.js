@@ -227,7 +227,10 @@ const TurmasModule = {
           <div class="aluno-nome">${UI.escape(t.nome)}</div>
           <div class="aluno-sub">${UI.escape(nivel)} · ${UI.escape(t.tipo || 'Grupo')} · ${nAulas} aula${nAulas !== 1 ? 's' : ''}</div>
         </td>
-        <td>${UI.escape(t.professorNome || '—')}</td>
+        <td>
+          <div style="font-size:13px;">${UI.escape(t.professorNome || '—')}</div>
+          <div class="aluno-sub">${UI.escape(t.arenaNome || '')}${t.quadraNome ? ' → ' + UI.escape(t.quadraNome) : ''}</div>
+        </td>
         <td>
           <div style="font-size:13px;font-weight:600;">${hora}</div>
           <div class="aluno-sub">${dias}</div>
@@ -511,7 +514,7 @@ const TurmasModule = {
           </td>
           <td>
             <div style="font-size:13px;font-weight:600;">${UI.escape(a.turmaNome || '—')}</div>
-            <div class="aluno-sub">${UI.escape(a.arenaNome || '—')}</div>
+            <div class="aluno-sub">${UI.escape(a.quadraNome ? `${a.arenaNome || ''} — ${a.quadraNome}` : (a.arenaNome || '—'))}</div>
           </td>
           <td>
             <div style="font-weight:600;">${dataFmt}${isHoje ? ' <span class="badge badge-blue" style="font-size:0.65rem;">Hoje</span>' : ''}</div>
@@ -1214,6 +1217,11 @@ const TurmasModule = {
     // Conta alunos inscritos nesta turma
     const inscritos = Storage.getAll('turmaAlunos').filter(ta => ta.turmaId === a.turmaId && ta.status === 'ativo').length;
 
+    // Local: arena → quadra quando disponível
+    const local = a.quadraNome
+      ? `${a.arenaNome || ''} — ${a.quadraNome}`
+      : (a.arenaNome || '—');
+
     if (size === 'sm') {
       return `
         <div class="cal-card cal-card-sm" style="--ev-cor:${cor};"
@@ -1237,7 +1245,7 @@ const TurmasModule = {
             <div class="cal-card-titulo">${UI.escape(a.titulo || a.turmaNome || '—')}</div>
             <div class="cal-card-sub">
               ${a.professorNome ? `👤 ${UI.escape(a.professorNome)}` : ''}
-              ${a.arenaNome     ? `· 📍 ${UI.escape(a.arenaNome)}`   : ''}
+              ${local !== '—'   ? `· 📍 ${UI.escape(local)}`         : ''}
               ${inscritos       ? `· 👥 ${inscritos}`                : ''}
             </div>
           </div>
@@ -1258,7 +1266,7 @@ const TurmasModule = {
           <div class="cal-card-meta">
             ${a.turmaNome     ? `<span>🏷️ ${UI.escape(a.turmaNome)}</span>`     : ''}
             ${a.professorNome ? `<span>👤 ${UI.escape(a.professorNome)}</span>` : ''}
-            ${a.arenaNome     ? `<span>📍 ${UI.escape(a.arenaNome)}</span>`     : ''}
+            ${local !== '—'   ? `<span>📍 ${UI.escape(local)}</span>`           : ''}
             ${inscritos       ? `<span>👥 ${inscritos} aluno${inscritos!==1?'s':''}</span>` : ''}
           </div>
         </div>
@@ -1396,10 +1404,20 @@ const TurmasModule = {
       ).join('');
 
     const arenas = Storage.getAll('arenas').filter(a => a.status === 'ativa');
-    const arenaOpts = `<option value="">— Selecionar —</option>` +
+    const arenaOpts = `<option value="">— Selecionar arena —</option>` +
       arenas.map(a =>
         `<option value="${a.id}" data-nome="${UI.escape(a.nome)}"
           ${turma && turma.arenaId === a.id ? 'selected' : ''}>${UI.escape(a.nome)}</option>`
+      ).join('');
+
+    // Quadras da arena já selecionada (para edição)
+    const quadrasInicial = turma && turma.arenaId
+      ? Storage.getAll('quadras').filter(q => q.arenaId === turma.arenaId && q.status === 'disponivel')
+      : [];
+    const quadraOpts = `<option value="">— Selecionar quadra —</option>` +
+      quadrasInicial.map(q =>
+        `<option value="${q.id}" data-nome="${UI.escape(q.nome)}"
+          ${turma && turma.quadraId === q.id ? 'selected' : ''}>${UI.escape(q.nome)}</option>`
       ).join('');
 
     const DIAS_ORDER = [['seg','Segunda'],['ter','Terça'],['qua','Quarta'],['qui','Quinta'],['sex','Sexta'],['sab','Sábado'],['dom','Domingo']];
@@ -1445,8 +1463,13 @@ const TurmasModule = {
           </div>
           <div class="form-group">
             <label class="form-label" for="tm-arena">Arena</label>
-            <select id="tm-arena" class="form-select">${arenaOpts}</select>
+            <select id="tm-arena" class="form-select" onchange="TurmasModule._onArenaChange()">${arenaOpts}</select>
           </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="tm-quadra">Quadra</label>
+          <select id="tm-quadra" class="form-select">${quadraOpts}</select>
         </div>
 
         <div class="form-group">
@@ -1516,11 +1539,16 @@ const TurmasModule = {
     const arenaNome = arenaSel && arenaSel.selectedOptions[0]
       ? (arenaSel.selectedOptions[0].dataset.nome || '') : '';
 
+    const quadraSel  = g('quadra');
+    const quadraId   = quadraSel ? quadraSel.value : '';
+    const quadraNome = quadraSel && quadraSel.selectedOptions[0]
+      ? (quadraSel.selectedOptions[0].dataset.nome || '') : '';
+
     const record = {
       nome:          nomeEl.value.trim(),
       tipo:          g('tipo')   ? g('tipo').value                   : 'grupo',
       nivel:         g('nivel')  ? g('nivel').value                  : 'iniciante',
-      professorId, professorNome, arenaId, arenaNome,
+      professorId, professorNome, arenaId, arenaNome, quadraId, quadraNome,
       diasSemana,
       horarioInicio: g('hi')     ? g('hi').value                     : '',
       horarioFim:    g('hf')     ? g('hf').value                     : '',
@@ -1661,6 +1689,13 @@ const TurmasModule = {
       if (diasSel.includes(cur.getDay())) {
         const dataStr = this._isoDate(cur);
         if (!existentes.has(dataStr)) {
+          // Verificar conflito de quadra (só avisa, não bloqueia)
+          const conflito = this._verificarConflitoQuadra(
+            t.quadraId, dataStr, t.horarioInicio, t.horarioFim
+          );
+          if (conflito) {
+            UI.toast(`⚠️ Quadra ocupada em ${dataStr} por "${conflito.titulo || conflito.turmaNome}".`, 'warning');
+          }
           Storage.create(this.SK_AULA, {
             titulo:        t.nome,
             tipo:          t.tipo,
@@ -1671,6 +1706,8 @@ const TurmasModule = {
             professorNome: t.professorNome,
             arenaId:       t.arenaId,
             arenaNome:     t.arenaNome,
+            quadraId:      t.quadraId   || '',
+            quadraNome:    t.quadraNome || '',
             data:          dataStr,
             horarioInicio: t.horarioInicio,
             horarioFim:    t.horarioFim,
@@ -1724,6 +1761,16 @@ const TurmasModule = {
           ${aula && aula.arenaId === a.id ? 'selected' : ''}>${UI.escape(a.nome)}</option>`
       ).join('');
 
+    // Quadras para a arena já selecionada (edição)
+    const quadrasInicial = aula && aula.arenaId
+      ? Storage.getAll('quadras').filter(q => q.arenaId === aula.arenaId && q.status === 'disponivel')
+      : [];
+    const quadraOptsAu = `<option value="">— Selecionar quadra —</option>` +
+      quadrasInicial.map(q =>
+        `<option value="${q.id}" data-nome="${UI.escape(q.nome)}"
+          ${aula && aula.quadraId === q.id ? 'selected' : ''}>${UI.escape(q.nome)}</option>`
+      ).join('');
+
     const statusOpts = Object.entries(this.STATUS_AULA).map(([k, cfg]) =>
       `<option value="${k}" ${aula && aula.status === k ? 'selected' : ''}>${cfg.label}</option>`
     ).join('');
@@ -1757,12 +1804,17 @@ const TurmasModule = {
         <div class="form-grid-2">
           <div class="form-group">
             <label class="form-label" for="au-arena">Arena</label>
-            <select id="au-arena" class="form-select">${arenaOpts}</select>
+            <select id="au-arena" class="form-select" onchange="TurmasModule._onArenaChangeAula()">${arenaOpts}</select>
           </div>
           <div class="form-group">
-            <label class="form-label" for="au-data">Data <span class="required-star">*</span></label>
-            <input id="au-data" type="date" class="form-input" value="${v('data')}" required />
+            <label class="form-label" for="au-quadra">Quadra</label>
+            <select id="au-quadra" class="form-select">${quadraOptsAu}</select>
           </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="au-data">Data <span class="required-star">*</span></label>
+          <input id="au-data" type="date" class="form-input" value="${v('data')}" required />
         </div>
 
         <div class="form-grid-2">
@@ -1825,17 +1877,31 @@ const TurmasModule = {
     const arenaId       = arenaSel ? arenaSel.value : '';
     const arenaNome     = arenaSel && arenaSel.selectedOptions[0] ? (arenaSel.selectedOptions[0].dataset.nome || '') : '';
 
+    const quadraSel     = g('quadra');
+    const quadraId      = quadraSel ? quadraSel.value : '';
+    const quadraNome    = quadraSel && quadraSel.selectedOptions[0] ? (quadraSel.selectedOptions[0].dataset.nome || '') : '';
+
+    const horarioInicio = g('hi')  ? g('hi').value  : '';
+    const horarioFim    = g('hf')  ? g('hf').value  : '';
+    const data          = dataEl.value;
+
     const record = {
       titulo:        tituloEl.value.trim(),
       nivel:         g('nivel')  ? g('nivel').value                    : 'iniciante',
-      turmaId, turmaNome, professorId, professorNome, arenaId, arenaNome,
-      data:          dataEl.value,
-      horarioInicio: g('hi')     ? g('hi').value                       : '',
-      horarioFim:    g('hf')     ? g('hf').value                       : '',
+      turmaId, turmaNome, professorId, professorNome, arenaId, arenaNome, quadraId, quadraNome,
+      data,
+      horarioInicio,
+      horarioFim,
       vagas:         g('vagas')  ? parseInt(g('vagas').value, 10) || 4 : 4,
       status:        g('status') ? g('status').value                   : 'agendada',
       observacoes:   g('obs')    ? g('obs').value.trim()               : '',
     };
+
+    // Verificar conflito de quadra
+    const conflito = this._verificarConflitoQuadra(quadraId, data, horarioInicio, horarioFim, id || null);
+    if (conflito) {
+      UI.toast(`⚠️ Quadra já ocupada neste horário por "${conflito.titulo || conflito.turmaNome}".`, 'warning');
+    }
 
     if (id) {
       Storage.update(this.SK_AULA, id, record);
@@ -2093,6 +2159,52 @@ const TurmasModule = {
   /** Retorna alunos ativos inscritos numa turma */
   getAlunosInscritos(turmaId) {
     return Storage.getAll(this.SK_INSCR).filter(i => i.turmaId === turmaId && i.status === 'ativo');
+  },
+
+  /* ================================================================== */
+  /*  Cascading Arena → Quadra                                          */
+  /* ================================================================== */
+
+  _onArenaChange() {
+    const arenaId = document.getElementById('tm-arena')?.value;
+    const sel     = document.getElementById('tm-quadra');
+    if (!sel) return;
+    if (!arenaId) {
+      sel.innerHTML = '<option value="">— Selecionar arena primeiro —</option>';
+      return;
+    }
+    const quadras = Storage.getAll('quadras').filter(q => q.arenaId === arenaId && q.status === 'disponivel');
+    sel.innerHTML = '<option value="">— Selecionar quadra —</option>' +
+      quadras.map(q => `<option value="${q.id}" data-nome="${UI.escape(q.nome)}">${UI.escape(q.nome)}</option>`).join('');
+  },
+
+  _onArenaChangeAula() {
+    const arenaId = document.getElementById('au-arena')?.value;
+    const sel     = document.getElementById('au-quadra');
+    if (!sel) return;
+    if (!arenaId) {
+      sel.innerHTML = '<option value="">— Selecionar arena primeiro —</option>';
+      return;
+    }
+    const quadras = Storage.getAll('quadras').filter(q => q.arenaId === arenaId && q.status === 'disponivel');
+    sel.innerHTML = '<option value="">— Selecionar quadra —</option>' +
+      quadras.map(q => `<option value="${q.id}" data-nome="${UI.escape(q.nome)}">${UI.escape(q.nome)}</option>`).join('');
+  },
+
+  /* ================================================================== */
+  /*  Conflito de horário em quadra                                      */
+  /* ================================================================== */
+
+  _verificarConflitoQuadra(quadraId, data, horarioInicio, horarioFim, aulaIdIgnorar = null) {
+    if (!quadraId || !data || !horarioInicio) return null;
+    return Storage.getAll('aulas').find(a =>
+      a.id !== aulaIdIgnorar &&
+      a.quadraId === quadraId &&
+      a.data     === data &&
+      a.status   !== 'cancelada' &&
+      a.horarioInicio < (horarioFim || '23:59') &&
+      (a.horarioFim || '23:59') > horarioInicio
+    ) || null;
   },
 
   /* ================================================================== */

@@ -413,6 +413,33 @@ const App = {
     Storage.seed('cat_tipos_aula',      this.SEED_CAT_TIPOS_AULA);
     Storage.seed('cat_tipos_evento',    this.SEED_CAT_TIPOS_EVENTO);
     Storage.seed('planoContas',         this.SEED_PLANO_CONTAS);
+
+    // Criar quadra padrão para arenas que ainda não tenham quadras
+    Storage.getAll('arenas').forEach(arena => {
+      const temQuadras = Storage.getAll('quadras').some(q => q.arenaId === arena.id);
+      if (!temQuadras) {
+        Storage.create('quadras', {
+          arenaId:    arena.id,
+          arenaNome:  arena.nome,
+          nome:       'Quadra 1',
+          tipo:       'descoberta',
+          piso:       'sintetico',
+          capacidade: 4,
+          status:     'disponivel',
+          observacoes:'',
+        });
+        Storage.create('quadras', {
+          arenaId:    arena.id,
+          arenaNome:  arena.nome,
+          nome:       'Quadra 2',
+          tipo:       'coberta',
+          piso:       'sintetico',
+          capacidade: 4,
+          status:     'disponivel',
+          observacoes:'',
+        });
+      }
+    });
   },
 
   /** Initialize the full UI — called after successful authentication */

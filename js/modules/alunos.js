@@ -433,6 +433,32 @@ const AlunoModule = {
           </select>
         </div>
 
+        <div class="aluno-secao-titulo">👕 Vestuário</div>
+        <div class="form-grid-3">
+          <div class="form-group">
+            <label class="form-label" for="a-camisa">Camiseta</label>
+            <select id="a-camisa" class="form-select">
+              <option value="">—</option>
+              ${['PP','P','M','G','GG','XG','XXG'].map(s =>
+                `<option value="${s}" ${v('tamanhoCamisa')===s?'selected':''}>${s}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="a-short">Short</label>
+            <select id="a-short" class="form-select">
+              <option value="">—</option>
+              ${['PP','P','M','G','GG','XG','XXG'].map(s =>
+                `<option value="${s}" ${v('tamanhoShort')===s?'selected':''}>${s}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="a-sapato">Calçado (nº)</label>
+            <input id="a-sapato" type="number" class="form-input"
+              placeholder="ex: 42" min="28" max="48"
+              value="${v('tamanhoSapato')}" />
+          </div>
+        </div>
+
         <div class="form-group">
           <label class="form-label" for="a-obs">Observações</label>
           <textarea id="a-obs" name="observacoes" class="form-textarea"
@@ -479,6 +505,9 @@ const AlunoModule = {
       nivel:          g('nivel')      ? g('nivel').value             : 'iniciante',
       status:         g('status')     ? g('status').value            : 'ativo',
       observacoes:    g('obs')        ? g('obs').value.trim()        : '',
+      tamanhoCamisa:  g('camisa')     ? g('camisa').value            : '',
+      tamanhoShort:   g('short')      ? g('short').value             : '',
+      tamanhoSapato:  g('sapato')     ? g('sapato').value            : '',
     };
 
     if (id) {
@@ -676,6 +705,80 @@ const AlunoModule = {
     const mesAtual = new Date().toISOString().slice(0, 7);
     const saldoHtml = SaldoService.barSaldo(id, mesAtual);
 
+    // ── Plano contratado ──────────────────────────────────────────────
+    const matriculaAtiva = Storage.getAll('matriculas')
+      .filter(m => m.alunoId === id && m.status === 'ativa')
+      .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))[0] || null;
+
+    const TIPO_PLANO = { mensal:'Mensal', trimestral:'Trimestral', semestral:'Semestral', anual:'Anual' };
+    let planoHtml;
+    if (!matriculaAtiva) {
+      planoHtml = `<p class="text-muted" style="font-style:italic;margin:4px 0;">Sem matrícula ativa.</p>`;
+    } else {
+      const plano       = Storage.getById('planos', matriculaAtiva.planoId);
+      const tipoLabel   = plano ? (TIPO_PLANO[plano.tipo] || plano.tipo || '—') : '—';
+      const aulas       = plano ? (plano.aulasIncluidas || 0) : 0;
+      const [ai, af]    = [matriculaAtiva.dataInicio, matriculaAtiva.dataFim];
+      const fmtD        = s => { if (!s) return '—'; const [y,m,d] = s.split('-'); return `${d}/${m}/${y}`; };
+
+      // Grades inscritas com dias da semana
+      const diasSemMap  = { dom:'Dom', seg:'Seg', ter:'Ter', qua:'Qua', qui:'Qui', sex:'Sex', sab:'Sáb' };
+      const gradesDias  = inscricoes.map(i => {
+        const t = Storage.getById('turmas', i.turmaId);
+        if (!t) return null;
+        const dias = (t.diasSemana || []).map(d => diasSemMap[d] || d).join(', ');
+        return `<span class="aluno-grade-chip">${UI.escape(t.nome)}</span>${dias ? `<span class="text-muted" style="font-size:11px;">(${dias})</span>` : ''}`;
+      }).filter(Boolean);
+
+      const vezesSemana = [...new Set(inscricoes.flatMap(i => {
+        const t = Storage.getById('turmas', i.turmaId);
+        return t ? (t.diasSemana || []) : [];
+      }))].length;
+
+      planoHtml = `
+        <div class="info-grid" style="grid-template-columns:repeat(2,1fr);gap:8px 16px;font-size:0.85rem;">
+          <div><span class="text-muted">Plano:</span> <strong>${UI.escape(matriculaAtiva.planoNome || '—')}</strong></div>
+          <div><span class="text-muted">Tipo:</span> ${tipoLabel}</div>
+          <div><span class="text-muted">Aulas incluídas:</span> ${aulas}/mês</div>
+          <div><span class="text-muted">Freq. semanal:</span> ${vezesSemana}x / semana</div>
+          <div><span class="text-muted">Início:</span> ${fmtD(ai)}</div>
+          <div><span class="text-muted">Vencimento:</span> ${fmtD(af)}</div>
+        </div>
+        ${gradesDias.length ? `<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;">${gradesDias.join('')}</div>` : ''}`;
+    }
+
+    // ── Reposições ────────────────────────────────────────────────────
+    const todasAulas = Storage.getAll('aulas');
+    const reposSolic = todasAulas.filter(a =>
+      a.tipo === 'reposicao' && (a.alunoReposicaoId === id || a.alunoId === id));
+    const reposFeitas = reposSolic.filter(a => a.status === 'concluida').length;
+    const reposPend   = reposSolic.filter(a => ['agendada','em_andamento'].includes(a.status)).length;
+
+    const reposHtml = `
+      <div class="info-grid" style="grid-template-columns:repeat(3,1fr);gap:8px;font-size:0.85rem;">
+        <div class="info-box" style="text-align:center;">
+          <div style="font-size:1.4rem;font-weight:700;">${reposSolic.length}</div>
+          <div class="text-muted">Solicitadas</div>
+        </div>
+        <div class="info-box" style="text-align:center;">
+          <div style="font-size:1.4rem;font-weight:700;color:#16a34a;">${reposFeitas}</div>
+          <div class="text-muted">Realizadas</div>
+        </div>
+        <div class="info-box" style="text-align:center;">
+          <div style="font-size:1.4rem;font-weight:700;color:#d97706;">${reposPend}</div>
+          <div class="text-muted">Pendentes</div>
+        </div>
+      </div>`;
+
+    // ── Vestuário ─────────────────────────────────────────────────────
+    const vestuarioHtml = (aluno.tamanhoCamisa || aluno.tamanhoShort || aluno.tamanhoSapato)
+      ? `<div class="info-grid" style="grid-template-columns:repeat(3,1fr);gap:8px;font-size:0.85rem;">
+          <div><span class="text-muted">Camiseta:</span> <strong>${UI.escape(aluno.tamanhoCamisa || '—')}</strong></div>
+          <div><span class="text-muted">Short:</span> <strong>${UI.escape(aluno.tamanhoShort || '—')}</strong></div>
+          <div><span class="text-muted">Calçado:</span> <strong>${aluno.tamanhoSapato ? aluno.tamanhoSapato + ' BR' : '—'}</strong></div>
+        </div>`
+      : `<p class="text-muted" style="font-style:italic;margin:4px 0;">Não informado.</p>`;
+
     const content = `
       <div class="detalhe-section">
         <div class="detalhe-section-title">Dados pessoais</div>
@@ -693,8 +796,23 @@ const AlunoModule = {
       </div>
 
       <div class="detalhe-section">
-        <div class="detalhe-section-title">Saldo do Mês Atual</div>
+        <div class="detalhe-section-title">👕 Vestuário</div>
+        ${vestuarioHtml}
+      </div>
+
+      <div class="detalhe-section">
+        <div class="detalhe-section-title">📋 Plano Contratado</div>
+        ${planoHtml}
+      </div>
+
+      <div class="detalhe-section">
+        <div class="detalhe-section-title">📊 Saldo de Aulas — ${mesAtual}</div>
         ${saldoHtml}
+      </div>
+
+      <div class="detalhe-section">
+        <div class="detalhe-section-title">🔄 Reposições</div>
+        ${reposHtml}
       </div>
 
       <div class="detalhe-section">

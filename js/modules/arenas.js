@@ -1,37 +1,43 @@
 'use strict';
 
 /**
- * ArenaModule — Complete CRUD module for managing pickleball arenas
+ * ArenaModule — CRUD de Arenas + CRUD de Quadras (dois níveis)
  */
 const ArenaModule = {
-  STORAGE_KEY: 'arenas',
+  STORAGE_KEY:  'arenas',
+  SK_QUADRAS:   'quadras',
 
   _state: {
     search:       '',
     filterStatus: '',
-    filterTipo:   '',
+    tab:          'arenas', // 'arenas' | 'quadras'
+    filterArena:  '',       // filtro de arena na aba Quadras
   },
 
-  /** Status configuration: value → { label, badge class } */
   STATUS: {
     ativa:      { label: 'Ativa',          badge: 'badge-success' },
     inativa:    { label: 'Inativa',        badge: 'badge-gray'    },
     manutencao: { label: 'Em Manutenção',  badge: 'badge-warning' },
   },
 
-  /** Status cycle order for toggleStatus */
   _STATUS_CYCLE: ['ativa', 'manutencao', 'inativa'],
 
-  TIPO: {
-    indoor:  'Indoor (Coberta)',
-    outdoor: 'Outdoor (Descoberta)',
+  STATUS_QUADRA: {
+    disponivel: { label: 'Disponível', badge: 'badge-success' },
+    manutencao: { label: 'Manutenção', badge: 'badge-warning' },
+    inativa:    { label: 'Inativa',    badge: 'badge-gray'    },
   },
 
-  PISO: {
+  TIPO_QUADRA: {
+    coberta:    { label: 'Coberta',    badge: 'badge-blue'    },
+    descoberta: { label: 'Descoberta', badge: 'badge-success' },
+  },
+
+  PISO_QUADRA: {
+    saibro:    'Saibro',
     sintetico: 'Sintético',
+    cimento:   'Cimento',
     madeira:   'Madeira',
-    concreto:  'Concreto',
-    outro:     'Outro',
   },
 
   /* ------------------------------------------------------------------ */
@@ -42,21 +48,18 @@ const ArenaModule = {
     return Storage.getAll(this.STORAGE_KEY);
   },
 
-  /** Return arenas filtered by current _state (search + status + tipo) */
   getFiltered() {
-    const { search, filterStatus, filterTipo } = this._state;
+    const { search, filterStatus } = this._state;
     return this.getAll().filter(arena => {
       const q = search.toLowerCase();
       const matchSearch = !q ||
         arena.nome.toLowerCase().includes(q) ||
-        arena.codigo.toLowerCase().includes(q);
+        (arena.cidade || '').toLowerCase().includes(q);
       const matchStatus = !filterStatus || arena.status === filterStatus;
-      const matchTipo   = !filterTipo   || arena.tipo   === filterTipo;
-      return matchSearch && matchStatus && matchTipo;
+      return matchSearch && matchStatus;
     });
   },
 
-  /** Aggregate counts for the stats cards */
   getStats() {
     const all = this.getAll();
     return {
@@ -72,25 +75,27 @@ const ArenaModule = {
   /* ------------------------------------------------------------------ */
 
   render() {
-    const stats    = this.getStats();
-    const filtered = this.getFiltered();
-    const area     = document.getElementById('content-area');
+    const area = document.getElementById('content-area');
     if (!area) return;
 
+    const tab    = this._state.tab;
+    const stats  = this.getStats();
+    const svgPlus = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
+
+    const btnLabel = tab === 'arenas' ? 'Nova Arena' : 'Nova Quadra';
+    const btnClick = tab === 'arenas' ? 'ArenaModule.openModal()' : 'ArenaModule.openModalQuadra()';
+
     area.innerHTML = `
-      <!-- Page header -->
       <div class="page-header">
         <div class="page-header-text">
           <h2>Arenas</h2>
-          <p>Gerencie as quadras e arenas da academia</p>
+          <p>Gerencie as arenas e quadras da academia</p>
         </div>
-        <button class="btn btn-primary" onclick="ArenaModule.openModal()">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          Nova Arena
+        <button class="btn btn-primary" onclick="${btnClick}">
+          ${svgPlus} ${btnLabel}
         </button>
       </div>
 
-      <!-- Stats -->
       <div class="stats-grid">
         <div class="stat-card">
           <div class="stat-icon green">🏟️</div>
@@ -114,22 +119,51 @@ const ArenaModule = {
           </div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon gray">⚪</div>
+          <div class="stat-icon gray">🏓</div>
           <div class="stat-info">
-            <div class="stat-value">${stats.inativas}</div>
-            <div class="stat-label">Inativas</div>
+            <div class="stat-value">${Storage.getAll(this.SK_QUADRAS).length}</div>
+            <div class="stat-label">Total de Quadras</div>
           </div>
         </div>
       </div>
 
-      <!-- Filters -->
+      <div class="tabs-bar">
+        <button class="tab-btn ${tab === 'arenas'  ? 'active' : ''}" onclick="ArenaModule.switchTab('arenas')">🏟️ Arenas</button>
+        <button class="tab-btn ${tab === 'quadras' ? 'active' : ''}" onclick="ArenaModule.switchTab('quadras')">🏓 Quadras</button>
+      </div>
+
+      <div id="arenas-tab-content">
+        ${this._renderTab()}
+      </div>
+    `;
+  },
+
+  switchTab(tab, filterArena = '') {
+    this._state.tab = tab;
+    if (filterArena) this._state.filterArena = filterArena;
+    this.render();
+  },
+
+  _renderTab() {
+    return this._state.tab === 'quadras'
+      ? this._renderTabQuadras()
+      : this._renderTabArenas();
+  },
+
+  /* ================================================================== */
+  /*  Aba Arenas                                                          */
+  /* ================================================================== */
+
+  _renderTabArenas() {
+    const filtered = this.getFiltered();
+    return `
       <div class="filters-bar">
         <div class="search-wrapper">
           <span class="search-icon">🔍</span>
           <input
             type="text"
             class="search-input"
-            placeholder="Buscar por nome ou código…"
+            placeholder="Buscar por nome ou cidade…"
             value="${UI.escape(this._state.search)}"
             oninput="ArenaModule.handleSearch(this.value)"
           />
@@ -140,137 +174,157 @@ const ArenaModule = {
           <option value="manutencao" ${this._state.filterStatus === 'manutencao' ? 'selected' : ''}>Em Manutenção</option>
           <option value="inativa"    ${this._state.filterStatus === 'inativa'    ? 'selected' : ''}>Inativa</option>
         </select>
-        <select class="filter-select" onchange="ArenaModule.handleFilterTipo(this.value)">
-          <option value="">Todos os tipos</option>
-          ${ListasService.opts('arenas_tipo', this._state.filterTipo)}
-        </select>
         <span class="results-count">
           ${filtered.length} arena${filtered.length !== 1 ? 's' : ''}
         </span>
       </div>
 
-      <!-- Cards -->
-      <div class="cards-grid" id="arenas-grid">
-        ${filtered.length
-          ? filtered.map(a => this.renderCard(a)).join('')
-          : this.renderEmpty()
-        }
-      </div>
-    `;
+      ${filtered.length
+        ? `<div class="table-card">
+             <table class="data-table">
+               <thead><tr>
+                 <th>Arena</th>
+                 <th>Endereço</th>
+                 <th>Cidade</th>
+                 <th>Quadras</th>
+                 <th>Status</th>
+                 <th></th>
+               </tr></thead>
+               <tbody>${filtered.map(a => this._rowArena(a)).join('')}</tbody>
+             </table>
+           </div>`
+        : this._emptyArenas()
+      }`;
   },
 
-  /** Empty state HTML — different message for filtered vs. truly empty */
-  renderEmpty() {
-    const isFiltered = this._state.search || this._state.filterStatus || this._state.filterTipo;
+  _rowArena(a) {
+    const st = this.STATUS[a.status] || { label: a.status, badge: 'badge-gray' };
+    const qtdQuadras = Storage.getAll(this.SK_QUADRAS).filter(q => q.arenaId === a.id).length;
+    const quadrasBadge = qtdQuadras > 0
+      ? `<button class="quadra-arena-link" onclick="ArenaModule.switchTab('quadras','${a.id}')" title="Ver quadras desta arena">${qtdQuadras} quadra${qtdQuadras !== 1 ? 's' : ''}</button>`
+      : `<span class="badge badge-gray" style="cursor:pointer;" onclick="ArenaModule.switchTab('quadras','${a.id}')">0 quadras</span>`;
+
+    return `
+      <tr>
+        <td>
+          <div class="aluno-nome">${UI.escape(a.nome)}</div>
+          ${a.observacoes ? `<div class="aluno-sub">${UI.escape(a.observacoes.slice(0, 60))}${a.observacoes.length > 60 ? '…' : ''}</div>` : ''}
+        </td>
+        <td>${UI.escape(a.endereco || '—')}</td>
+        <td>${UI.escape(a.cidade || '—')}</td>
+        <td>${quadrasBadge}</td>
+        <td><span class="badge ${st.badge}">${st.label}</span></td>
+        <td class="aluno-row-actions">
+          <button class="btn btn-ghost btn-sm" onclick="ArenaModule.openModal('${a.id}')" title="Editar">✏️</button>
+          <button class="btn btn-ghost btn-sm" onclick="ArenaModule.toggleStatus('${a.id}')" title="Alternar status">🔄</button>
+          <button class="btn btn-ghost btn-sm danger" onclick="ArenaModule.deleteArena('${a.id}')" title="Excluir">🗑️</button>
+        </td>
+      </tr>`;
+  },
+
+  _emptyArenas() {
+    const isFiltered = this._state.search || this._state.filterStatus;
     if (isFiltered) {
       return `
-        <div class="empty-state" style="grid-column:1/-1">
+        <div class="empty-state">
           <div class="empty-icon">🔍</div>
           <div class="empty-title">Nenhuma arena encontrada</div>
-          <div class="empty-desc">Nenhuma arena corresponde aos filtros aplicados. Tente ajustar os critérios de busca.</div>
+          <div class="empty-desc">Tente ajustar os critérios de busca.</div>
           <button class="btn btn-secondary mt-16" onclick="ArenaModule.clearFilters()">Limpar filtros</button>
         </div>`;
     }
     return `
-      <div class="empty-state" style="grid-column:1/-1">
+      <div class="empty-state">
         <div class="empty-icon">🏟️</div>
         <div class="empty-title">Nenhuma arena cadastrada</div>
-        <div class="empty-desc">Comece adicionando a primeira arena da academia para gerenciá-la aqui.</div>
-        <button class="btn btn-primary mt-16" onclick="ArenaModule.openModal()">
-          + Cadastrar primeira arena
-        </button>
+        <div class="empty-desc">Comece adicionando a primeira arena da academia.</div>
+        <button class="btn btn-primary mt-16" onclick="ArenaModule.openModal()">+ Cadastrar primeira arena</button>
       </div>`;
   },
 
-  /** Generate the full HTML for a single arena card */
-  renderCard(arena) {
-    const status   = this.STATUS[arena.status] || { label: arena.status, badge: 'badge-gray' };
-    const tipo     = this.TIPO[arena.tipo]     || arena.tipo;
-    const piso     = this.PISO[arena.piso]     || arena.piso;
-    const ilum     = arena.iluminacao
-      ? '<span class="detail-value yes">✓ Sim</span>'
-      : '<span class="detail-value no">✗ Não</span>';
-    const createdAt = UI.formatDate(arena.createdAt);
+  /* ================================================================== */
+  /*  Aba Quadras                                                         */
+  /* ================================================================== */
 
-    const obsBlock = arena.observacoes
-      ? `<div class="arena-obs">
-           <div class="arena-obs-text">💬 ${UI.escape(arena.observacoes)}</div>
-         </div>`
-      : '';
+  _renderTabQuadras() {
+    const arenas  = this.getAll().sort((a, b) => a.nome.localeCompare(b.nome));
+    const fArena  = this._state.filterArena;
+    let quadras   = Storage.getAll(this.SK_QUADRAS);
+    if (fArena) quadras = quadras.filter(q => q.arenaId === fArena);
+    quadras.sort((a, b) => (a.arenaNome + a.nome).localeCompare(b.arenaNome + b.nome));
+
+    const arenaOpts = `<option value="">Todas as arenas</option>` +
+      arenas.map(a =>
+        `<option value="${a.id}" ${fArena === a.id ? 'selected' : ''}>${UI.escape(a.nome)}</option>`
+      ).join('');
 
     return `
-      <div class="arena-card" data-id="${arena.id}" data-status="${UI.escape(arena.status)}">
-        <div class="arena-card-top">
-          <span class="card-status-badge">
-            <span class="badge ${status.badge}">${status.label}</span>
-          </span>
-          <div class="arena-name">${UI.escape(arena.nome)}</div>
-          <span class="arena-code">${UI.escape(arena.codigo)}</span>
-        </div>
+      <div class="filters-bar">
+        <select class="filter-select" style="min-width:220px;"
+          onchange="ArenaModule._state.filterArena=this.value;ArenaModule._reRenderTabContent()">
+          ${arenaOpts}
+        </select>
+        <span class="results-count">${quadras.length} quadra${quadras.length !== 1 ? 's' : ''}</span>
+      </div>
 
-        <div class="arena-details">
-          <div class="detail-item">
-            <div class="detail-label">Tipo</div>
-            <div class="detail-value">${UI.escape(tipo)}</div>
-          </div>
-          <div class="detail-item">
-            <div class="detail-label">Dimensões</div>
-            <div class="detail-value">${UI.escape(arena.dimensoes || '—')}</div>
-          </div>
-          <div class="detail-item">
-            <div class="detail-label">Piso</div>
-            <div class="detail-value">${UI.escape(piso)}</div>
-          </div>
-          <div class="detail-item">
-            <div class="detail-label">Capacidade</div>
-            <div class="detail-value">${UI.escape(String(arena.capacidade || '—'))} jogadores</div>
-          </div>
-          <div class="detail-item">
-            <div class="detail-label">Iluminação</div>
-            ${ilum}
-          </div>
-          <div class="detail-item">
-            <div class="detail-label">Cadastrado em</div>
-            <div class="detail-value">${createdAt}</div>
-          </div>
-        </div>
-
-        ${obsBlock}
-
-        <div class="arena-actions">
-          <button class="btn btn-secondary btn-sm" onclick="ArenaModule.openModal('${arena.id}')">
-            ✏️ Editar
-          </button>
-          <button class="btn btn-ghost btn-sm" onclick="ArenaModule.toggleStatus('${arena.id}')" title="Alternar status">
-            🔄 Status
-          </button>
-          <span class="spacer"></span>
-          <button class="btn btn-ghost btn-sm danger" onclick="ArenaModule.deleteArena('${arena.id}')" title="Excluir arena">
-            🗑️
-          </button>
-        </div>
-      </div>`;
+      ${quadras.length
+        ? `<div class="table-card">
+             <table class="data-table">
+               <thead><tr>
+                 <th>Arena</th>
+                 <th>Nome</th>
+                 <th>Tipo</th>
+                 <th>Piso</th>
+                 <th>Capacidade</th>
+                 <th>Status</th>
+                 <th></th>
+               </tr></thead>
+               <tbody>${quadras.map(q => this._rowQuadra(q)).join('')}</tbody>
+             </table>
+           </div>`
+        : `<div class="empty-state">
+             <div class="empty-icon">🏓</div>
+             <div class="empty-title">Nenhuma quadra cadastrada</div>
+             <div class="empty-desc">${fArena ? 'Esta arena não possui quadras.' : 'Adicione quadras para as arenas cadastradas.'}</div>
+             <button class="btn btn-primary mt-16" onclick="ArenaModule.openModalQuadra()">+ Nova Quadra</button>
+           </div>`
+      }`;
   },
 
-  /* ------------------------------------------------------------------ */
-  /*  Modal / Form                                                        */
-  /* ------------------------------------------------------------------ */
+  _rowQuadra(q) {
+    const st   = this.STATUS_QUADRA[q.status]  || { label: q.status,  badge: 'badge-gray' };
+    const tipo = this.TIPO_QUADRA[q.tipo]      || { label: q.tipo || '—', badge: 'badge-gray' };
+    const piso = this.PISO_QUADRA[q.piso]      || q.piso || '—';
 
-  /**
-   * Open the add/edit modal.
-   * @param {string|null} id - if provided, load existing arena for editing
-   */
+    return `
+      <tr>
+        <td>${UI.escape(q.arenaNome || '—')}</td>
+        <td>
+          <div class="aluno-nome">${UI.escape(q.nome)}</div>
+          ${q.observacoes ? `<div class="aluno-sub">${UI.escape(q.observacoes.slice(0, 50))}${q.observacoes.length > 50 ? '…' : ''}</div>` : ''}
+        </td>
+        <td><span class="badge ${tipo.badge}">${tipo.label}</span></td>
+        <td>${UI.escape(piso)}</td>
+        <td>${q.capacidade || '—'}</td>
+        <td><span class="badge ${st.badge}">${st.label}</span></td>
+        <td class="aluno-row-actions">
+          <button class="btn btn-ghost btn-sm" onclick="ArenaModule.openModalQuadra('${q.id}')" title="Editar">✏️</button>
+          <button class="btn btn-ghost btn-sm danger" onclick="ArenaModule.deleteQuadra('${q.id}')" title="Excluir">🗑️</button>
+        </td>
+      </tr>`;
+  },
+
+  /* ================================================================== */
+  /*  Modal Arena (CRUD existente — mantido)                             */
+  /* ================================================================== */
+
   openModal(id = null) {
     const arena  = id ? Storage.getById(this.STORAGE_KEY, id) : null;
     const isEdit = !!arena;
     const v      = (field, fallback = '') => arena ? UI.escape(String(arena[field] ?? fallback)) : fallback;
 
-    const tipoOptions  = ListasService.opts('arenas_tipo',  arena?.tipo || '');
-    const pisoOptions  = ListasService.opts('arenas_piso',  arena?.piso || '');
     const statusOptions = Object.entries(this.STATUS).map(([k, cfg]) =>
       `<option value="${k}" ${arena && arena.status === k ? 'selected' : ''}>${cfg.label}</option>`).join('');
-
-    const checked = arena && arena.iluminacao ? 'checked' : '';
 
     const content = `
       <div class="form-grid">
@@ -282,63 +336,39 @@ const ArenaModule = {
               value="${v('nome')}" required autocomplete="off" />
           </div>
           <div class="form-group">
-            <label class="form-label" for="f-codigo">Código <span class="required-star">*</span></label>
-            <input id="f-codigo" name="codigo" type="text" class="form-input"
-              placeholder="ex: AC"
-              value="${v('codigo')}" required maxlength="10" autocomplete="off"
-              oninput="this.value=this.value.toUpperCase()" />
+            <label class="form-label" for="f-telefone">Telefone</label>
+            <input id="f-telefone" name="telefone" type="text" class="form-input"
+              placeholder="ex: (11) 99999-9999"
+              value="${v('telefone')}" autocomplete="off" />
           </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="f-endereco">Endereço</label>
+          <input id="f-endereco" name="endereco" type="text" class="form-input"
+            placeholder="Rua, número, bairro"
+            value="${v('endereco')}" autocomplete="off" />
         </div>
 
         <div class="form-grid-2">
           <div class="form-group">
-            <label class="form-label" for="f-tipo">Tipo</label>
-            <select id="f-tipo" name="tipo" class="form-select">
-              ${tipoOptions}
-            </select>
+            <label class="form-label" for="f-cidade">Cidade</label>
+            <input id="f-cidade" name="cidade" type="text" class="form-input"
+              placeholder="ex: São Paulo"
+              value="${v('cidade')}" autocomplete="off" />
           </div>
-          <div class="form-group">
-            <label class="form-label" for="f-capacidade">Capacidade (jogadores)</label>
-            <input id="f-capacidade" name="capacidade" type="number" class="form-input"
-              min="1" max="20" value="${v('capacidade', '4')}" />
-          </div>
-        </div>
-
-        <div class="form-grid-2">
-          <div class="form-group">
-            <label class="form-label" for="f-dimensoes">Dimensões</label>
-            <input id="f-dimensoes" name="dimensoes" type="text" class="form-input"
-              placeholder="ex: 6.10m × 13.72m"
-              value="${v('dimensoes')}" />
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="f-piso">Tipo de Piso</label>
-            <select id="f-piso" name="piso" class="form-select">
-              ${pisoOptions}
-            </select>
-          </div>
-        </div>
-
-        <div class="form-grid-2">
           <div class="form-group">
             <label class="form-label" for="f-status">Status</label>
             <select id="f-status" name="status" class="form-select">
               ${statusOptions}
             </select>
           </div>
-          <div class="form-group" style="justify-content:flex-end;padding-top:22px;">
-            <label class="form-toggle" for="f-iluminacao">
-              <input type="checkbox" id="f-iluminacao" name="iluminacao" class="toggle-input" ${checked} />
-              <span class="toggle-track"><span class="toggle-thumb"></span></span>
-              <span class="toggle-label-text">Iluminação artificial</span>
-            </label>
-          </div>
         </div>
 
         <div class="form-group">
           <label class="form-label" for="f-obs">Observações</label>
           <textarea id="f-obs" name="observacoes" class="form-textarea"
-            placeholder="Informações adicionais sobre a arena…" rows="3">${arena ? UI.escape(arena.observacoes || '') : ''}</textarea>
+            placeholder="Informações adicionais…" rows="3">${arena ? UI.escape(arena.observacoes || '') : ''}</textarea>
         </div>
       </div>`;
 
@@ -350,92 +380,208 @@ const ArenaModule = {
     });
   },
 
-  /* ------------------------------------------------------------------ */
-  /*  CRUD operations                                                     */
-  /* ------------------------------------------------------------------ */
-
-  /**
-   * Read form values, validate, then create or update arena.
-   * @param {string|null} id
-   */
   saveArena(id = null) {
-    const getName  = n => document.getElementById(`f-${n}`);
-    const nome     = getName('nome');
-    const codigo   = getName('codigo');
+    const g    = n => document.getElementById(`f-${n}`);
+    const nome = g('nome');
 
-    // Validate required fields
-    let valid = true;
-    [nome, codigo].forEach(el => {
-      if (!el) return;
-      const isEmpty = !el.value.trim();
-      el.classList.toggle('error', isEmpty);
-      if (isEmpty) valid = false;
-    });
-
-    if (!valid) {
-      UI.toast('Preencha os campos obrigatórios.', 'warning');
+    if (!nome || !nome.value.trim()) {
+      if (nome) nome.classList.add('error');
+      UI.toast('Preencha o nome da arena.', 'warning');
       return;
     }
+    nome.classList.remove('error');
 
     const data = {
       nome:        nome.value.trim(),
-      codigo:      codigo.value.trim().toUpperCase(),
-      tipo:        getName('tipo')        ? getName('tipo').value        : 'indoor',
-      capacidade:  getName('capacidade') ? parseInt(getName('capacidade').value, 10) || 4 : 4,
-      dimensoes:   getName('dimensoes')  ? getName('dimensoes').value.trim()  : '',
-      piso:        getName('piso')       ? getName('piso').value        : 'sintetico',
-      status:      getName('status')     ? getName('status').value      : 'ativa',
-      iluminacao:  !!document.getElementById('f-iluminacao')?.checked,
-      observacoes: getName('obs')        ? getName('obs').value.trim()  : '',
+      telefone:    g('telefone')  ? g('telefone').value.trim()  : '',
+      endereco:    g('endereco')  ? g('endereco').value.trim()  : '',
+      cidade:      g('cidade')    ? g('cidade').value.trim()    : '',
+      status:      g('status')    ? g('status').value           : 'ativa',
+      observacoes: g('obs')       ? g('obs').value.trim()       : '',
     };
 
     if (id) {
       Storage.update(this.STORAGE_KEY, id, data);
-      UI.toast(`Arena "${data.nome}" atualizada com sucesso!`, 'success');
+      // Desnormaliza arenaNome nas quadras vinculadas
+      Storage.getAll(this.SK_QUADRAS)
+        .filter(q => q.arenaId === id)
+        .forEach(q => Storage.update(this.SK_QUADRAS, q.id, { arenaNome: data.nome }));
+      UI.toast(`Arena "${data.nome}" atualizada!`, 'success');
     } else {
       Storage.create(this.STORAGE_KEY, data);
-      UI.toast(`Arena "${data.nome}" cadastrada com sucesso!`, 'success');
+      UI.toast(`Arena "${data.nome}" cadastrada!`, 'success');
     }
 
     UI.closeModal();
     this.render();
   },
 
-  /**
-   * Cycle the arena status: ativa → manutencao → inativa → ativa
-   * @param {string} id
-   */
   toggleStatus(id) {
     const arena = Storage.getById(this.STORAGE_KEY, id);
     if (!arena) return;
-
     const cycle   = this._STATUS_CYCLE;
     const current = cycle.indexOf(arena.status);
     const next    = cycle[(current + 1) % cycle.length];
-    const nextCfg = this.STATUS[next];
-
     Storage.update(this.STORAGE_KEY, id, { status: next });
-    UI.toast(`Status de "${arena.nome}" alterado para: ${nextCfg.label}`, 'info');
+    UI.toast(`Status de "${arena.nome}" → ${this.STATUS[next].label}`, 'info');
     this.render();
   },
 
-  /**
-   * Delete an arena after confirmation.
-   * @param {string} id
-   */
   async deleteArena(id) {
     const arena = Storage.getById(this.STORAGE_KEY, id);
     if (!arena) return;
-
-    const confirmed = await UI.confirm(
-      `Deseja realmente excluir a arena "${arena.nome}"? Esta ação não pode ser desfeita.`,
+    const qtdQuadras = Storage.getAll(this.SK_QUADRAS).filter(q => q.arenaId === id).length;
+    const extra = qtdQuadras > 0 ? ` Esta arena possui ${qtdQuadras} quadra${qtdQuadras !== 1 ? 's' : ''} vinculada${qtdQuadras !== 1 ? 's' : ''}.` : '';
+    const ok = await UI.confirm(
+      `Excluir a arena "${arena.nome}"?${extra} Esta ação não pode ser desfeita.`,
       'Excluir Arena'
     );
-
-    if (!confirmed) return;
-
+    if (!ok) return;
     Storage.delete(this.STORAGE_KEY, id);
     UI.toast(`Arena "${arena.nome}" excluída.`, 'success');
+    this.render();
+  },
+
+  /* ================================================================== */
+  /*  Modal Quadra                                                        */
+  /* ================================================================== */
+
+  openModalQuadra(id = null) {
+    const quadra  = id ? Storage.getById(this.SK_QUADRAS, id) : null;
+    const isEdit  = !!quadra;
+    const v       = (f, fb = '') => quadra ? UI.escape(String(quadra[f] ?? fb)) : fb;
+
+    const arenas  = this.getAll().filter(a => a.status === 'ativa');
+    const arenaOpts = `<option value="">— Selecionar arena —</option>` +
+      arenas.map(a =>
+        `<option value="${a.id}" ${quadra && quadra.arenaId === a.id ? 'selected' : ''}>${UI.escape(a.nome)}</option>`
+      ).join('');
+
+    const tipoOpts = Object.entries(this.TIPO_QUADRA).map(([k, cfg]) =>
+      `<option value="${k}" ${quadra?.tipo === k ? 'selected' : ''}>${cfg.label}</option>`
+    ).join('');
+
+    const pisoOpts = Object.entries(this.PISO_QUADRA).map(([k, label]) =>
+      `<option value="${k}" ${quadra?.piso === k ? 'selected' : ''}>${label}</option>`
+    ).join('');
+
+    const statusOpts = Object.entries(this.STATUS_QUADRA).map(([k, cfg]) =>
+      `<option value="${k}" ${quadra?.status === k ? 'selected' : ''}>${cfg.label}</option>`
+    ).join('');
+
+    const content = `
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label" for="qd-arena">Arena <span class="required-star">*</span></label>
+          <select id="qd-arena" class="form-select">${arenaOpts}</select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="qd-nome">Nome da Quadra <span class="required-star">*</span></label>
+          <input id="qd-nome" type="text" class="form-input"
+            placeholder="ex: Quadra 1, Coberta 001"
+            value="${v('nome')}" required autocomplete="off" />
+        </div>
+
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label" for="qd-tipo">Tipo</label>
+            <select id="qd-tipo" class="form-select">${tipoOpts}</select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="qd-piso">Piso</label>
+            <select id="qd-piso" class="form-select">${pisoOpts}</select>
+          </div>
+        </div>
+
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label" for="qd-capacidade">Capacidade (jogadores)</label>
+            <input id="qd-capacidade" type="number" class="form-input"
+              min="1" max="20" value="${v('capacidade', '4')}" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="qd-status">Status</label>
+            <select id="qd-status" class="form-select">${statusOpts}</select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="qd-obs">Observações</label>
+          <textarea id="qd-obs" class="form-textarea" rows="2"
+            placeholder="Informações adicionais sobre a quadra…">${quadra ? UI.escape(quadra.observacoes || '') : ''}</textarea>
+        </div>
+      </div>`;
+
+    UI.openModal({
+      title:        isEdit ? `Editar Quadra — ${quadra.nome}` : 'Nova Quadra',
+      content,
+      confirmLabel: isEdit ? 'Salvar alterações' : 'Cadastrar Quadra',
+      onConfirm:    () => this.saveQuadra(id),
+    });
+  },
+
+  saveQuadra(id = null) {
+    const g       = n => document.getElementById(`qd-${n}`);
+    const arenaEl = g('arena');
+    const nomeEl  = g('nome');
+
+    let valid = true;
+    [arenaEl, nomeEl].forEach(el => {
+      if (!el) return;
+      const empty = !el.value.trim();
+      el.classList.toggle('error', empty);
+      if (empty) valid = false;
+    });
+
+    if (!valid) {
+      UI.toast('Preencha os campos obrigatórios (Arena e Nome).', 'warning');
+      return;
+    }
+
+    const arenaId = arenaEl.value;
+    const arena   = Storage.getById(this.STORAGE_KEY, arenaId);
+
+    const data = {
+      arenaId,
+      arenaNome:   arena ? arena.nome : '',
+      nome:        nomeEl.value.trim(),
+      tipo:        g('tipo')       ? g('tipo').value                   : 'descoberta',
+      piso:        g('piso')       ? g('piso').value                   : 'sintetico',
+      capacidade:  g('capacidade') ? parseInt(g('capacidade').value, 10) || 4 : 4,
+      status:      g('status')     ? g('status').value                 : 'disponivel',
+      observacoes: g('obs')        ? g('obs').value.trim()             : '',
+    };
+
+    if (id) {
+      Storage.update(this.SK_QUADRAS, id, data);
+      UI.toast(`Quadra "${data.nome}" atualizada!`, 'success');
+    } else {
+      Storage.create(this.SK_QUADRAS, data);
+      UI.toast(`Quadra "${data.nome}" cadastrada!`, 'success');
+    }
+
+    UI.closeModal();
+    this.render();
+  },
+
+  async deleteQuadra(id) {
+    const quadra = Storage.getById(this.SK_QUADRAS, id);
+    if (!quadra) return;
+
+    const aulasVinculadas = Storage.getAll('aulas').filter(a => a.quadraId === id);
+    const extra = aulasVinculadas.length > 0
+      ? ` Esta quadra possui ${aulasVinculadas.length} aula${aulasVinculadas.length !== 1 ? 's' : ''} vinculada${aulasVinculadas.length !== 1 ? 's' : ''}.`
+      : '';
+
+    const ok = await UI.confirm(
+      `Excluir a quadra "${quadra.nome}"?${extra} Esta ação não pode ser desfeita.`,
+      'Excluir Quadra'
+    );
+    if (!ok) return;
+
+    Storage.delete(this.SK_QUADRAS, id);
+    UI.toast(`Quadra "${quadra.nome}" excluída.`, 'success');
     this.render();
   },
 
@@ -445,41 +591,23 @@ const ArenaModule = {
 
   handleSearch(value) {
     this._state.search = value;
-    this._reRenderCards();
+    this._reRenderTabContent();
   },
 
   handleFilterStatus(value) {
     this._state.filterStatus = value;
-    this._reRenderCards();
-  },
-
-  handleFilterTipo(value) {
-    this._state.filterTipo = value;
-    this._reRenderCards();
+    this._reRenderTabContent();
   },
 
   clearFilters() {
     this._state.search       = '';
     this._state.filterStatus = '';
-    this._state.filterTipo   = '';
+    this._state.filterArena  = '';
     this.render();
   },
 
-  /**
-   * Efficiently update only the cards grid and results count,
-   * without rebuilding the entire page.
-   */
-  _reRenderCards() {
-    const filtered = this.getFiltered();
-    const grid = document.getElementById('arenas-grid');
-    if (grid) {
-      grid.innerHTML = filtered.length
-        ? filtered.map(a => this.renderCard(a)).join('')
-        : this.renderEmpty();
-    }
-    const countEl = document.querySelector('.results-count');
-    if (countEl) {
-      countEl.textContent = `${filtered.length} arena${filtered.length !== 1 ? 's' : ''}`;
-    }
+  _reRenderTabContent() {
+    const el = document.getElementById('arenas-tab-content');
+    if (el) el.innerHTML = this._renderTab();
   },
 };
