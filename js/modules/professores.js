@@ -165,6 +165,13 @@ const ProfessorModule = {
       ? `${UI.escape(p.horarioInicio)} – ${UI.escape(p.horarioFim)}`
       : '—';
     const cadastro = UI.formatDate(p.createdAt);
+    const todasArenas = Storage.getAll('arenas');
+    const arenasChips = Array.isArray(p.arenas) && p.arenas.length
+      ? p.arenas.map(aid => {
+          const ar = todasArenas.find(a => a.id === aid);
+          return ar ? `<span class="dia-chip">${UI.escape(ar.nome)}</span>` : '';
+        }).join('')
+      : '';
 
     const obsBlock = p.observacoes
       ? `<div class="arena-obs"><div class="arena-obs-text">💬 ${UI.escape(p.observacoes)}</div></div>`
@@ -203,6 +210,12 @@ const ProfessorModule = {
           <div class="detail-label" style="margin-bottom:6px;">Dias disponíveis</div>
           <div class="dias-chips">${dias}</div>
         </div>
+
+        ${arenasChips ? `
+        <div style="padding:6px 16px 8px;border-top:1px solid #f1f5f9;">
+          <div class="detail-label" style="margin-bottom:6px;">Arenas</div>
+          <div class="dias-chips">${arenasChips}</div>
+        </div>` : ''}
 
         ${obsBlock}
 
@@ -322,6 +335,22 @@ const ProfessorModule = {
         </div>
 
         <div class="form-group">
+          <label class="form-label">Arenas onde leciona</label>
+          <div class="arenas-check-group" id="p-arenas-checks">
+            ${(() => {
+              const arenas = Storage.getAll('arenas').filter(a => a.status === 'ativa');
+              const profArenas = Array.isArray(prof?.arenas) ? prof.arenas : [];
+              return arenas.map(a => `
+                <label class="dia-check-label">
+                  <input type="checkbox" name="prof-arena" value="${a.id}"
+                    ${profArenas.includes(a.id) ? 'checked' : ''} />
+                  <span>${UI.escape(a.nome)}</span>
+                </label>`).join('') || '<span class="text-muted" style="font-size:12px;">Nenhuma arena cadastrada.</span>';
+            })()}
+          </div>
+        </div>
+
+        <div class="form-group">
           <label class="form-label" for="p-obs">Observações</label>
           <textarea id="p-obs" class="form-textarea"
             placeholder="Informações adicionais sobre o professor…" rows="3">${prof ? UI.escape(prof.observacoes || '') : ''}</textarea>
@@ -354,6 +383,9 @@ const ProfessorModule = {
     const diasChecked = [...document.querySelectorAll('input[name="dias"]:checked')]
       .map(el => el.value);
 
+    const arenaChecks = document.querySelectorAll('input[name="prof-arena"]:checked');
+    const arenas = Array.from(arenaChecks).map(cb => cb.value);
+
     const data = {
       nome:           nome.value.trim(),
       cpf:            g('cpf')          ? g('cpf').value.trim()          : '',
@@ -364,6 +396,7 @@ const ProfessorModule = {
       horarioInicio:  g('hinicio')      ? g('hinicio').value             : '',
       horarioFim:     g('hfim')         ? g('hfim').value                : '',
       diasDisponiveis: diasChecked,
+      arenas,
       observacoes:    g('obs')          ? g('obs').value.trim()          : '',
     };
 

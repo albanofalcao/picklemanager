@@ -226,6 +226,10 @@ const TurmasModule = {
         <td>
           <div class="aluno-nome">${UI.escape(t.nome)}</div>
           <div class="aluno-sub">${UI.escape(nivel)} · ${UI.escape(t.tipo || 'Grupo')} · ${nAulas} aula${nAulas !== 1 ? 's' : ''}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:3px;">
+            ${t.esporte   ? `<span class="badge badge-blue" style="font-size:0.65rem;">${UI.escape(t.esporte)}</span>` : ''}
+            ${t.tipoplano ? `<span class="badge badge-success" style="font-size:0.65rem;">${UI.escape(t.tipoplano)}</span>` : ''}
+          </div>
         </td>
         <td>
           <div style="font-size:13px;">${UI.escape(t.professorNome || '—')}</div>
@@ -511,6 +515,10 @@ const TurmasModule = {
           <td>
             <div class="aluno-nome">${UI.escape(a.titulo)}</div>
             <div class="aluno-sub">${UI.escape(a.nivel ? (this.NIVEL[a.nivel] || a.nivel) : '')}</div>
+            <div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:3px;">
+              ${a.esporte   ? `<span class="badge badge-blue" style="font-size:0.65rem;">${UI.escape(a.esporte)}</span>` : ''}
+              ${a.tipoplano ? `<span class="badge badge-success" style="font-size:0.65rem;">${UI.escape(a.tipoplano)}</span>` : ''}
+            </div>
           </td>
           <td>
             <div style="font-size:13px;font-weight:600;">${UI.escape(a.turmaNome || '—')}</div>
@@ -1458,6 +1466,28 @@ const TurmasModule = {
 
         <div class="form-grid-2">
           <div class="form-group">
+            <label class="form-label" for="tm-esporte">Esporte</label>
+            <select id="tm-esporte" class="form-select">
+              <option value="">— Selecionar —</option>
+              <option value="pickleball" ${turma?.esporte==='pickleball'?'selected':''}>Pickleball</option>
+              <option value="padel"      ${turma?.esporte==='padel'?'selected':''}>Padel</option>
+              <option value="tenis"      ${turma?.esporte==='tenis'?'selected':''}>Tênis</option>
+              <option value="beach"      ${turma?.esporte==='beach'?'selected':''}>Beach Tennis</option>
+              <option value="outro"      ${turma?.esporte==='outro'?'selected':''}>Outro</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="tm-tipoplano">Tipo de Aula</label>
+            <select id="tm-tipoplano" class="form-select">
+              <option value="">— Selecionar —</option>
+              <option value="personal"  ${turma?.tipoplano==='personal'?'selected':''}>Personal</option>
+              <option value="coletivo"  ${turma?.tipoplano==='coletivo'?'selected':''}>Coletivo</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-grid-2">
+          <div class="form-group">
             <label class="form-label" for="tm-prof">Professor</label>
             <select id="tm-prof" class="form-select">${profOpts}</select>
           </div>
@@ -1546,15 +1576,17 @@ const TurmasModule = {
 
     const record = {
       nome:          nomeEl.value.trim(),
-      tipo:          g('tipo')   ? g('tipo').value                   : 'grupo',
-      nivel:         g('nivel')  ? g('nivel').value                  : 'iniciante',
+      tipo:          g('tipo')      ? g('tipo').value                     : 'grupo',
+      nivel:         g('nivel')     ? g('nivel').value                    : 'iniciante',
+      esporte:       g('esporte')   ? g('esporte').value                  : '',
+      tipoplano:     g('tipoplano') ? g('tipoplano').value                : '',
       professorId, professorNome, arenaId, arenaNome, quadraId, quadraNome,
       diasSemana,
-      horarioInicio: g('hi')     ? g('hi').value                     : '',
-      horarioFim:    g('hf')     ? g('hf').value                     : '',
-      vagas:         g('vagas')  ? parseInt(g('vagas').value, 10) || 4 : 4,
-      status:        g('status') ? g('status').value                 : 'ativa',
-      observacoes:   g('obs')    ? g('obs').value.trim()             : '',
+      horarioInicio: g('hi')        ? g('hi').value                       : '',
+      horarioFim:    g('hf')        ? g('hf').value                       : '',
+      vagas:         g('vagas')     ? parseInt(g('vagas').value, 10) || 4 : 4,
+      status:        g('status')    ? g('status').value                   : 'ativa',
+      observacoes:   g('obs')       ? g('obs').value.trim()               : '',
     };
 
     if (id) {
@@ -1786,7 +1818,7 @@ const TurmasModule = {
           </div>
           <div class="form-group">
             <label class="form-label" for="au-turma">Grade</label>
-            <select id="au-turma" class="form-select">${turmaOpts}</select>
+            <select id="au-turma" class="form-select" onchange="TurmasModule._onTurmaChangeAula()">${turmaOpts}</select>
           </div>
         </div>
 
@@ -1798,6 +1830,27 @@ const TurmasModule = {
           <div class="form-group">
             <label class="form-label" for="au-prof">Professor</label>
             <select id="au-prof" class="form-select">${profOpts}</select>
+          </div>
+        </div>
+
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label" for="au-esporte">Esporte</label>
+            <select id="au-esporte" class="form-select">
+              <option value="">— Selecionar —</option>
+              <option value="pickleball" ${aula?.esporte==='pickleball'?'selected':''}>Pickleball</option>
+              <option value="padel"      ${aula?.esporte==='padel'?'selected':''}>Padel</option>
+              <option value="tenis"      ${aula?.esporte==='tenis'?'selected':''}>Tênis</option>
+              <option value="beach"      ${aula?.esporte==='beach'?'selected':''}>Beach Tennis</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="au-tipoplano">Tipo de Aula</label>
+            <select id="au-tipoplano" class="form-select">
+              <option value="">— Selecionar —</option>
+              <option value="personal"  ${aula?.tipoplano==='personal'?'selected':''}>Personal</option>
+              <option value="coletivo"  ${aula?.tipoplano==='coletivo'?'selected':''}>Coletivo</option>
+            </select>
           </div>
         </div>
 
@@ -1887,14 +1940,16 @@ const TurmasModule = {
 
     const record = {
       titulo:        tituloEl.value.trim(),
-      nivel:         g('nivel')  ? g('nivel').value                    : 'iniciante',
+      nivel:         g('nivel')     ? g('nivel').value                    : 'iniciante',
+      esporte:       g('esporte')   ? g('esporte').value                  : '',
+      tipoplano:     g('tipoplano') ? g('tipoplano').value                : '',
       turmaId, turmaNome, professorId, professorNome, arenaId, arenaNome, quadraId, quadraNome,
       data,
       horarioInicio,
       horarioFim,
-      vagas:         g('vagas')  ? parseInt(g('vagas').value, 10) || 4 : 4,
-      status:        g('status') ? g('status').value                   : 'agendada',
-      observacoes:   g('obs')    ? g('obs').value.trim()               : '',
+      vagas:         g('vagas')     ? parseInt(g('vagas').value, 10) || 4 : 4,
+      status:        g('status')    ? g('status').value                   : 'agendada',
+      observacoes:   g('obs')       ? g('obs').value.trim()               : '',
     };
 
     // Verificar conflito de quadra
@@ -2167,15 +2222,33 @@ const TurmasModule = {
 
   _onArenaChange() {
     const arenaId = document.getElementById('tm-arena')?.value;
-    const sel     = document.getElementById('tm-quadra');
-    if (!sel) return;
-    if (!arenaId) {
-      sel.innerHTML = '<option value="">— Selecionar arena primeiro —</option>';
-      return;
+
+    // Atualiza quadras
+    const selQ = document.getElementById('tm-quadra');
+    if (selQ) {
+      if (!arenaId) {
+        selQ.innerHTML = '<option value="">— Selecionar arena primeiro —</option>';
+      } else {
+        const quadras = Storage.getAll('quadras').filter(q => q.arenaId === arenaId && q.status === 'disponivel');
+        selQ.innerHTML = '<option value="">— Selecionar quadra —</option>' +
+          quadras.map(q => `<option value="${q.id}" data-nome="${UI.escape(q.nome)}">${UI.escape(q.nome)}</option>`).join('');
+      }
     }
-    const quadras = Storage.getAll('quadras').filter(q => q.arenaId === arenaId && q.status === 'disponivel');
-    sel.innerHTML = '<option value="">— Selecionar quadra —</option>' +
-      quadras.map(q => `<option value="${q.id}" data-nome="${UI.escape(q.nome)}">${UI.escape(q.nome)}</option>`).join('');
+
+    // Atualiza professores filtrados pela arena
+    const selP = document.getElementById('tm-prof');
+    if (selP) {
+      const profAtual = selP.value;
+      const todosProfessores = Storage.getAll('professores').filter(p => p.status === 'ativo');
+      const profsFiltrados = arenaId
+        ? todosProfessores.filter(p => Array.isArray(p.arenas) && p.arenas.includes(arenaId))
+        : todosProfessores;
+      selP.innerHTML = '<option value="">— Selecionar —</option>' +
+        profsFiltrados.map(p =>
+          `<option value="${p.id}" data-nome="${UI.escape(p.nome)}"
+            ${p.id === profAtual ? 'selected' : ''}>${UI.escape(p.nome)}</option>`
+        ).join('');
+    }
   },
 
   _onArenaChangeAula() {
@@ -2189,6 +2262,47 @@ const TurmasModule = {
     const quadras = Storage.getAll('quadras').filter(q => q.arenaId === arenaId && q.status === 'disponivel');
     sel.innerHTML = '<option value="">— Selecionar quadra —</option>' +
       quadras.map(q => `<option value="${q.id}" data-nome="${UI.escape(q.nome)}">${UI.escape(q.nome)}</option>`).join('');
+  },
+
+  _onTurmaChangeAula() {
+    const turmaEl = document.getElementById('au-turma');
+    if (!turmaEl || !turmaEl.value) return;
+    const turma = Storage.getById(this.SK, turmaEl.value);
+    if (!turma) return;
+
+    // Preenche arena
+    const arenaEl = document.getElementById('au-arena');
+    if (arenaEl && turma.arenaId) {
+      arenaEl.value = turma.arenaId;
+      this._onArenaChangeAula(); // atualiza quadras
+      // depois de renderizar, seleciona a quadra da turma
+      setTimeout(() => {
+        const qEl = document.getElementById('au-quadra');
+        if (qEl && turma.quadraId) qEl.value = turma.quadraId;
+      }, 50);
+    }
+
+    // Preenche professor
+    const profEl = document.getElementById('au-prof');
+    if (profEl && turma.professorId) profEl.value = turma.professorId;
+
+    // Preenche nível
+    const nivelEl = document.getElementById('au-nivel');
+    if (nivelEl && turma.nivel) nivelEl.value = turma.nivel;
+
+    // Preenche esporte
+    const esporteEl = document.getElementById('au-esporte');
+    if (esporteEl && turma.esporte) esporteEl.value = turma.esporte;
+
+    // Preenche tipo plano
+    const tipoEl = document.getElementById('au-tipoplano');
+    if (tipoEl && turma.tipoplano) tipoEl.value = turma.tipoplano;
+
+    // Preenche horários
+    const hiEl = document.getElementById('au-hi');
+    const hfEl = document.getElementById('au-hf');
+    if (hiEl && turma.horarioInicio) hiEl.value = turma.horarioInicio;
+    if (hfEl && turma.horarioFim)    hfEl.value = turma.horarioFim;
   },
 
   /* ================================================================== */

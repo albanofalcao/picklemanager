@@ -27,11 +27,24 @@ const PlanoModule = {
     pacote:    'Pacote de Aulas',
   },
 
-  MODALIDADE: {
-    individual: 'Individual',
-    dupla:      'Dupla',
-    grupo:      'Grupo',
-    livre:      'Acesso Livre',
+  ESPORTE: {
+    pickleball: 'Pickleball',
+    padel:      'Padel',
+    tenis:      'Tênis',
+    beach:      'Beach Tennis',
+    outro:      'Outro',
+  },
+
+  NIVEL_PLANO: {
+    iniciante:     'Iniciante',
+    intermediario: 'Intermediário',
+    avancado:      'Avançado',
+    profissional:  'Profissional',
+  },
+
+  TIPO_PLANO: {
+    personal:  'Personal',
+    coletivo:  'Coletivo',
   },
 
   /* ------------------------------------------------------------------ */
@@ -156,10 +169,9 @@ const PlanoModule = {
   },
 
   renderCard(p) {
-    const status     = this.STATUS[p.status]     || { label: p.status,     badge: 'badge-gray' };
-    const tipo       = this.TIPO[p.tipo]         || p.tipo       || '—';
-    const modalidade = this.MODALIDADE[p.modalidade] || p.modalidade || '—';
-    const cadastro   = UI.formatDate(p.createdAt);
+    const status  = this.STATUS[p.status] || { label: p.status, badge: 'badge-gray' };
+    const tipo    = this.TIPO[p.tipo]     || p.tipo    || '—';
+    const cadastro = UI.formatDate(p.createdAt);
 
     const descBlock = p.descricao
       ? `<div class="arena-obs"><div class="arena-obs-text">💬 ${UI.escape(p.descricao)}</div></div>`
@@ -180,6 +192,13 @@ const PlanoModule = {
             <span class="badge ${status.badge}">${status.label}</span>
           </span>
           <div class="arena-name">${UI.escape(p.nome)}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;">
+            ${p.esporte    ? `<span class="badge badge-blue">${UI.escape(this.ESPORTE[p.esporte] || p.esporte)}</span>` : ''}
+            ${p.nivel      ? `<span class="badge badge-gray">${UI.escape(this.NIVEL_PLANO[p.nivel] || p.nivel)}</span>` : ''}
+            ${p.tipoplano  ? `<span class="badge badge-success">${UI.escape(this.TIPO_PLANO[p.tipoplano] || p.tipoplano)}</span>` : ''}
+            ${p.desconto > 0 ? `<span class="badge badge-warning">${p.desconto}% desc.</span>` : ''}
+            ${p.arenaNome  ? `<span class="badge badge-gray">${UI.escape(p.arenaNome)}</span>` : ''}
+          </div>
           <div class="plano-valor">${this._formatMoeda(p.valor)}<span class="plano-periodo">/${this._periodoLabel(p.tipo)}</span></div>
         </div>
 
@@ -187,10 +206,6 @@ const PlanoModule = {
           <div class="detail-item">
             <div class="detail-label">Tipo</div>
             <div class="detail-value">${UI.escape(tipo)}</div>
-          </div>
-          <div class="detail-item">
-            <div class="detail-label">Modalidade</div>
-            <div class="detail-value">${UI.escape(modalidade)}</div>
           </div>
           <div class="detail-item">
             <div class="detail-label">Aulas incluídas</div>
@@ -246,10 +261,20 @@ const PlanoModule = {
     const isEdit = !!plano;
     const v      = (field, fallback = '') => plano ? UI.escape(String(plano[field] ?? fallback)) : fallback;
 
-    const tipoOptions       = ListasService.opts('planos_tipo',       plano?.tipo       || '');
-    const modalidadeOptions = ListasService.opts('planos_modalidade', plano?.modalidade || '');
-    const statusOptions     = Object.entries(this.STATUS).map(([k, cfg]) =>
+    const tipoOptions   = ListasService.opts('planos_tipo', plano?.tipo || '');
+    const statusOptions = Object.entries(this.STATUS).map(([k, cfg]) =>
       `<option value="${k}" ${plano && plano.status === k ? 'selected' : ''}>${cfg.label}</option>`).join('');
+
+    const esporteOpts   = Object.entries(this.ESPORTE).map(([k, l]) =>
+      `<option value="${k}" ${plano?.esporte === k ? 'selected' : ''}>${l}</option>`).join('');
+    const nivelOpts     = Object.entries(this.NIVEL_PLANO).map(([k, l]) =>
+      `<option value="${k}" ${plano?.nivel === k ? 'selected' : ''}>${l}</option>`).join('');
+    const tipoPlanoOpts = Object.entries(this.TIPO_PLANO).map(([k, l]) =>
+      `<option value="${k}" ${plano?.tipoplano === k ? 'selected' : ''}>${l}</option>`).join('');
+
+    const arenas = Storage.getAll('arenas').filter(a => a.status === 'ativa');
+    const arenaOpts = arenas.map(a =>
+      `<option value="${a.id}" ${plano?.arenaId === a.id ? 'selected' : ''}>${UI.escape(a.nome)}</option>`).join('');
 
     const content = `
       <div class="form-grid">
@@ -266,8 +291,32 @@ const PlanoModule = {
             <select id="pl-tipo" class="form-select">${tipoOptions}</select>
           </div>
           <div class="form-group">
-            <label class="form-label" for="pl-modalidade">Modalidade</label>
-            <select id="pl-modalidade" class="form-select">${modalidadeOptions}</select>
+            <label class="form-label" for="pl-status">Status</label>
+            <select id="pl-status" class="form-select">${statusOptions}</select>
+          </div>
+        </div>
+
+        <div class="form-grid-3">
+          <div class="form-group">
+            <label class="form-label" for="pl-esporte">Esporte</label>
+            <select id="pl-esporte" class="form-select">
+              <option value="">— Selecionar —</option>
+              ${esporteOpts}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="pl-nivel">Nível</label>
+            <select id="pl-nivel" class="form-select">
+              <option value="">— Selecionar —</option>
+              ${nivelOpts}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="pl-tipoplano">Tipo de Aula</label>
+            <select id="pl-tipoplano" class="form-select">
+              <option value="">— Selecionar —</option>
+              ${tipoPlanoOpts}
+            </select>
           </div>
         </div>
 
@@ -286,9 +335,20 @@ const PlanoModule = {
           </div>
         </div>
 
-        <div class="form-group">
-          <label class="form-label" for="pl-status">Status</label>
-          <select id="pl-status" class="form-select">${statusOptions}</select>
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label" for="pl-desconto">Desconto (%)</label>
+            <input id="pl-desconto" type="number" class="form-input"
+              placeholder="ex: 10" min="0" max="100" step="0.01"
+              value="${v('desconto')}" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="pl-arena">Arena</label>
+            <select id="pl-arena" class="form-select">
+              <option value="">Todas as arenas</option>
+              ${arenaOpts}
+            </select>
+          </div>
         </div>
 
         <div class="form-group">
@@ -336,13 +396,18 @@ const PlanoModule = {
 
     const data = {
       nome:          nome.value.trim(),
-      tipo:          g('tipo')       ? g('tipo').value                      : 'mensal',
-      modalidade:    g('modalidade') ? g('modalidade').value                : 'individual',
+      tipo:          g('tipo')      ? g('tipo').value                      : 'mensal',
+      esporte:       g('esporte')   ? g('esporte').value                   : '',
+      nivel:         g('nivel')     ? g('nivel').value                     : '',
+      tipoplano:     g('tipoplano') ? g('tipoplano').value                 : '',
       valor:         parseFloat(valor.value) || 0,
-      aulasIncluidas:g('aulas')      ? parseInt(g('aulas').value, 10) || 0  : 0,
-      status:        g('status')     ? g('status').value                    : 'ativo',
-      beneficios:    g('beneficios') ? g('beneficios').value.trim()         : '',
-      descricao:     g('desc')       ? g('desc').value.trim()               : '',
+      aulasIncluidas:g('aulas')     ? parseInt(g('aulas').value, 10) || 0  : 0,
+      desconto:      g('desconto')  ? parseFloat(g('desconto').value) || 0 : 0,
+      arenaId:       g('arena')     ? g('arena').value                     : '',
+      arenaNome:     (() => { const el = g('arena'); return el && el.selectedOptions[0] ? el.selectedOptions[0].textContent.trim() : ''; })(),
+      status:        g('status')    ? g('status').value                    : 'ativo',
+      beneficios:    g('beneficios')? g('beneficios').value.trim()         : '',
+      descricao:     g('desc')      ? g('desc').value.trim()               : '',
     };
 
     if (id) {
