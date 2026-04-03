@@ -23,9 +23,9 @@
   --page-bg:        #f6efdb;
   --card-bg:        #ffffff;
   --card-border:    #e8dfc8;
-  --card-radius:    12px;
-  --card-shadow:    0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.04);
-  --card-shadow-hover: 0 8px 24px rgba(0,0,0,.14);
+  --card-radius:    14px;
+  --card-shadow:    0 2px 6px rgba(0,0,0,.07), 0 1px 2px rgba(0,0,0,.04);
+  --card-shadow-hover: 0 8px 24px rgba(0,0,0,.13);
 
   --text-primary:   #083c2f;
   --text-secondary: #3d6b5e;
@@ -285,9 +285,9 @@ img, svg { display: block; max-width: 100%; }
 
 .page-header-text h2 {
   font-size: 22px;
-  font-weight: 700;
+  font-weight: 800;
   color: var(--text-primary);
-  letter-spacing: -0.4px;
+  letter-spacing: -0.5px;
 }
 
 .page-header-text p {
@@ -314,7 +314,13 @@ img, svg { display: block; max-width: 100%; }
   gap: 16px;
   box-shadow: var(--card-shadow);
   transition: var(--transition);
+  border-left: 3px solid transparent;
 }
+
+.stat-card:has(.green) { border-left-color: var(--primary); }
+.stat-card:has(.amber) { border-left-color: #f59e0b; }
+.stat-card:has(.blue)  { border-left-color: #3b82f6; }
+.stat-card:has(.gray)  { border-left-color: #9ca3af; }
 
 .stat-card:hover {
   box-shadow: var(--card-shadow-hover);
@@ -1762,7 +1768,7 @@ img, svg { display: block; max-width: 100%; }
   transition: var(--transition);
 }
 .tab-btn:hover  { background: var(--gray-light); color: var(--text-primary); }
-.tab-btn.active { background: var(--primary); color: #fff; }
+.tab-btn.active { background: var(--primary); color: #fff; box-shadow: 0 2px 8px rgba(8,60,47,.25); font-weight: 600; }
 
 /* ============================================================
    Calendário
@@ -3154,6 +3160,9 @@ img, svg { display: block; max-width: 100%; }
    Portal Professor / Aluno
    ============================================================ */
 
+/* ============================================================
+   PORTAL — Layout base
+   ============================================================ */
 .portal-wrap {
   display: flex;
   flex-direction: column;
@@ -3168,9 +3177,12 @@ img, svg { display: block; max-width: 100%; }
   padding: 0 24px;
   height: 60px;
   background: var(--sidebar-bg);
-  border-bottom: 1px solid var(--card-border);
-  box-shadow: 0 1px 4px rgba(0,0,0,.08);
+  border-bottom: 1px solid rgba(255,255,255,.06);
+  box-shadow: 0 2px 8px rgba(0,0,0,.15);
   flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 50;
 }
 
 .portal-brand {
@@ -3200,9 +3212,10 @@ img, svg { display: block; max-width: 100%; }
 .portal-user-badge {
   font-size: 13px;
   color: var(--sidebar-text-active);
-  padding: 4px 10px;
+  padding: 5px 12px;
   border-radius: 20px;
-  background: rgba(255,255,255,.1);
+  background: rgba(255,255,255,.12);
+  font-weight: 600;
 }
 
 .portal-content {
@@ -3212,91 +3225,266 @@ img, svg { display: block; max-width: 100%; }
 }
 
 .portal-inner {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0 20px 48px;
+}
+
+/* ============================================================
+   PORTAL — Hero banner
+   ============================================================ */
+.portal-hero {
+  background: linear-gradient(135deg, #083c2f 0%, #0d5240 50%, #0f6b52 100%);
+  margin: 0 -20px 32px;
+  padding: 36px 20px 32px;
+  position: relative;
+  overflow: hidden;
+}
+
+.portal-hero::before {
+  content: '';
+  position: absolute;
+  top: -40px; right: -40px;
+  width: 200px; height: 200px;
+  background: rgba(255,255,255,.04);
+  border-radius: 50%;
+}
+
+.portal-hero::after {
+  content: '';
+  position: absolute;
+  bottom: -60px; left: 30%;
+  width: 280px; height: 280px;
+  background: rgba(255,255,255,.03);
+  border-radius: 50%;
+}
+
+.portal-hero-inner {
   max-width: 860px;
   margin: 0 auto;
-  padding: 28px 20px 40px;
+  position: relative;
+  z-index: 1;
 }
 
-.portal-page-header {
-  margin-bottom: 20px;
-}
-
-.portal-title {
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin: 0 0 4px;
-}
-
-.portal-subtitle {
+.portal-hero-saudacao {
   font-size: 13px;
-  color: var(--text-muted);
-  text-transform: capitalize;
+  color: rgba(255,255,255,.6);
+  font-weight: 500;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
 }
 
+.portal-hero-nome {
+  font-size: 28px;
+  font-weight: 800;
+  color: #fff;
+  margin-bottom: 4px;
+  line-height: 1.15;
+}
+
+.portal-hero-data {
+  font-size: 13px;
+  color: rgba(255,255,255,.55);
+  text-transform: capitalize;
+  margin-bottom: 24px;
+}
+
+.portal-hero-stats {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.portal-hero-stat {
+  background: rgba(255,255,255,.1);
+  border: 1px solid rgba(255,255,255,.15);
+  border-radius: 12px;
+  padding: 10px 16px;
+  backdrop-filter: blur(4px);
+  min-width: 100px;
+}
+
+.portal-hero-stat-val {
+  font-size: 22px;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1;
+}
+
+.portal-hero-stat-label {
+  font-size: 11px;
+  color: rgba(255,255,255,.6);
+  margin-top: 3px;
+  font-weight: 500;
+}
+
+.portal-hero-stat-accent {
+  background: rgba(16,185,129,.2);
+  border-color: rgba(16,185,129,.4);
+}
+
+.portal-hero-stat-accent .portal-hero-stat-val {
+  color: #6ee7b7;
+}
+
+/* ============================================================
+   PORTAL — Tabs
+   ============================================================ */
+.portal-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 20px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  padding: 4px;
+  box-shadow: var(--card-shadow);
+}
+
+.portal-tab-btn {
+  flex: 1;
+  padding: 9px 12px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all .18s;
+  white-space: nowrap;
+}
+
+.portal-tab-btn:hover {
+  background: var(--gray-light);
+  color: var(--text-primary);
+}
+
+.portal-tab-btn.active {
+  background: var(--primary);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(8,60,47,.25);
+}
+
+/* ============================================================
+   PORTAL — Cards de aula
+   ============================================================ */
 .portal-cards {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  margin-top: 16px;
 }
 
 .portal-card {
   background: var(--card-bg);
   border: 1px solid var(--card-border);
-  border-radius: var(--card-radius);
-  padding: 16px;
+  border-radius: 14px;
   box-shadow: var(--card-shadow);
-  transition: box-shadow .15s;
+  overflow: hidden;
+  transition: transform .15s, box-shadow .15s;
 }
 
 .portal-card:hover {
-  box-shadow: 0 3px 12px rgba(0,0,0,.1);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(0,0,0,.1);
 }
 
-.portal-card-destaque {
-  border-left: 4px solid var(--primary);
-  background: color-mix(in srgb, var(--primary) 4%, var(--card-bg));
+/* Card de destaque (aula de hoje) */
+.portal-card-hoje {
+  border: none;
+  background: linear-gradient(135deg, #083c2f, #0d6b52);
+  color: #fff;
 }
 
-.portal-card-top {
+.portal-card-hoje .portal-card-titulo { color: #fff; }
+.portal-card-hoje .portal-card-meta   { color: rgba(255,255,255,.7); }
+
+.portal-card-body {
   display: flex;
+  gap: 16px;
+  padding: 18px 20px;
   align-items: flex-start;
-  gap: 12px;
 }
 
-.portal-card-info {
-  flex: 1;
+.portal-card-horario {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 56px;
+  padding-top: 2px;
 }
+
+.portal-card-hora-inicio {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--primary);
+  line-height: 1;
+}
+
+.portal-card-hoje .portal-card-hora-inicio { color: #6ee7b7; }
+
+.portal-card-hora-sep {
+  width: 1px;
+  height: 20px;
+  background: var(--card-border);
+  margin: 4px 0;
+}
+
+.portal-card-hoje .portal-card-hora-sep { background: rgba(255,255,255,.2); }
+
+.portal-card-hora-fim {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.portal-card-hoje .portal-card-hora-fim { color: rgba(255,255,255,.6); }
+
+.portal-card-info { flex: 1; }
 
 .portal-card-titulo {
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 700;
   color: var(--text-primary);
-  margin-bottom: 4px;
+  margin-bottom: 5px;
+  line-height: 1.3;
 }
 
 .portal-card-meta {
   font-size: 12px;
   color: var(--text-muted);
-  margin-bottom: 6px;
-  line-height: 1.6;
+  line-height: 1.7;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.portal-card-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
 }
 
 .portal-card-badges {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
-  margin-top: 4px;
+  gap: 6px;
+  margin-top: 8px;
 }
 
 .portal-card-acoes {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
-  margin-top: 12px;
-  padding-top: 12px;
+  padding: 12px 20px;
+  background: rgba(0,0,0,.03);
   border-top: 1px solid var(--card-border);
+}
+
+.portal-card-hoje .portal-card-acoes {
+  background: rgba(0,0,0,.15);
+  border-top-color: rgba(255,255,255,.1);
 }
 
 .portal-badge {
@@ -3304,25 +3492,142 @@ img, svg { display: block; max-width: 100%; }
   align-items: center;
   font-size: 11px;
   font-weight: 600;
-  padding: 2px 8px;
+  padding: 3px 9px;
   border-radius: 20px;
   background: var(--gray-light);
   color: var(--text-secondary);
 }
 
+/* ============================================================
+   PORTAL — Card plano (aluno)
+   ============================================================ */
+.portal-plano-card {
+  background: linear-gradient(135deg, #083c2f, #0d5240);
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 24px;
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+}
+
+.portal-plano-card::after {
+  content: '🏸';
+  position: absolute;
+  right: 20px; top: 50%;
+  transform: translateY(-50%);
+  font-size: 64px;
+  opacity: .08;
+}
+
+.portal-plano-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: rgba(255,255,255,.5);
+  margin-bottom: 6px;
+}
+
+.portal-plano-nome {
+  font-size: 20px;
+  font-weight: 800;
+  color: #fff;
+  margin-bottom: 16px;
+}
+
+.portal-plano-progress-wrap {
+  margin-bottom: 16px;
+}
+
+.portal-plano-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.portal-plano-progress-label { font-size: 12px; color: rgba(255,255,255,.6); }
+.portal-plano-progress-nums  { font-size: 13px; font-weight: 700; color: #6ee7b7; }
+
+.portal-plano-progress-track {
+  height: 8px;
+  background: rgba(255,255,255,.15);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.portal-plano-progress-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #10b981, #6ee7b7);
+  transition: width .5s ease;
+}
+
+.portal-plano-footer {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.portal-plano-info-item { }
+.portal-plano-info-label { font-size: 11px; color: rgba(255,255,255,.5); }
+.portal-plano-info-val   { font-size: 14px; font-weight: 700; color: #fff; }
+
+/* Card próxima aula (aluno) */
+.portal-proxima-card {
+  background: var(--card-bg);
+  border: 2px solid var(--primary);
+  border-radius: 14px;
+  padding: 20px;
+  margin-bottom: 16px;
+  position: relative;
+}
+
+.portal-proxima-label {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: var(--primary);
+  margin-bottom: 8px;
+}
+
+.portal-proxima-titulo {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+
+.portal-proxima-meta {
+  font-size: 13px;
+  color: var(--text-muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+
+/* ============================================================
+   PORTAL — Estado vazio
+   ============================================================ */
 .portal-empty {
   text-align: center;
-  padding: 40px 20px;
+  padding: 48px 20px;
   color: var(--text-muted);
   font-size: 14px;
 }
 
 .portal-empty-icon {
-  font-size: 36px;
-  margin-bottom: 10px;
+  font-size: 44px;
+  margin-bottom: 12px;
 }
 
-/* Financeiro */
+.portal-empty p { max-width: 280px; margin: 0 auto; line-height: 1.6; }
+
+/* ============================================================
+   PORTAL — Financeiro (aluno)
+   ============================================================ */
 .portal-fin {
   display: flex;
   flex-direction: column;
@@ -3332,14 +3637,12 @@ img, svg { display: block; max-width: 100%; }
 .portal-fin-resumo {
   background: var(--card-bg);
   border: 1px solid var(--card-border);
-  border-radius: var(--card-radius);
+  border-radius: 14px;
   padding: 20px;
   box-shadow: var(--card-shadow);
 }
 
-.portal-fin-plano {
-  margin-bottom: 14px;
-}
+.portal-fin-plano { margin-bottom: 14px; }
 
 .portal-fin-plano-label {
   font-size: 11px;
@@ -3381,7 +3684,7 @@ img, svg { display: block; max-width: 100%; }
 .portal-fin-historico {
   background: var(--card-bg);
   border: 1px solid var(--card-border);
-  border-radius: var(--card-radius);
+  border-radius: 14px;
   padding: 16px;
 }
 
@@ -3404,9 +3707,37 @@ img, svg { display: block; max-width: 100%; }
 
 .portal-fin-hist-row:last-child { border-bottom: none; }
 
+/* ============================================================
+   PORTAL — Section title
+   ============================================================ */
+.portal-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+/* ============================================================
+   PORTAL — Responsive
+   ============================================================ */
+@media (max-width: 600px) {
+  .portal-hero { padding: 28px 16px 24px; }
+  .portal-hero-nome { font-size: 22px; }
+  .portal-hero-stats { gap: 8px; }
+  .portal-hero-stat { padding: 8px 12px; min-width: 80px; }
+  .portal-tabs { overflow-x: auto; }
+  .portal-tab-btn { font-size: 12px; padding: 8px 10px; }
+  .portal-card-body { gap: 12px; padding: 14px 16px; }
+  .portal-card-hora-inicio { font-size: 15px; }
+}
+
 /* Dark mode */
-[data-theme="dark"] .portal-user-badge { background: rgba(255,255,255,.08); }
-[data-theme="dark"] .portal-card-destaque { background: color-mix(in srgb, var(--primary) 8%, var(--card-bg)); }
+[data-theme="dark"] .portal-user-badge { background: rgba(255,255,255,.1); }
+[data-theme="dark"] .portal-card-hoje  { background: linear-gradient(135deg, #0a1f18, #0d3d2d); }
+[data-theme="dark"] .portal-plano-card { background: linear-gradient(135deg, #0a1f18, #0d3d2d); }
+[data-theme="dark"] .portal-card-acoes { background: rgba(255,255,255,.03); }
 
 /* ============================================================
    Matrícula — Seletor de aulas por grade
