@@ -416,8 +416,25 @@ const ProfessorModule = {
     const prof = Storage.getById(this.STORAGE_KEY, id);
     if (!prof) return;
 
+    const vinculos =
+      Storage.getAll('turmas').filter(r => r.professorId === id).length +
+      Storage.getAll('aulas').filter(r => r.professorId === id).length;
+
+    if (vinculos > 0) {
+      const inativar = await UI.confirm(
+        `"${prof.nome}" possui ${vinculos} registro(s) vinculado(s) (turmas/aulas). Não é possível excluir.\n\nDeseja inativar o professor em vez disso?`,
+        'Não é possível excluir',
+        'Inativar'
+      );
+      if (!inativar) return;
+      Storage.update(this.STORAGE_KEY, id, { status: 'inativo' });
+      UI.toast(`Professor "${prof.nome}" inativado.`, 'success');
+      this.render();
+      return;
+    }
+
     const confirmed = await UI.confirm(
-      `Deseja realmente excluir o professor "${prof.nome}"? Esta ação não pode ser desfeita.`,
+      `Excluir o professor "${prof.nome}"? Esta ação não pode ser desfeita.`,
       'Excluir Professor'
     );
     if (!confirmed) return;

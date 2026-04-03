@@ -526,8 +526,29 @@ const AlunoModule = {
     const aluno = Storage.getById(this.STORAGE_KEY, id);
     if (!aluno) return;
 
+    // Verifica registros vinculados
+    const vinculos = [
+      Storage.getAll('matriculas').filter(r => r.alunoId === id).length,
+      Storage.getAll('presencas').filter(r => r.alunoId === id).length,
+      Storage.getAll('turmaAlunos').filter(r => r.alunoId === id).length,
+      Storage.getAll('reposicoes').filter(r => r.alunoId === id).length,
+    ].reduce((a, b) => a + b, 0);
+
+    if (vinculos > 0) {
+      const inativar = await UI.confirm(
+        `"${aluno.nome}" possui ${vinculos} registro(s) vinculado(s) no sistema (matrículas, presenças, inscrições). Não é possível excluir.\n\nDeseja inativar o aluno em vez disso?`,
+        'Não é possível excluir',
+        'Inativar'
+      );
+      if (!inativar) return;
+      Storage.update(this.STORAGE_KEY, id, { status: 'inativo' });
+      UI.toast(`Aluno "${aluno.nome}" inativado.`, 'success');
+      this.render();
+      return;
+    }
+
     const confirmed = await UI.confirm(
-      `Deseja realmente excluir o aluno "${aluno.nome}"? Esta ação não pode ser desfeita.`,
+      `Excluir o aluno "${aluno.nome}"? Esta ação não pode ser desfeita.`,
       'Excluir Aluno'
     );
     if (!confirmed) return;

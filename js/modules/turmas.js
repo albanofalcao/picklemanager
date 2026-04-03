@@ -1441,8 +1441,7 @@ const TurmasModule = {
     ).join('');
 
     const nivelOpts  = ListasService.opts('aulas_nivel', turma?.nivel || '');
-    const tipoOpts   = [['individual','Individual'],['dupla','Dupla'],['grupo','Grupo']]
-      .map(([k, l]) => `<option value="${k}" ${turma?.tipo === k ? 'selected' : ''}>${l}</option>`).join('');
+    const tipoOpts   = ListasService.opts('aulas_tipo', turma?.tipo || '');
 
     const content = `
       <div class="form-grid">
@@ -1469,19 +1468,14 @@ const TurmasModule = {
             <label class="form-label" for="tm-esporte">Esporte</label>
             <select id="tm-esporte" class="form-select">
               <option value="">— Selecionar —</option>
-              <option value="pickleball" ${turma?.esporte==='pickleball'?'selected':''}>Pickleball</option>
-              <option value="padel"      ${turma?.esporte==='padel'?'selected':''}>Padel</option>
-              <option value="tenis"      ${turma?.esporte==='tenis'?'selected':''}>Tênis</option>
-              <option value="beach"      ${turma?.esporte==='beach'?'selected':''}>Beach Tennis</option>
-              <option value="outro"      ${turma?.esporte==='outro'?'selected':''}>Outro</option>
+              ${ListasService.opts('esporte', turma?.esporte || '')}
             </select>
           </div>
           <div class="form-group">
             <label class="form-label" for="tm-tipoplano">Tipo de Aula</label>
             <select id="tm-tipoplano" class="form-select">
               <option value="">— Selecionar —</option>
-              <option value="personal"  ${turma?.tipoplano==='personal'?'selected':''}>Personal</option>
-              <option value="coletivo"  ${turma?.tipoplano==='coletivo'?'selected':''}>Coletivo</option>
+              ${ListasService.opts('aulas_tipoplano', turma?.tipoplano || '')}
             </select>
           </div>
         </div>
@@ -1603,8 +1597,26 @@ const TurmasModule = {
   async deleteTurma(id) {
     const t = Storage.getById(this.SK, id);
     if (!t) return;
+
+    const vinculos =
+      Storage.getAll(this.SK_AULA).filter(r => r.turmaId === id).length +
+      Storage.getAll(this.SK_INSCR).filter(r => r.turmaId === id).length;
+
+    if (vinculos > 0) {
+      const inativar = await UI.confirm(
+        `"${t.nome}" possui ${vinculos} registro(s) vinculado(s) (aulas e inscrições). Não é possível excluir.\n\nDeseja encerrar a grade em vez disso?`,
+        'Não é possível excluir',
+        'Encerrar'
+      );
+      if (!inativar) return;
+      Storage.update(this.SK, id, { status: 'encerrada' });
+      UI.toast(`Grade "${t.nome}" encerrada.`, 'success');
+      this.render();
+      return;
+    }
+
     const ok = await UI.confirm(
-      `Excluir a grade "${t.nome}"? As aulas vinculadas não serão removidas.`,
+      `Excluir a grade "${t.nome}"? Esta ação não pode ser desfeita.`,
       'Excluir Grade'
     );
     if (!ok) return;
@@ -1838,18 +1850,14 @@ const TurmasModule = {
             <label class="form-label" for="au-esporte">Esporte</label>
             <select id="au-esporte" class="form-select">
               <option value="">— Selecionar —</option>
-              <option value="pickleball" ${aula?.esporte==='pickleball'?'selected':''}>Pickleball</option>
-              <option value="padel"      ${aula?.esporte==='padel'?'selected':''}>Padel</option>
-              <option value="tenis"      ${aula?.esporte==='tenis'?'selected':''}>Tênis</option>
-              <option value="beach"      ${aula?.esporte==='beach'?'selected':''}>Beach Tennis</option>
+              ${ListasService.opts('esporte', aula?.esporte || '')}
             </select>
           </div>
           <div class="form-group">
             <label class="form-label" for="au-tipoplano">Tipo de Aula</label>
             <select id="au-tipoplano" class="form-select">
               <option value="">— Selecionar —</option>
-              <option value="personal"  ${aula?.tipoplano==='personal'?'selected':''}>Personal</option>
-              <option value="coletivo"  ${aula?.tipoplano==='coletivo'?'selected':''}>Coletivo</option>
+              ${ListasService.opts('aulas_tipoplano', aula?.tipoplano || '')}
             </select>
           </div>
         </div>
@@ -1865,9 +1873,14 @@ const TurmasModule = {
           </div>
         </div>
 
-        <div class="form-group">
+        <div id="au-data-wrap" class="form-group" ${aula && aula.turmaId ? 'style="display:none"' : ''}>
           <label class="form-label" for="au-data">Data <span class="required-star">*</span></label>
-          <input id="au-data" type="date" class="form-input" value="${v('data')}" required />
+          <input id="au-data" type="date" class="form-input" value="${v('data')}" />
+        </div>
+        <div id="au-data-info" ${aula && aula.turmaId ? '' : 'style="display:none"'}>
+          <div class="cadastro-tab-info">
+            📅 Aula vinculada à grade — as datas são geradas automaticamente pelo botão <strong>Gerar Aulas</strong> na aba Grade.
+          </div>
         </div>
 
         <div class="form-grid-2">
@@ -1911,13 +1924,28 @@ const TurmasModule = {
     const g       = n => document.getElementById(`au-${n}`);
     const tituloEl = g('titulo');
     const dataEl   = g('data');
+    const turmaEl  = g('turma');
+    const isAvulsa = !turmaEl?.value;
     let valid = true;
-    [tituloEl, dataEl].forEach(el => {
-      if (!el) return;
-      const empty = !el.value.trim();
-      el.classList.toggle('error', empty);
-      if (empty) valid = false;
-    });
+
+    // Título sempre obrigatório
+    if (!tituloEl?.value.trim()) {
+      tituloEl?.classList.add('error');
+      valid = false;
+    } else {
+      tituloEl?.classList.remove('error');
+    }
+
+    // Data obrigatória apenas para aulas avulsas
+    if (isAvulsa) {
+      if (!dataEl?.value.trim()) {
+        dataEl?.classList.add('error');
+        valid = false;
+      } else {
+        dataEl?.classList.remove('error');
+      }
+    }
+
     if (!valid) { UI.toast('Preencha os campos obrigatórios.', 'warning'); return; }
 
     const turmaSel      = g('turma');
@@ -1936,7 +1964,7 @@ const TurmasModule = {
 
     const horarioInicio = g('hi')  ? g('hi').value  : '';
     const horarioFim    = g('hf')  ? g('hf').value  : '';
-    const data          = dataEl.value;
+    const data          = isAvulsa ? (dataEl?.value || '') : '';
 
     const record = {
       titulo:        tituloEl.value.trim(),
@@ -2266,7 +2294,16 @@ const TurmasModule = {
 
   _onTurmaChangeAula() {
     const turmaEl = document.getElementById('au-turma');
-    if (!turmaEl || !turmaEl.value) return;
+    if (!turmaEl) return;
+
+    // Mostra/esconde campo data conforme tipo
+    const dataWrap = document.getElementById('au-data-wrap');
+    const dataInfo = document.getElementById('au-data-info');
+    const isAvulsa = !turmaEl.value;
+    if (dataWrap) dataWrap.style.display = isAvulsa ? '' : 'none';
+    if (dataInfo) dataInfo.style.display = isAvulsa ? 'none' : '';
+
+    if (!turmaEl.value) return;
     const turma = Storage.getById(this.SK, turmaEl.value);
     if (!turma) return;
 

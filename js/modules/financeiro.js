@@ -498,7 +498,7 @@ const FinanceiroModule = {
       const tipo   = this.TIPO[l.tipo]     || { label: l.tipo,   badge: 'badge-gray', color: '' };
       const status = this.STATUS[l.status] || { label: l.status, badge: 'badge-gray' };
       const cat    = this._categoriaLabel(l.tipo, l.categoria);
-      const forma  = this.FORMA_PAGAMENTO[l.formaPagamento] || '—';
+      const forma  = ListasService.label('financeiro_forma_pagamento', l.formaPagamento) || '—';
       const data   = UI.formatDate(l.data);
       const sinal  = l.tipo === 'receita' ? '+' : '−';
       const valClass = l.tipo === 'receita' ? 'fin-val-pos' : 'fin-val-neg';
@@ -578,8 +578,7 @@ const FinanceiroModule = {
       `<option value="${k}" ${tipoAtual === k ? 'selected' : ''}>${cfg.label}</option>`).join('');
     const statusOptions = Object.entries(this.STATUS).map(([k, cfg]) =>
       `<option value="${k}" ${lanc && lanc.status === k ? 'selected' : ''}>${cfg.label}</option>`).join('');
-    const formaOptions  = Object.entries(this.FORMA_PAGAMENTO).map(([k, l]) =>
-      `<option value="${k}" ${lanc && lanc.formaPagamento === k ? 'selected' : ''}>${l}</option>`).join('');
+    const formaOptions  = ListasService.opts('financeiro_forma_pagamento', lanc?.formaPagamento || '');
 
     const catRecOptions = CadastrosModule.buildOptions(
       CadastrosModule.getCategoriasReceita(),

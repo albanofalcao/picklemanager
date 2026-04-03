@@ -208,7 +208,7 @@ const MatriculaModule = {
             ${dataFim}${alertaVenc}
           </td>
           <td><span class="badge ${status.badge}">${status.label}</span></td>
-          <td class="text-muted text-sm">${UI.escape(m.formaPagamento ? (this.FORMA_PAGAMENTO[m.formaPagamento] || m.formaPagamento) : '—')}</td>
+          <td class="text-muted text-sm">${UI.escape(m.formaPagamento ? ListasService.label('matriculas_forma_pagamento', m.formaPagamento) : '—')}</td>
           <td>${financeiroBadge}${SaldoService.badgeSaldo(m.alunoId)}</td>
           <td class="aluno-row-actions">
             <button class="btn btn-ghost btn-sm" onclick="MatriculaModule.openModal('${m.id}')" title="Editar">✏️</button>
@@ -286,9 +286,7 @@ const MatriculaModule = {
     ).join('');
 
     const fpOpts = `<option value="">— Selecionar —</option>` +
-      Object.entries(this.FORMA_PAGAMENTO).map(([k, lbl]) =>
-        `<option value="${k}" ${mat && mat.formaPagamento === k ? 'selected' : ''}>${lbl}</option>`
-      ).join('');
+      ListasService.opts('matriculas_forma_pagamento', mat?.formaPagamento || '');
 
     const hoje = new Date().toISOString().slice(0, 10);
 

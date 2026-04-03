@@ -204,7 +204,7 @@ const DayUseModule = {
       const dataFmt  = e.data ? `${dia}/${mes}/${ano}` : '—';
       const plano    = Storage.getById(this.STORAGE_KEY_PLANOS, e.planoId);
       const planoNome = plano ? UI.escape(plano.nome) : '—';
-      const forma    = this.FORMA_PAGAMENTO[e.formaPagamento] || e.formaPagamento || '—';
+      const forma    = ListasService.label('dayuse_forma_pagamento', e.formaPagamento) || '—';
 
       return `
         <tr>
@@ -363,8 +363,7 @@ const DayUseModule = {
       `<option value="${p.id}" data-valor="${p.valor}">${UI.escape(p.nome)} — ${this._fmt(p.valor)}</option>`
     ).join('');
 
-    const formaOpts = Object.entries(this.FORMA_PAGAMENTO).map(([k, v]) =>
-      `<option value="${k}">${v}</option>`).join('');
+    const formaOpts = ListasService.opts('dayuse_forma_pagamento', '');
 
     const arenas = Storage.getAll('arenas').filter(a => a.status === 'ativa');
     const arenaOpts = arenas.map(a =>

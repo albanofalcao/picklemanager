@@ -171,6 +171,57 @@ const ListasService = {
         { v: 'todos',         l: 'Todos os níveis' },
       ],
     },
+    esporte: {
+      label:  'Esporte',
+      modulo: 'Geral',
+      itens:  [
+        { v: 'pickleball', l: 'Pickleball'   },
+        { v: 'padel',      l: 'Padel'        },
+        { v: 'tenis',      l: 'Tênis'        },
+        { v: 'beach',      l: 'Beach Tennis' },
+        { v: 'outro',      l: 'Outro'        },
+      ],
+    },
+    aulas_tipoplano: {
+      label:  'Tipo de Aula (Personal/Coletivo)',
+      modulo: 'Aulas',
+      itens:  [
+        { v: 'personal', l: 'Personal'  },
+        { v: 'coletivo', l: 'Coletivo'  },
+      ],
+    },
+    financeiro_forma_pagamento: {
+      label:  'Forma de Pagamento',
+      modulo: 'Financeiro',
+      itens:  [
+        { v: 'dinheiro',       l: 'Dinheiro'           },
+        { v: 'pix',            l: 'PIX'                },
+        { v: 'cartao_credito', l: 'Cartão de Crédito'  },
+        { v: 'cartao_debito',  l: 'Cartão de Débito'   },
+      ],
+    },
+    dayuse_forma_pagamento: {
+      label:  'Forma de Pagamento (Day Use)',
+      modulo: 'Day Use',
+      itens:  [
+        { v: 'dinheiro',    l: 'Dinheiro'           },
+        { v: 'pix',         l: 'PIX'                },
+        { v: 'cartao_cred', l: 'Cartão de Crédito'  },
+        { v: 'cartao_deb',  l: 'Cartão de Débito'   },
+      ],
+    },
+    matriculas_forma_pagamento: {
+      label:  'Forma de Pagamento (Matrículas)',
+      modulo: 'Matrículas',
+      itens:  [
+        { v: 'dinheiro',      l: 'Dinheiro'           },
+        { v: 'pix',           l: 'PIX'                },
+        { v: 'cartao_credito',l: 'Cartão de Crédito'  },
+        { v: 'cartao_debito', l: 'Cartão de Débito'   },
+        { v: 'transferencia', l: 'Transferência'       },
+        { v: 'boleto',        l: 'Boleto'              },
+      ],
+    },
   },
 
   /* ------------------------------------------------------------------

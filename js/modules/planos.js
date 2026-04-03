@@ -193,9 +193,9 @@ const PlanoModule = {
           </span>
           <div class="arena-name">${UI.escape(p.nome)}</div>
           <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;">
-            ${p.esporte    ? `<span class="badge badge-blue">${UI.escape(this.ESPORTE[p.esporte] || p.esporte)}</span>` : ''}
-            ${p.nivel      ? `<span class="badge badge-gray">${UI.escape(this.NIVEL_PLANO[p.nivel] || p.nivel)}</span>` : ''}
-            ${p.tipoplano  ? `<span class="badge badge-success">${UI.escape(this.TIPO_PLANO[p.tipoplano] || p.tipoplano)}</span>` : ''}
+            ${p.esporte    ? `<span class="badge badge-blue">${UI.escape(ListasService.label('esporte', p.esporte))}</span>` : ''}
+            ${p.nivel      ? `<span class="badge badge-gray">${UI.escape(ListasService.label('aulas_nivel', p.nivel))}</span>` : ''}
+            ${p.tipoplano  ? `<span class="badge badge-success">${UI.escape(ListasService.label('aulas_tipoplano', p.tipoplano))}</span>` : ''}
             ${p.desconto > 0 ? `<span class="badge badge-warning">${p.desconto}% desc.</span>` : ''}
             ${p.arenaNome  ? `<span class="badge badge-gray">${UI.escape(p.arenaNome)}</span>` : ''}
           </div>
@@ -265,12 +265,9 @@ const PlanoModule = {
     const statusOptions = Object.entries(this.STATUS).map(([k, cfg]) =>
       `<option value="${k}" ${plano && plano.status === k ? 'selected' : ''}>${cfg.label}</option>`).join('');
 
-    const esporteOpts   = Object.entries(this.ESPORTE).map(([k, l]) =>
-      `<option value="${k}" ${plano?.esporte === k ? 'selected' : ''}>${l}</option>`).join('');
-    const nivelOpts     = Object.entries(this.NIVEL_PLANO).map(([k, l]) =>
-      `<option value="${k}" ${plano?.nivel === k ? 'selected' : ''}>${l}</option>`).join('');
-    const tipoPlanoOpts = Object.entries(this.TIPO_PLANO).map(([k, l]) =>
-      `<option value="${k}" ${plano?.tipoplano === k ? 'selected' : ''}>${l}</option>`).join('');
+    const esporteOpts   = ListasService.opts('esporte',        plano?.esporte   || '');
+    const nivelOpts     = ListasService.opts('aulas_nivel',    plano?.nivel     || '');
+    const tipoPlanoOpts = ListasService.opts('aulas_tipoplano', plano?.tipoplano || '');
 
     const arenas = Storage.getAll('arenas').filter(a => a.status === 'ativa');
     const arenaOpts = arenas.map(a =>
@@ -426,8 +423,23 @@ const PlanoModule = {
     const plano = Storage.getById(this.STORAGE_KEY, id);
     if (!plano) return;
 
+    const vinculos = Storage.getAll('matriculas').filter(r => r.planoId === id).length;
+
+    if (vinculos > 0) {
+      const inativar = await UI.confirm(
+        `"${plano.nome}" possui ${vinculos} matrícula(s) vinculada(s). Não é possível excluir.\n\nDeseja pausar o plano em vez disso?`,
+        'Não é possível excluir',
+        'Pausar'
+      );
+      if (!inativar) return;
+      Storage.update(this.STORAGE_KEY, id, { status: 'pausado' });
+      UI.toast(`Plano "${plano.nome}" pausado.`, 'success');
+      this.render();
+      return;
+    }
+
     const confirmed = await UI.confirm(
-      `Deseja realmente excluir o plano "${plano.nome}"? Esta ação não pode ser desfeita.`,
+      `Excluir o plano "${plano.nome}"? Esta ação não pode ser desfeita.`,
       'Excluir Plano'
     );
     if (!confirmed) return;

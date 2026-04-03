@@ -430,10 +430,28 @@ const ArenaModule = {
   async deleteArena(id) {
     const arena = Storage.getById(this.STORAGE_KEY, id);
     if (!arena) return;
-    const qtdQuadras = Storage.getAll(this.SK_QUADRAS).filter(q => q.arenaId === id).length;
-    const extra = qtdQuadras > 0 ? ` Esta arena possui ${qtdQuadras} quadra${qtdQuadras !== 1 ? 's' : ''} vinculada${qtdQuadras !== 1 ? 's' : ''}.` : '';
+
+    const vinculos =
+      Storage.getAll(this.SK_QUADRAS).filter(r => r.arenaId === id).length +
+      Storage.getAll('turmas').filter(r => r.arenaId === id).length +
+      Storage.getAll('aulas').filter(r => r.arenaId === id).length +
+      Storage.getAll('manutencao').filter(r => r.arenaId === id).length;
+
+    if (vinculos > 0) {
+      const inativar = await UI.confirm(
+        `"${arena.nome}" possui ${vinculos} registro(s) vinculado(s) (quadras, grades, aulas, manutenções). Não é possível excluir.\n\nDeseja inativar a arena em vez disso?`,
+        'Não é possível excluir',
+        'Inativar'
+      );
+      if (!inativar) return;
+      Storage.update(this.STORAGE_KEY, id, { status: 'inativa' });
+      UI.toast(`Arena "${arena.nome}" inativada.`, 'success');
+      this.render();
+      return;
+    }
+
     const ok = await UI.confirm(
-      `Excluir a arena "${arena.nome}"?${extra} Esta ação não pode ser desfeita.`,
+      `Excluir a arena "${arena.nome}"? Esta ação não pode ser desfeita.`,
       'Excluir Arena'
     );
     if (!ok) return;

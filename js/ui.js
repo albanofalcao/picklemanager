@@ -5,6 +5,7 @@
  */
 const UI = {
   _confirmResolve: null,
+  _clearTimer: null,
 
   /** Bind modal close triggers (close button, cancel button, backdrop click, ESC) */
   initModal() {
@@ -49,7 +50,17 @@ const UI = {
     const toggle = document.getElementById('sidebar-toggle');
     const sidebar = document.getElementById('sidebar');
     toggle && toggle.addEventListener('click', () => {
-      sidebar && sidebar.classList.toggle('open');
+      const isOpen = sidebar && sidebar.classList.toggle('open');
+      const overlay = document.getElementById('sidebar-overlay');
+      if (overlay) overlay.classList.toggle('open', !!isOpen);
+    });
+
+    // Fechar sidebar ao clicar em um item de nav (mobile)
+    const sidebarNav = document.getElementById('sidebar-nav');
+    sidebarNav && sidebarNav.addEventListener('click', e => {
+      if (e.target.closest('.nav-item') && window.innerWidth <= 1024) {
+        UI.closeSidebar();
+      }
     });
   },
 
@@ -63,6 +74,9 @@ const UI = {
    * @param {boolean}  [opts.hideFooter=false]
    */
   openModal({ title = '', content = '', confirmLabel = 'Salvar', cancelLabel = 'Cancelar', onConfirm = null, hideFooter = false, wide = false } = {}) {
+    // Cancela qualquer timer de limpeza pendente de um closeModal anterior
+    if (this._clearTimer) { clearTimeout(this._clearTimer); this._clearTimer = null; }
+
     const overlay    = document.getElementById('modal-overlay');
     const dialog     = document.getElementById('modal-dialog');
     const titleEl    = document.getElementById('modal-title');
@@ -109,8 +123,9 @@ const UI = {
     if (!overlay) return;
     overlay.classList.remove('open');
     overlay.setAttribute('aria-hidden', 'true');
-    // Clear after animation
-    setTimeout(() => {
+    // Clear after animation — guardamos o ID para cancelar se um openModal vier logo depois
+    this._clearTimer = setTimeout(() => {
+      this._clearTimer = null;
       const bodyEl = document.getElementById('modal-body');
       if (bodyEl) bodyEl.innerHTML = '';
     }, 300);
@@ -121,26 +136,27 @@ const UI = {
    * @param {string} message
    * @param {string} [title='Confirmar']
    */
-  confirm(message, title = 'Confirmar') {
+  confirm(message, title = 'Confirmar', confirmLabel = 'Confirmar') {
     return new Promise((resolve) => {
       this._confirmResolve = resolve;
 
       const overlay = document.getElementById('confirm-overlay');
       const titleEl = document.getElementById('confirm-title');
       const msgEl   = document.getElementById('confirm-message');
+      const okBtn   = document.getElementById('confirm-ok');
 
       if (!overlay) { resolve(false); return; }
 
       titleEl.textContent = title;
       msgEl.textContent   = message;
+      if (okBtn) okBtn.textContent = confirmLabel;
 
       overlay.classList.add('open');
       overlay.setAttribute('aria-hidden', 'false');
 
       // Focus confirm button
       requestAnimationFrame(() => {
-        const ok = document.getElementById('confirm-ok');
-        ok && ok.focus();
+        okBtn && okBtn.focus();
       });
     });
   },
@@ -217,6 +233,14 @@ const UI = {
     } catch (e) {
       return '—';
     }
+  },
+
+  /** Fecha o sidebar mobile e remove o overlay */
+  closeSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    if (sidebar) sidebar.classList.remove('open');
+    if (overlay) overlay.classList.remove('open');
   },
 
   /**

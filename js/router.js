@@ -37,10 +37,15 @@ const Router = {
 
   /**
    * Navigate to a named route.
+   * Se já estiver na rota, força re-render (hashchange não dispara).
    * @param {string} route
    */
   navigate(route) {
-    window.location.hash = route;
+    if (this.current() === route) {
+      this._handleRoute();
+    } else {
+      window.location.hash = route;
+    }
   },
 
   /** Read the current hash and dispatch to the matching handler */
