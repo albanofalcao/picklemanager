@@ -89,7 +89,10 @@
       <div class="portal-header-right">
         <span class="portal-user-badge" id="portal-user-badge"></span>
         <button class="btn btn-icon" onclick="Theme.toggle()" title="Modo escuro">🌙</button>
-        <button class="btn btn-icon" onclick="Auth.confirmLogout()" title="Sair">⏻</button>
+        <button class="btn btn-sm" onclick="Auth.confirmLogout()" title="Sair"
+          style="color:#f6efdb;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.1);border-radius:8px;padding:6px 14px;font-size:13px;cursor:pointer;">
+          ⏻ Sair
+        </button>
       </div>
     </header>
     <main id="portal-content" class="portal-content"></main>
