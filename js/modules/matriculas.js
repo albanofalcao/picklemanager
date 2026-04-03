@@ -211,6 +211,7 @@ const MatriculaModule = {
           <td class="text-muted text-sm">${UI.escape(m.formaPagamento ? ListasService.label('matriculas_forma_pagamento', m.formaPagamento) : '—')}</td>
           <td>${financeiroBadge}${SaldoService.badgeSaldo(m.alunoId)}</td>
           <td class="aluno-row-actions">
+            <button class="btn btn-ghost btn-sm" onclick="MatriculaModule.gerarComprovante('${m.id}')" title="Gerar comprovante">📄</button>
             <button class="btn btn-ghost btn-sm" onclick="MatriculaModule.openModal('${m.id}')" title="Editar">✏️</button>
             <button class="btn btn-ghost btn-sm danger" onclick="MatriculaModule.deleteMatricula('${m.id}')" title="Excluir">🗑️</button>
           </td>
@@ -293,8 +294,11 @@ const MatriculaModule = {
     const content = `
       <div class="form-grid">
         <div class="form-group">
-          <label class="form-label" for="mat-aluno">Aluno <span class="required-star">*</span></label>
-          <select id="mat-aluno" class="form-select" onchange="MatriculaModule._onPlanoChange()">${alunoOpts}</select>
+          <label class="form-label" for="mat-aluno">Aluno ${isEdit ? '' : '<span class="required-star">*</span>'}</label>
+          ${isEdit
+            ? `<input id="mat-aluno" class="form-input" value="${UI.escape(mat.alunoNome || '')}" disabled />`
+            : `<select id="mat-aluno" class="form-select" onchange="MatriculaModule._onPlanoChange()">${alunoOpts}</select>`
+          }
         </div>
 
         <div class="form-group">
@@ -317,7 +321,7 @@ const MatriculaModule = {
 
         <div class="form-grid-2">
           <div class="form-group">
-            <label class="form-label" for="mat-valor">Valor pago (R$)</label>
+            <label class="form-label" for="mat-valor">Valor (R$)</label>
             <input id="mat-valor" type="number" class="form-input"
               placeholder="0,00" min="0" step="0.01" value="${v('valorPago')}"
               oninput="MatriculaModule._onParcelasChange()" />
@@ -326,6 +330,21 @@ const MatriculaModule = {
             <label class="form-label" for="mat-fp">Forma de pagamento</label>
             <select id="mat-fp" class="form-select">${fpOpts}</select>
           </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label checkbox-label" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="checkbox" id="mat-pago"
+              ${mat?.pagamentoConfirmado ? 'checked' : ''}
+              onchange="MatriculaModule._onPagoChange()" />
+            Pagamento recebido
+          </label>
+        </div>
+
+        <div id="mat-data-pag-wrap" class="form-group" ${mat?.pagamentoConfirmado ? '' : 'style="display:none"'}>
+          <label class="form-label" for="mat-data-pag">Data do recebimento</label>
+          <input id="mat-data-pag" type="date" class="form-input"
+            value="${v('dataPagamento', new Date().toISOString().slice(0,10))}" />
         </div>
 
         <div class="form-grid-2">
@@ -406,13 +425,16 @@ const MatriculaModule = {
   /* ------------------------------------------------------------------ */
 
   saveMatricula(id = null) {
-    const g       = n => document.getElementById(`mat-${n}`);
+    const g        = n => document.getElementById(`mat-${n}`);
+    const isEdit   = !!id;
+    const matAtual = isEdit ? Storage.getById(this.STORAGE_KEY, id) : null;
     const alunoSel = g('aluno');
     const planoSel = g('plano');
     const inicio   = g('inicio');
 
     let valid = true;
-    [alunoSel, planoSel, inicio].forEach(el => {
+    // Em edição o aluno está desabilitado — valida só plano e data
+    [isEdit ? null : alunoSel, planoSel, inicio].forEach(el => {
       if (!el) return;
       const empty = !el.value.trim();
       el.classList.toggle('error', empty);
@@ -424,21 +446,27 @@ const MatriculaModule = {
       return;
     }
 
-    const alunoOpt = alunoSel.selectedOptions[0];
     const planoOpt = planoSel.selectedOptions[0];
 
+    // Em edição preserva aluno original; em criação lê do select
+    const alunoId   = isEdit ? matAtual.alunoId   : alunoSel.value;
+    const alunoOpt  = isEdit ? null : alunoSel.selectedOptions[0];
+    const alunoNome = isEdit ? matAtual.alunoNome  : (alunoOpt ? (alunoOpt.dataset.nome || alunoOpt.textContent) : '');
+
     const data = {
-      alunoId:       alunoSel.value,
-      alunoNome:     alunoOpt ? (alunoOpt.dataset.nome || alunoOpt.textContent) : '',
+      alunoId,
+      alunoNome,
       planoId:       planoSel.value,
       planoNome:     planoOpt ? (planoOpt.dataset.nome || planoOpt.textContent) : '',
       dataInicio:    inicio.value,
       dataFim:       g('fim')    ? g('fim').value    : '',
-      valorPago:     g('valor')  ? parseFloat(g('valor').value) || 0 : 0,
-      formaPagamento:g('fp')     ? g('fp').value     : '',
-      numeroParcelas:g('parcelas') ? parseInt(g('parcelas').value) || 1 : 1,
-      status:        g('status') ? g('status').value : 'ativa',
-      observacoes:   g('obs')    ? g('obs').value.trim() : '',
+      valorPago:           g('valor')    ? parseFloat(g('valor').value) || 0 : 0,
+      formaPagamento:      g('fp')       ? g('fp').value       : '',
+      numeroParcelas:      g('parcelas') ? parseInt(g('parcelas').value) || 1 : 1,
+      pagamentoConfirmado: g('pago')     ? g('pago').checked   : false,
+      dataPagamento:       g('data-pag') ? g('data-pag').value : '',
+      status:              g('status')   ? g('status').value   : 'ativa',
+      observacoes:         g('obs')      ? g('obs').value.trim() : '',
     };
 
     let matriculaId = id;
@@ -523,6 +551,12 @@ const MatriculaModule = {
   /*  Parcelas                                                            */
   /* ------------------------------------------------------------------ */
 
+  _onPagoChange() {
+    const cb   = document.getElementById('mat-pago');
+    const wrap = document.getElementById('mat-data-pag-wrap');
+    if (wrap) wrap.style.display = cb?.checked ? '' : 'none';
+  },
+
   _onParcelasChange() {
     const valorEl    = document.getElementById('mat-valor');
     const parcelasEl = document.getElementById('mat-parcelas');
@@ -570,7 +604,7 @@ const MatriculaModule = {
         ? `Mensalidade — ${alunoNome} — ${planoNome}`
         : `Mensalidade ${i + 1}/${N} — ${alunoNome} — ${planoNome}`;
 
-      const status = i === 0 && valorPago > 0 && formaPagamento
+      const status = i === 0 && matData.pagamentoConfirmado
         ? 'pago'
         : 'pendente';
 
@@ -579,7 +613,9 @@ const MatriculaModule = {
         categoria:      'mensalidade',
         descricao,
         valor:          valorParc,
-        data:           dataLanc,
+        data:           i === 0 && matData.pagamentoConfirmado && matData.dataPagamento
+                          ? matData.dataPagamento
+                          : dataLanc,
         formaPagamento,
         status,
         referencia:     alunoNome,
@@ -588,6 +624,168 @@ const MatriculaModule = {
         observacoes:    'Gerado automaticamente pela matrícula',
       });
     }
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Comprovante                                                         */
+  /* ------------------------------------------------------------------ */
+
+  gerarComprovante(id) {
+    const mat   = Storage.getById(this.STORAGE_KEY, id);
+    if (!mat) return;
+
+    const aluno = Storage.getAll('alunos').find(a => a.id === mat.alunoId) || {};
+    const plano = Storage.getAll('planos').find(p => p.id === mat.planoId) || {};
+
+    // Turmas vinculadas ao plano (via esporte/tipo, ou todas ativas)
+    const turmas = Storage.getAll('turmas').filter(t =>
+      t.status === 'ativa' && (!plano.esporte || !t.esporte || t.esporte === plano.esporte)
+    );
+
+    const lancamentos = Storage.getAll('financeiro')
+      .filter(l => l.matriculaId === id)
+      .sort((a, b) => (a.data || '').localeCompare(b.data || ''));
+
+    const academia = Storage.getAll('config_academia')[0] || {};
+    const nomeAcademia = academia.nome || 'PickleManager Academia';
+    const fmtDate  = d => this._fmtDate(d);
+    const fmtMoeda = v => this._fmtMoeda(v);
+    const hoje     = new Date().toLocaleDateString('pt-BR', { day:'2-digit', month:'long', year:'numeric' });
+
+    const DIAS = { seg:'Segunda', ter:'Terça', qua:'Quarta', qui:'Quinta', sex:'Sexta', sab:'Sábado', dom:'Domingo' };
+
+    const turmasHtml = turmas.length ? turmas.map(t => {
+      const dias = (t.dias || []).map(d => DIAS[d] || d).join(', ') || '—';
+      return `<tr>
+        <td>${t.nome || '—'}</td>
+        <td>${dias}</td>
+        <td>${t.horarioInicio || '—'} – ${t.horarioFim || '—'}</td>
+        <td>${t.professorNome || t.professor || '—'}</td>
+        <td>${t.arenaNome || '—'}</td>
+      </tr>`;
+    }).join('') : `<tr><td colspan="5" style="text-align:center;color:#888;">Nenhuma grade disponível no momento</td></tr>`;
+
+    const parcelasHtml = lancamentos.length ? lancamentos.map((l, i) => `
+      <tr>
+        <td>${i + 1}º</td>
+        <td>${fmtDate(l.data)}</td>
+        <td>${fmtMoeda(l.valor)}</td>
+        <td>${ListasService.label('matriculas_forma_pagamento', l.formaPagamento)}</td>
+        <td style="color:${l.status === 'pago' ? '#16a34a' : '#d97706'}">${l.status === 'pago' ? '✔ Pago' : '⏳ Pendente'}</td>
+      </tr>`).join('') : `<tr><td colspan="5" style="text-align:center;color:#888;">—</td></tr>`;
+
+    const emailAluno = aluno.email || '';
+    const assunto    = encodeURIComponent(`Confirmação de Matrícula — ${nomeAcademia}`);
+    const corpo      = encodeURIComponent(
+      `Olá, ${aluno.nome || 'aluno'}!\n\n` +
+      `Sua matrícula foi confirmada.\n\n` +
+      `Plano: ${mat.planoNome || '—'}\n` +
+      `Início: ${fmtDate(mat.dataInicio)}\n` +
+      `Vencimento: ${fmtDate(mat.dataFim) || 'Indeterminado'}\n\n` +
+      `Em anexo você encontra o comprovante completo.\n\n` +
+      `Atenciosamente,\n${nomeAcademia}`
+    );
+    const mailtoLink = `mailto:${emailAluno}?subject=${assunto}&body=${corpo}`;
+
+    const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Comprovante de Matrícula — ${aluno.nome || mat.alunoNome}</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Segoe UI',Arial,sans-serif;font-size:13px;color:#1a1a1a;background:#fff;padding:32px}
+    .doc{max-width:780px;margin:0 auto}
+    .header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #083c2f;padding-bottom:16px;margin-bottom:24px}
+    .brand{font-size:22px;font-weight:700;color:#083c2f}
+    .brand small{display:block;font-size:12px;font-weight:400;color:#555;margin-top:2px}
+    .doc-title{text-align:right}
+    .doc-title h1{font-size:18px;color:#083c2f}
+    .doc-title p{font-size:11px;color:#777;margin-top:4px}
+    section{margin-bottom:24px}
+    h2{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#083c2f;border-bottom:1px solid #d1e8e2;padding-bottom:6px;margin-bottom:12px}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px 24px}
+    .field label{font-size:11px;color:#777;font-weight:600;text-transform:uppercase;letter-spacing:.3px}
+    .field p{font-size:13px;color:#1a1a1a;margin-top:2px}
+    table{width:100%;border-collapse:collapse;font-size:12px}
+    th{background:#f0f7f5;color:#083c2f;font-weight:600;text-align:left;padding:7px 10px;border-bottom:2px solid #d1e8e2}
+    td{padding:6px 10px;border-bottom:1px solid #f0f0f0;vertical-align:top}
+    tr:last-child td{border-bottom:none}
+    .footer{margin-top:40px;padding-top:16px;border-top:1px solid #e0e0e0;display:flex;justify-content:space-between;align-items:flex-end;font-size:11px;color:#888}
+    .assinatura{text-align:center}
+    .assinatura .linha{border-top:1px solid #999;width:200px;margin:32px auto 4px}
+    .badge-pago{color:#16a34a;font-weight:600}
+    .badge-pendente{color:#d97706}
+    .no-print{margin-bottom:24px;display:flex;gap:12px;flex-wrap:wrap}
+    @media print{.no-print{display:none!important}body{padding:16px}}
+  </style>
+</head>
+<body>
+<div class="doc">
+
+  <div class="no-print">
+    <button onclick="window.print()" style="padding:8px 18px;background:#083c2f;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer">🖨️ Imprimir / Salvar PDF</button>
+    ${emailAluno ? `<a href="${mailtoLink}" style="padding:8px 18px;background:#0d6efd;color:#fff;border-radius:6px;font-size:13px;text-decoration:none;display:inline-block">✉️ Enviar por e-mail para ${emailAluno}</a>` : '<span style="font-size:12px;color:#888">⚠️ Aluno sem e-mail cadastrado</span>'}
+  </div>
+
+  <div class="header">
+    <div class="brand">${nomeAcademia}<small>Comprovante de Matrícula</small></div>
+    <div class="doc-title"><h1>Confirmação de Matrícula</h1><p>Emitido em ${hoje}</p></div>
+  </div>
+
+  <section>
+    <h2>Dados do Aluno</h2>
+    <div class="grid2">
+      <div class="field"><label>Nome</label><p>${aluno.nome || mat.alunoNome || '—'}</p></div>
+      <div class="field"><label>CPF</label><p>${aluno.cpf || '—'}</p></div>
+      <div class="field"><label>E-mail</label><p>${aluno.email || '—'}</p></div>
+      <div class="field"><label>Telefone</label><p>${aluno.telefone || '—'}</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Plano Contratado</h2>
+    <div class="grid2">
+      <div class="field"><label>Plano</label><p>${mat.planoNome || '—'}</p></div>
+      <div class="field"><label>Tipo</label><p>${ListasService.label('planos_tipo', plano.tipo)}</p></div>
+      <div class="field"><label>Data de início</label><p>${fmtDate(mat.dataInicio)}</p></div>
+      <div class="field"><label>Vencimento</label><p>${mat.dataFim ? fmtDate(mat.dataFim) : 'Indeterminado'}</p></div>
+      <div class="field"><label>Aulas incluídas</label><p>${plano.aulasIncluidas ? plano.aulasIncluidas + ' aulas/mês' : '—'}</p></div>
+      <div class="field"><label>Status</label><p>${this.STATUS[mat.status]?.label || mat.status || '—'}</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Pagamento</h2>
+    <table>
+      <thead><tr><th>Parcela</th><th>Vencimento</th><th>Valor</th><th>Forma</th><th>Status</th></tr></thead>
+      <tbody>${parcelasHtml}</tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Grades Disponíveis</h2>
+    <table>
+      <thead><tr><th>Grade</th><th>Dias</th><th>Horário</th><th>Professor</th><th>Arena</th></tr></thead>
+      <tbody>${turmasHtml}</tbody>
+    </table>
+  </section>
+
+  <div class="footer">
+    <div>Documento gerado em ${hoje} — ${nomeAcademia}</div>
+    <div class="assinatura">
+      <div class="linha"></div>
+      <div>Assinatura do Responsável</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>`;
+
+    const win = window.open('', '_blank');
+    if (win) { win.document.write(html); win.document.close(); }
+    else UI.toast('Permita pop-ups para gerar o comprovante.', 'warning');
   },
 
   /* ------------------------------------------------------------------ */
