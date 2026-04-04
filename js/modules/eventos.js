@@ -536,6 +536,22 @@ const EventoModule = {
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- PARECER FINAL -->
+      <div class="card" style="margin-top:20px;">
+        <div class="card-header" style="padding:16px 20px;">
+          <h3 style="margin:0;font-size:15px;font-weight:700;">📝 Parecer Final</h3>
+        </div>
+        <div class="card-body" style="padding:16px 20px;">
+          <textarea id="orc-parecer" class="form-textarea" rows="4"
+            placeholder="Descreva a viabilidade do evento, observações sobre receitas e despesas, condições para realização…"
+            style="width:100%;resize:vertical;">${UI.escape(e.orcamento?.parecer || '')}</textarea>
+          <div style="display:flex;justify-content:flex-end;margin-top:10px;">
+            <button class="btn btn-primary btn-sm"
+              onclick="EventoModule._salvarParecer('${e.id}')">💾 Salvar parecer</button>
+          </div>
+        </div>
       </div>`;
   },
 
@@ -588,6 +604,18 @@ const EventoModule = {
     Storage.update(this.STORAGE_KEY, eventoId, { orcamento: orc });
     this._detail.tab = 'orcamento';
     this._renderDetail();
+  },
+
+  _salvarParecer(eventoId) {
+    const texto = document.getElementById('orc-parecer')?.value.trim() ?? '';
+    const evento = Storage.getById(this.STORAGE_KEY, eventoId);
+    if (!evento) return;
+
+    const orc = evento.orcamento || { receitas: [], despesas: [] };
+    orc.parecer = texto;
+
+    Storage.update(this.STORAGE_KEY, eventoId, { orcamento: orc });
+    UI.toast('Parecer salvo.', 'success');
   },
 
   /* ---- ABA: TAREFAS ---- */
