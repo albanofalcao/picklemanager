@@ -384,6 +384,14 @@ const EventoModule = {
   /* ---- ABA: ORÇAMENTO ---- */
 
   _tabOrcamento(e) {
+    const cancelado = e.status === 'cancelado';
+    const aviso = cancelado ? `
+      <div style="display:flex;align-items:center;gap:10px;background:#fee2e2;border:1px solid #fca5a5;
+        border-radius:10px;padding:12px 16px;margin-bottom:20px;color:#991b1b;font-size:13px;font-weight:600;">
+        🚫 Evento cancelado — não é possível lançar novos dados.
+        Para habilitar, edite o evento e altere o status.
+      </div>` : '';
+
     const orc      = e.orcamento || { receitas: [], despesas: [] };
     const receitas = orc.receitas || [];
     const despesas = orc.despesas || [];
@@ -415,6 +423,7 @@ const EventoModule = {
     const corResultado = resultado >= 0 ? 'var(--success)' : 'var(--danger)';
 
     return `
+      ${aviso}
       <!-- RESUMO -->
       <div class="stats-grid" style="margin-bottom:24px;">
         <div class="stat-card">
@@ -487,7 +496,8 @@ const EventoModule = {
                 <input id="orc-r-val" class="form-input" style="height:34px;" type="number" min="0" step="0.01" placeholder="0,00" />
               </div>
               <button class="btn btn-primary btn-sm" style="height:34px;"
-                onclick="EventoModule._addItemOrc('${e.id}','receitas')">+ Adicionar</button>
+                onclick="EventoModule._addItemOrc('${e.id}','receitas')"
+                ${cancelado ? 'disabled title="Evento cancelado"' : ''}>+ Adicionar</button>
             </div>
           </div>
         </div>
@@ -532,7 +542,8 @@ const EventoModule = {
                 <input id="orc-d-val" class="form-input" style="height:34px;" type="number" min="0" step="0.01" placeholder="0,00" />
               </div>
               <button class="btn btn-primary btn-sm" style="height:34px;"
-                onclick="EventoModule._addItemOrc('${e.id}','despesas')">+ Adicionar</button>
+                onclick="EventoModule._addItemOrc('${e.id}','despesas')"
+                ${cancelado ? 'disabled title="Evento cancelado"' : ''}>+ Adicionar</button>
             </div>
           </div>
         </div>
@@ -556,6 +567,8 @@ const EventoModule = {
   },
 
   _addItemOrc(eventoId, tipo) {
+    const ev = Storage.getById(this.STORAGE_KEY, eventoId);
+    if (ev?.status === 'cancelado') { UI.toast('Evento cancelado. Altere o status para lançar dados.', 'warning'); return; }
     const p    = tipo === 'receitas' ? 'r' : 'd';
     const desc = document.getElementById(`orc-${p}-desc`);
     const cat  = document.getElementById(`orc-${p}-cat`);
@@ -621,6 +634,14 @@ const EventoModule = {
   /* ---- ABA: TAREFAS ---- */
 
   _tabTarefas(e) {
+    const cancelado = e.status === 'cancelado';
+    const aviso = cancelado ? `
+      <div style="display:flex;align-items:center;gap:10px;background:#fee2e2;border:1px solid #fca5a5;
+        border-radius:10px;padding:12px 16px;margin-bottom:20px;color:#991b1b;font-size:13px;font-weight:600;">
+        🚫 Evento cancelado — não é possível lançar novos dados.
+        Para habilitar, edite o evento e altere o status.
+      </div>` : '';
+
     const tarefas    = e.tarefas || [];
     const total      = tarefas.length;
     const pctGeral   = total
@@ -668,6 +689,7 @@ const EventoModule = {
     };
 
     return `
+      ${aviso}
       <!-- PROGRESSO GERAL -->
       <div class="card" style="margin-bottom:20px;">
         <div class="card-body" style="padding:20px;">
@@ -720,7 +742,8 @@ const EventoModule = {
                 <input id="tar-prazo" class="form-input" style="height:34px;" type="date" />
               </div>
               <button class="btn btn-primary btn-sm" style="height:34px;"
-                onclick="EventoModule._addTarefa('${e.id}')">+ Adicionar</button>
+                onclick="EventoModule._addTarefa('${e.id}')"
+                ${cancelado ? 'disabled title="Evento cancelado"' : ''}>+ Adicionar</button>
             </div>
           </div>
         </div>
@@ -728,6 +751,8 @@ const EventoModule = {
   },
 
   _addTarefa(eventoId) {
+    const evCheck = Storage.getById(this.STORAGE_KEY, eventoId);
+    if (evCheck?.status === 'cancelado') { UI.toast('Evento cancelado. Altere o status para lançar dados.', 'warning'); return; }
     const desc = document.getElementById('tar-desc');
     if (!desc || !desc.value.trim()) {
       UI.toast('Informe a descrição da tarefa.', 'warning');
