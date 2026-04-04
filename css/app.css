@@ -342,6 +342,17 @@ img, svg { display: block; max-width: 100%; }
 .stat-icon.amber  { background: var(--amber-light); }
 .stat-icon.gray   { background: #f6efdb; }
 .stat-icon.blue   { background: #dbeafe; }
+.stat-icon.red    { background: #fee2e2; }
+
+/* Evento — linha de tarefa concluída */
+tr.tarefa-concluida td { opacity: .6; }
+
+/* Evento — tfoot de orçamento */
+.data-table tfoot td {
+  background: var(--gray-light);
+  border-top: 2px solid var(--border-color);
+  font-size: 13px;
+}
 
 .stat-info { min-width: 0; }
 

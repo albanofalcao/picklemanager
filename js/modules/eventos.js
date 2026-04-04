@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * EventoModule — Complete CRUD module for managing pickleball events
+ * EventoModule — CRUD + detalhe com abas Dados / Orçamento / Tarefas
  */
 const EventoModule = {
   STORAGE_KEY: 'eventos',
@@ -13,12 +13,17 @@ const EventoModule = {
     filterArena:  '',
   },
 
+  _detail: {
+    id:  null,
+    tab: 'dados',
+  },
+
   STATUS: {
-    planejado:    { label: 'Planejado',     badge: 'badge-blue'    },
+    planejado:    { label: 'Planejado',          badge: 'badge-blue'    },
     aberto:       { label: 'Inscrições abertas', badge: 'badge-success' },
-    em_andamento: { label: 'Em andamento',  badge: 'badge-warning' },
-    concluido:    { label: 'Concluído',     badge: 'badge-gray'    },
-    cancelado:    { label: 'Cancelado',     badge: 'badge-danger'  },
+    em_andamento: { label: 'Em andamento',       badge: 'badge-warning' },
+    concluido:    { label: 'Concluído',          badge: 'badge-gray'    },
+    cancelado:    { label: 'Cancelado',          badge: 'badge-danger'  },
   },
 
   TIPO: {
@@ -42,6 +47,9 @@ const EventoModule = {
     torneio: '🏆', campeonato: '🥇', clinica: '📚',
     social: '🎉', amistoso: '🤝', outro: '📌',
   },
+
+  CAT_RECEITA: ['Inscrições', 'Patrocínio', 'Cotas', 'Venda de produtos', 'Outros'],
+  CAT_DESPESA: ['Local / Arena', 'Premiação', 'Arbitragem', 'Marketing', 'Alimentação', 'Equipamentos', 'Outros'],
 
   /* ------------------------------------------------------------------ */
   /*  Data access                                                         */
@@ -72,18 +80,19 @@ const EventoModule = {
   getStats() {
     const all = this.getAll();
     return {
-      total:       all.length,
-      proximos:    all.filter(e => e.status === 'planejado' || e.status === 'aberto').length,
-      andamento:   all.filter(e => e.status === 'em_andamento').length,
-      concluidos:  all.filter(e => e.status === 'concluido').length,
+      total:      all.length,
+      proximos:   all.filter(e => e.status === 'planejado' || e.status === 'aberto').length,
+      andamento:  all.filter(e => e.status === 'em_andamento').length,
+      concluidos: all.filter(e => e.status === 'concluido').length,
     };
   },
 
   /* ------------------------------------------------------------------ */
-  /*  Render                                                              */
+  /*  Lista principal                                                      */
   /* ------------------------------------------------------------------ */
 
   render() {
+    this._detail.id = null;
     const stats    = this.getStats();
     const filtered = this.getFiltered();
     const area     = document.getElementById('content-area');
@@ -135,13 +144,10 @@ const EventoModule = {
       <div class="filters-bar">
         <div class="search-wrapper">
           <span class="search-icon">🔍</span>
-          <input
-            type="text"
-            class="search-input"
+          <input type="text" class="search-input"
             placeholder="Buscar por nome, descrição ou arena…"
             value="${UI.escape(this._state.search)}"
-            oninput="EventoModule.handleSearch(this.value)"
-          />
+            oninput="EventoModule.handleSearch(this.value)" />
         </div>
         <select class="filter-select" onchange="EventoModule.handleFilterStatus(this.value)">
           <option value="">Todos os status</option>
@@ -171,8 +177,7 @@ const EventoModule = {
           ? filtered.map(e => this.renderCard(e)).join('')
           : this.renderEmpty()
         }
-      </div>
-    `;
+      </div>`;
   },
 
   renderCard(e) {
@@ -181,9 +186,9 @@ const EventoModule = {
     const nivel  = this.NIVEL[e.nivel]   || e.nivel  || '—';
     const icon   = this.TIPO_ICON[e.tipo] || '📌';
 
-    const dataInicio = e.data    ? this._formatData(e.data)    : '—';
-    const dataFim    = e.dataFim ? this._formatData(e.dataFim) : null;
-    const periodoStr = dataFim ? `${dataInicio} até ${dataFim}` : dataInicio;
+    const dataInicio = e.data    ? this._fmtData(e.data)    : '—';
+    const dataFim    = e.dataFim ? this._fmtData(e.dataFim) : null;
+    const periodo    = dataFim ? `${dataInicio} até ${dataFim}` : dataInicio;
 
     const hora = (e.horarioInicio && e.horarioFim)
       ? `${UI.escape(e.horarioInicio)} – ${UI.escape(e.horarioFim)}`
@@ -196,6 +201,16 @@ const EventoModule = {
     const descBlock = e.descricao
       ? `<div class="arena-obs"><div class="arena-obs-text">💬 ${UI.escape(e.descricao)}</div></div>`
       : '';
+
+    // indicadores de orçamento e tarefas
+    const nTarefas   = (e.tarefas   || []).length;
+    const nConcluidas = (e.tarefas  || []).filter(t => t.concluida).length;
+    const nReceitas  = (e.orcamento?.receitas || []).length;
+    const nDespesas  = (e.orcamento?.despesas || []).length;
+    const badges = [
+      nTarefas   ? `<span class="badge badge-blue" title="Tarefas">✅ ${nConcluidas}/${nTarefas}</span>` : '',
+      (nReceitas || nDespesas) ? `<span class="badge badge-gray" title="Orçamento">💰 ${nReceitas + nDespesas} itens</span>` : '',
+    ].filter(Boolean).join(' ');
 
     return `
       <div class="arena-card evento-card" data-id="${e.id}" data-status="${UI.escape(e.status)}">
@@ -211,7 +226,7 @@ const EventoModule = {
         <div class="arena-details">
           <div class="detail-item">
             <div class="detail-label">Data</div>
-            <div class="detail-value">${UI.escape(periodoStr)}</div>
+            <div class="detail-value">${UI.escape(periodo)}</div>
           </div>
           <div class="detail-item">
             <div class="detail-label">Horário</div>
@@ -236,9 +251,13 @@ const EventoModule = {
         </div>
 
         ${descBlock}
+        ${badges ? `<div style="padding:0 16px 8px;display:flex;gap:6px;flex-wrap:wrap;">${badges}</div>` : ''}
 
         <div class="arena-actions">
-          <button class="btn btn-secondary btn-sm" onclick="EventoModule.openModal('${e.id}')">
+          <button class="btn btn-secondary btn-sm" onclick="EventoModule.openDetail('${e.id}')">
+            📂 Detalhe
+          </button>
+          <button class="btn btn-ghost btn-sm" onclick="EventoModule.openModal('${e.id}')">
             ✏️ Editar
           </button>
           <span class="spacer"></span>
@@ -270,7 +289,439 @@ const EventoModule = {
   },
 
   /* ------------------------------------------------------------------ */
-  /*  Modal / Form                                                        */
+  /*  Página de detalhe                                                   */
+  /* ------------------------------------------------------------------ */
+
+  openDetail(id, tab = 'dados') {
+    this._detail.id  = id;
+    this._detail.tab = tab;
+    this._renderDetail();
+  },
+
+  _setTab(tab) {
+    this._detail.tab = tab;
+    this._renderDetail();
+  },
+
+  _renderDetail() {
+    const { id, tab } = this._detail;
+    const evento = Storage.getById(this.STORAGE_KEY, id);
+    if (!evento) { this.render(); return; }
+
+    const status = this.STATUS[evento.status] || { label: evento.status, badge: 'badge-gray' };
+    const icon   = this.TIPO_ICON[evento.tipo] || '📌';
+
+    const area = document.getElementById('content-area');
+    if (!area) return;
+
+    area.innerHTML = `
+      <div class="page-header">
+        <div class="page-header-text">
+          <button class="btn btn-ghost btn-sm" onclick="EventoModule.render()"
+            style="margin-bottom:6px;padding:4px 10px;font-size:12px;">
+            ← Voltar aos Eventos
+          </button>
+          <h2>${icon} ${UI.escape(evento.nome)}</h2>
+          <p><span class="badge ${status.badge}">${status.label}</span>
+             &nbsp;${UI.escape(this.TIPO[evento.tipo] || evento.tipo || '')}
+             ${evento.data ? '· ' + this._fmtData(evento.data) : ''}
+          </p>
+        </div>
+        <button class="btn btn-secondary" onclick="EventoModule.openModal('${id}')">
+          ✏️ Editar dados
+        </button>
+      </div>
+
+      <div class="tabs-bar" style="margin-bottom:24px;">
+        <button class="tab-btn ${tab==='dados'     ?'active':''}" onclick="EventoModule._setTab('dados')">📋 Dados</button>
+        <button class="tab-btn ${tab==='orcamento' ?'active':''}" onclick="EventoModule._setTab('orcamento')">💰 Orçamento</button>
+        <button class="tab-btn ${tab==='tarefas'   ?'active':''}" onclick="EventoModule._setTab('tarefas')">✅ Tarefas</button>
+      </div>
+
+      <div id="evento-tab-content">
+        ${tab === 'dados'     ? this._tabDados(evento)     : ''}
+        ${tab === 'orcamento' ? this._tabOrcamento(evento) : ''}
+        ${tab === 'tarefas'   ? this._tabTarefas(evento)   : ''}
+      </div>`;
+  },
+
+  /* ---- ABA: DADOS ---- */
+
+  _tabDados(e) {
+    const linha = (label, val) =>
+      `<div class="detail-item"><div class="detail-label">${label}</div><div class="detail-value">${val}</div></div>`;
+
+    const periodo = e.dataFim
+      ? `${this._fmtData(e.data)} até ${this._fmtData(e.dataFim)}`
+      : (e.data ? this._fmtData(e.data) : '—');
+
+    const hora = (e.horarioInicio && e.horarioFim)
+      ? `${UI.escape(e.horarioInicio)} – ${UI.escape(e.horarioFim)}`
+      : e.horarioInicio ? UI.escape(e.horarioInicio) : '—';
+
+    const inscricao = e.valorInscricao
+      ? parseFloat(e.valorInscricao).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+      : 'Gratuito';
+
+    return `
+      <div class="card" style="max-width:680px;">
+        <div class="card-body">
+          <div class="arena-details" style="grid-template-columns:repeat(2,1fr);gap:16px;">
+            ${linha('Tipo',      UI.escape(this.TIPO[e.tipo] || e.tipo || '—'))}
+            ${linha('Nível',     UI.escape(this.NIVEL[e.nivel] || e.nivel || '—'))}
+            ${linha('Data',      UI.escape(periodo))}
+            ${linha('Horário',   hora)}
+            ${linha('Arena',     UI.escape(e.arenaNome || '—'))}
+            ${linha('Vagas',     e.vagas ? UI.escape(String(e.vagas)) : '—')}
+            ${linha('Inscrição', inscricao)}
+            ${linha('Status',    `<span class="badge ${(this.STATUS[e.status]||{badge:'badge-gray'}).badge}">${(this.STATUS[e.status]||{label:e.status}).label}</span>`)}
+          </div>
+          ${e.descricao ? `<div class="arena-obs" style="margin-top:12px;"><div class="arena-obs-text">💬 ${UI.escape(e.descricao)}</div></div>` : ''}
+        </div>
+      </div>`;
+  },
+
+  /* ---- ABA: ORÇAMENTO ---- */
+
+  _tabOrcamento(e) {
+    const orc      = e.orcamento || { receitas: [], despesas: [] };
+    const receitas = orc.receitas || [];
+    const despesas = orc.despesas || [];
+
+    const totalR = receitas.reduce((s, i) => s + (parseFloat(i.valor) * (parseInt(i.qtd, 10) || 1)), 0);
+    const totalD = despesas.reduce((s, i) => s + (parseFloat(i.valor) * (parseInt(i.qtd, 10) || 1)), 0);
+    const resultado = totalR - totalD;
+
+    const fmt = v => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+    const linhaItem = (tipo, item) => `
+      <tr>
+        <td>${UI.escape(item.descricao)}</td>
+        <td>${UI.escape(item.categoria || '—')}</td>
+        <td style="text-align:center;">${item.qtd || 1}</td>
+        <td style="text-align:right;">${fmt(parseFloat(item.valor) || 0)}</td>
+        <td style="text-align:right;font-weight:600;">${fmt((parseFloat(item.valor)||0) * (parseInt(item.qtd,10)||1))}</td>
+        <td style="text-align:center;">
+          <button class="btn btn-ghost btn-sm danger" style="padding:2px 8px;"
+            onclick="EventoModule._removerItemOrc('${e.id}','${tipo}','${item.id}')" title="Remover">🗑️</button>
+        </td>
+      </tr>`;
+
+    const tabelaVazia = `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:16px;">Nenhum item cadastrado</td></tr>`;
+
+    const catOptsR = this.CAT_RECEITA.map(c => `<option>${c}</option>`).join('');
+    const catOptsD = this.CAT_DESPESA.map(c => `<option>${c}</option>`).join('');
+
+    const corResultado = resultado >= 0 ? 'var(--success)' : 'var(--danger)';
+
+    return `
+      <!-- RESUMO -->
+      <div class="stats-grid" style="margin-bottom:24px;">
+        <div class="stat-card">
+          <div class="stat-icon green">📈</div>
+          <div class="stat-info">
+            <div class="stat-value" style="font-size:18px;">${fmt(totalR)}</div>
+            <div class="stat-label">Total Receitas</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon red">📉</div>
+          <div class="stat-info">
+            <div class="stat-value" style="font-size:18px;">${fmt(totalD)}</div>
+            <div class="stat-label">Total Despesas</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon ${resultado >= 0 ? 'green' : 'amber'}">${resultado >= 0 ? '✅' : '⚠️'}</div>
+          <div class="stat-info">
+            <div class="stat-value" style="font-size:18px;color:${corResultado};">${fmt(resultado)}</div>
+            <div class="stat-label">Resultado ${resultado >= 0 ? '(Viável)' : '(Déficit)'}</div>
+          </div>
+        </div>
+        ${e.vagas && totalD > 0 ? `
+        <div class="stat-card">
+          <div class="stat-icon blue">🎯</div>
+          <div class="stat-info">
+            <div class="stat-value" style="font-size:18px;">${fmt(totalD / parseInt(e.vagas, 10))}</div>
+            <div class="stat-label">Pt. Equilíbrio / vaga</div>
+          </div>
+        </div>` : ''}
+      </div>
+
+      <!-- RECEITAS -->
+      <div class="card" style="margin-bottom:20px;">
+        <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;">
+          <h3 style="margin:0;font-size:15px;font-weight:700;color:var(--success);">📈 Receitas</h3>
+        </div>
+        <div class="card-body" style="padding:0 0 8px;">
+          <table class="data-table">
+            <thead><tr>
+              <th>Descrição</th><th>Categoria</th><th style="text-align:center;">Qtd</th>
+              <th style="text-align:right;">Valor Unit.</th><th style="text-align:right;">Total</th><th></th>
+            </tr></thead>
+            <tbody>${receitas.length ? receitas.map(i => linhaItem('receitas', i)).join('') : tabelaVazia}</tbody>
+            ${receitas.length ? `<tfoot><tr>
+              <td colspan="4" style="text-align:right;font-weight:700;padding:10px 12px;">Total Receitas</td>
+              <td style="text-align:right;font-weight:700;color:var(--success);padding:10px 12px;">${fmt(totalR)}</td>
+              <td></td>
+            </tr></tfoot>` : ''}
+          </table>
+
+          <!-- Formulário adicionar receita -->
+          <div style="padding:12px 20px;border-top:1px solid var(--border-color);background:var(--bg-secondary);border-radius:0 0 12px 12px;">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
+              <div style="flex:2;min-width:150px;">
+                <label class="form-label" style="font-size:11px;">Descrição</label>
+                <input id="orc-r-desc" class="form-input" style="height:34px;" placeholder="ex: Inscrições 32 atletas" />
+              </div>
+              <div style="flex:1;min-width:120px;">
+                <label class="form-label" style="font-size:11px;">Categoria</label>
+                <select id="orc-r-cat" class="form-select" style="height:34px;">${catOptsR}</select>
+              </div>
+              <div style="width:60px;">
+                <label class="form-label" style="font-size:11px;">Qtd</label>
+                <input id="orc-r-qtd" class="form-input" style="height:34px;" type="number" min="1" value="1" />
+              </div>
+              <div style="width:110px;">
+                <label class="form-label" style="font-size:11px;">Valor unit. (R$)</label>
+                <input id="orc-r-val" class="form-input" style="height:34px;" type="number" min="0" step="0.01" placeholder="0,00" />
+              </div>
+              <button class="btn btn-primary btn-sm" style="height:34px;"
+                onclick="EventoModule._addItemOrc('${e.id}','receitas')">+ Adicionar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DESPESAS -->
+      <div class="card">
+        <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;">
+          <h3 style="margin:0;font-size:15px;font-weight:700;color:var(--danger);">📉 Despesas</h3>
+        </div>
+        <div class="card-body" style="padding:0 0 8px;">
+          <table class="data-table">
+            <thead><tr>
+              <th>Descrição</th><th>Categoria</th><th style="text-align:center;">Qtd</th>
+              <th style="text-align:right;">Valor Unit.</th><th style="text-align:right;">Total</th><th></th>
+            </tr></thead>
+            <tbody>${despesas.length ? despesas.map(i => linhaItem('despesas', i)).join('') : tabelaVazia}</tbody>
+            ${despesas.length ? `<tfoot><tr>
+              <td colspan="4" style="text-align:right;font-weight:700;padding:10px 12px;">Total Despesas</td>
+              <td style="text-align:right;font-weight:700;color:var(--danger);padding:10px 12px;">${fmt(totalD)}</td>
+              <td></td>
+            </tr></tfoot>` : ''}
+          </table>
+
+          <!-- Formulário adicionar despesa -->
+          <div style="padding:12px 20px;border-top:1px solid var(--border-color);background:var(--bg-secondary);border-radius:0 0 12px 12px;">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
+              <div style="flex:2;min-width:150px;">
+                <label class="form-label" style="font-size:11px;">Descrição</label>
+                <input id="orc-d-desc" class="form-input" style="height:34px;" placeholder="ex: Premiação 1º lugar" />
+              </div>
+              <div style="flex:1;min-width:120px;">
+                <label class="form-label" style="font-size:11px;">Categoria</label>
+                <select id="orc-d-cat" class="form-select" style="height:34px;">${catOptsD}</select>
+              </div>
+              <div style="width:60px;">
+                <label class="form-label" style="font-size:11px;">Qtd</label>
+                <input id="orc-d-qtd" class="form-input" style="height:34px;" type="number" min="1" value="1" />
+              </div>
+              <div style="width:110px;">
+                <label class="form-label" style="font-size:11px;">Valor unit. (R$)</label>
+                <input id="orc-d-val" class="form-input" style="height:34px;" type="number" min="0" step="0.01" placeholder="0,00" />
+              </div>
+              <button class="btn btn-primary btn-sm" style="height:34px;"
+                onclick="EventoModule._addItemOrc('${e.id}','despesas')">+ Adicionar</button>
+            </div>
+          </div>
+        </div>
+      </div>`;
+  },
+
+  _addItemOrc(eventoId, tipo) {
+    const p    = tipo === 'receitas' ? 'r' : 'd';
+    const desc = document.getElementById(`orc-${p}-desc`);
+    const cat  = document.getElementById(`orc-${p}-cat`);
+    const qtd  = document.getElementById(`orc-${p}-qtd`);
+    const val  = document.getElementById(`orc-${p}-val`);
+
+    if (!desc || !desc.value.trim()) {
+      UI.toast('Informe a descrição do item.', 'warning');
+      if (desc) desc.classList.add('error');
+      return;
+    }
+    if (!val || !val.value || parseFloat(val.value) < 0) {
+      UI.toast('Informe o valor do item.', 'warning');
+      if (val) val.classList.add('error');
+      return;
+    }
+
+    const evento = Storage.getById(this.STORAGE_KEY, eventoId);
+    if (!evento) return;
+
+    const orc = evento.orcamento || { receitas: [], despesas: [] };
+    orc.receitas = orc.receitas || [];
+    orc.despesas = orc.despesas || [];
+
+    orc[tipo].push({
+      id:        `${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
+      descricao: desc.value.trim(),
+      categoria: cat ? cat.value : '',
+      qtd:       parseInt(qtd?.value, 10) || 1,
+      valor:     parseFloat(val.value) || 0,
+    });
+
+    Storage.update(this.STORAGE_KEY, eventoId, { orcamento: orc });
+    UI.toast('Item adicionado.', 'success');
+    this._detail.tab = 'orcamento';
+    this._renderDetail();
+  },
+
+  _removerItemOrc(eventoId, tipo, itemId) {
+    const evento = Storage.getById(this.STORAGE_KEY, eventoId);
+    if (!evento) return;
+
+    const orc = evento.orcamento || { receitas: [], despesas: [] };
+    orc[tipo] = (orc[tipo] || []).filter(i => i.id !== itemId);
+
+    Storage.update(this.STORAGE_KEY, eventoId, { orcamento: orc });
+    this._detail.tab = 'orcamento';
+    this._renderDetail();
+  },
+
+  /* ---- ABA: TAREFAS ---- */
+
+  _tabTarefas(e) {
+    const tarefas   = e.tarefas || [];
+    const total     = tarefas.length;
+    const concluidas = tarefas.filter(t => t.concluida).length;
+    const pct       = total ? Math.round((concluidas / total) * 100) : 0;
+    const corBar    = pct === 100 ? 'var(--success)' : pct >= 50 ? 'var(--warning)' : 'var(--primary)';
+
+    const linhaT = t => `
+      <tr class="${t.concluida ? 'tarefa-concluida' : ''}">
+        <td style="width:36px;text-align:center;">
+          <input type="checkbox" ${t.concluida ? 'checked' : ''}
+            onchange="EventoModule._toggleTarefa('${e.id}','${t.id}',this.checked)"
+            style="cursor:pointer;width:16px;height:16px;" />
+        </td>
+        <td style="${t.concluida ? 'text-decoration:line-through;color:var(--text-muted);' : ''}">${UI.escape(t.descricao)}</td>
+        <td>${UI.escape(t.responsavel || '—')}</td>
+        <td>${t.prazo ? this._fmtData(t.prazo) : '—'}</td>
+        <td style="text-align:center;">
+          <span class="badge ${t.concluida ? 'badge-success' : 'badge-gray'}">${t.concluida ? 'Concluída' : 'Pendente'}</span>
+        </td>
+        <td style="text-align:center;">
+          <button class="btn btn-ghost btn-sm danger" style="padding:2px 8px;"
+            onclick="EventoModule._removerTarefa('${e.id}','${t.id}')" title="Remover">🗑️</button>
+        </td>
+      </tr>`;
+
+    return `
+      <!-- PROGRESSO -->
+      <div class="card" style="margin-bottom:20px;">
+        <div class="card-body" style="padding:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <span style="font-weight:700;font-size:14px;">Progresso das tarefas</span>
+            <span style="font-size:13px;color:var(--text-muted);">${concluidas} de ${total} concluídas (${pct}%)</span>
+          </div>
+          <div style="background:var(--border-color);border-radius:99px;height:10px;overflow:hidden;">
+            <div style="width:${pct}%;height:100%;background:${corBar};border-radius:99px;transition:width .4s;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- LISTA DE TAREFAS -->
+      <div class="card">
+        <div class="card-body" style="padding:0 0 8px;">
+          <table class="data-table">
+            <thead><tr>
+              <th></th>
+              <th>Tarefa</th>
+              <th>Responsável</th>
+              <th>Prazo</th>
+              <th style="text-align:center;">Status</th>
+              <th></th>
+            </tr></thead>
+            <tbody>
+              ${tarefas.length
+                ? tarefas.map(t => linhaT(t)).join('')
+                : `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px;">Nenhuma tarefa cadastrada</td></tr>`}
+            </tbody>
+          </table>
+
+          <!-- Formulário adicionar tarefa -->
+          <div style="padding:12px 20px;border-top:1px solid var(--border-color);background:var(--bg-secondary);border-radius:0 0 12px 12px;">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
+              <div style="flex:3;min-width:180px;">
+                <label class="form-label" style="font-size:11px;">Tarefa</label>
+                <input id="tar-desc" class="form-input" style="height:34px;" placeholder="ex: Confirmar reserva da arena" />
+              </div>
+              <div style="flex:1;min-width:120px;">
+                <label class="form-label" style="font-size:11px;">Responsável (opcional)</label>
+                <input id="tar-resp" class="form-input" style="height:34px;" placeholder="Nome" />
+              </div>
+              <div style="width:140px;">
+                <label class="form-label" style="font-size:11px;">Prazo (opcional)</label>
+                <input id="tar-prazo" class="form-input" style="height:34px;" type="date" />
+              </div>
+              <button class="btn btn-primary btn-sm" style="height:34px;"
+                onclick="EventoModule._addTarefa('${e.id}')">+ Adicionar</button>
+            </div>
+          </div>
+        </div>
+      </div>`;
+  },
+
+  _addTarefa(eventoId) {
+    const desc = document.getElementById('tar-desc');
+    if (!desc || !desc.value.trim()) {
+      UI.toast('Informe a descrição da tarefa.', 'warning');
+      if (desc) desc.classList.add('error');
+      return;
+    }
+
+    const evento = Storage.getById(this.STORAGE_KEY, eventoId);
+    if (!evento) return;
+
+    const tarefas = evento.tarefas || [];
+    tarefas.push({
+      id:          `${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
+      descricao:   desc.value.trim(),
+      responsavel: document.getElementById('tar-resp')?.value.trim() || '',
+      prazo:       document.getElementById('tar-prazo')?.value || '',
+      concluida:   false,
+    });
+
+    Storage.update(this.STORAGE_KEY, eventoId, { tarefas });
+    UI.toast('Tarefa adicionada.', 'success');
+    this._detail.tab = 'tarefas';
+    this._renderDetail();
+  },
+
+  _toggleTarefa(eventoId, tarefaId, checked) {
+    const evento = Storage.getById(this.STORAGE_KEY, eventoId);
+    if (!evento) return;
+    const tarefas = (evento.tarefas || []).map(t =>
+      t.id === tarefaId ? { ...t, concluida: checked } : t
+    );
+    Storage.update(this.STORAGE_KEY, eventoId, { tarefas });
+    this._detail.tab = 'tarefas';
+    this._renderDetail();
+  },
+
+  _removerTarefa(eventoId, tarefaId) {
+    const evento = Storage.getById(this.STORAGE_KEY, eventoId);
+    if (!evento) return;
+    const tarefas = (evento.tarefas || []).filter(t => t.id !== tarefaId);
+    Storage.update(this.STORAGE_KEY, eventoId, { tarefas });
+    this._detail.tab = 'tarefas';
+    this._renderDetail();
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Modal / Form (dados gerais)                                         */
   /* ------------------------------------------------------------------ */
 
   openModal(id = null) {
@@ -285,10 +736,7 @@ const EventoModule = {
           ${evento && evento.arenaId === a.id ? 'selected' : ''}>${UI.escape(a.nome)} (${UI.escape(a.codigo)})</option>`
       ).join('');
 
-    const tipoOptions = CadastrosModule.buildOptions(
-      CadastrosModule.getTiposEvento(),
-      evento ? (evento.tipo || '') : ''
-    );
+    const tipoOptions   = CadastrosModule.buildOptions(CadastrosModule.getTiposEvento(), evento ? (evento.tipo || '') : '');
     const nivelOptions  = ListasService.opts('eventos_nivel', evento?.nivel || '');
     const statusOptions = Object.entries(this.STATUS).map(([k, cfg]) =>
       `<option value="${k}" ${evento && evento.status === k ? 'selected' : ''}>${cfg.label}</option>`).join('');
@@ -301,7 +749,6 @@ const EventoModule = {
             placeholder="ex: 1º Torneio Open da Academia"
             value="${v('nome')}" required autocomplete="off" />
         </div>
-
         <div class="form-grid-2">
           <div class="form-group">
             <label class="form-label" for="ev-tipo">Tipo</label>
@@ -312,7 +759,6 @@ const EventoModule = {
             <select id="ev-nivel" class="form-select">${nivelOptions}</select>
           </div>
         </div>
-
         <div class="form-grid-2">
           <div class="form-group">
             <label class="form-label" for="ev-data">Data de início <span class="required-star">*</span></label>
@@ -323,7 +769,6 @@ const EventoModule = {
             <input id="ev-datafim" type="date" class="form-input" value="${v('dataFim')}" />
           </div>
         </div>
-
         <div class="form-grid-2">
           <div class="form-group">
             <label class="form-label" for="ev-hinicio">Horário início</label>
@@ -334,7 +779,6 @@ const EventoModule = {
             <input id="ev-hfim" type="time" class="form-input" value="${v('horarioFim')}" />
           </div>
         </div>
-
         <div class="form-grid-2">
           <div class="form-group">
             <label class="form-label" for="ev-arena">Arena</label>
@@ -346,7 +790,6 @@ const EventoModule = {
               placeholder="ex: 16" min="1" value="${v('vagas')}" />
           </div>
         </div>
-
         <div class="form-grid-2">
           <div class="form-group">
             <label class="form-label" for="ev-valor">Valor de inscrição (R$) <span class="form-hint">(0 = gratuito)</span></label>
@@ -358,7 +801,6 @@ const EventoModule = {
             <select id="ev-status" class="form-select">${statusOptions}</select>
           </div>
         </div>
-
         <div class="form-group">
           <label class="form-label" for="ev-desc">Descrição</label>
           <textarea id="ev-desc" class="form-textarea"
@@ -375,7 +817,7 @@ const EventoModule = {
   },
 
   /* ------------------------------------------------------------------ */
-  /*  CRUD operations                                                     */
+  /*  CRUD                                                                */
   /* ------------------------------------------------------------------ */
 
   saveEvento(id = null) {
@@ -390,36 +832,38 @@ const EventoModule = {
       el.classList.toggle('error', empty);
       if (empty) valid = false;
     });
-
-    if (!valid) {
-      UI.toast('Preencha os campos obrigatórios.', 'warning');
-      return;
-    }
+    if (!valid) { UI.toast('Preencha os campos obrigatórios.', 'warning'); return; }
 
     const arenaSel  = g('arena');
     const arenaId   = arenaSel ? arenaSel.value : '';
-    const arenaNome = arenaSel && arenaSel.selectedOptions[0]
-      ? (arenaSel.selectedOptions[0].dataset.nome || '') : '';
+    const arenaNome = arenaSel?.selectedOptions[0]?.dataset.nome || '';
 
     const record = {
       nome:           nome.value.trim(),
-      tipo:           g('tipo')    ? g('tipo').value                        : 'torneio',
-      nivel:          g('nivel')   ? g('nivel').value                       : 'aberto',
+      tipo:           g('tipo')    ? g('tipo').value                     : 'torneio',
+      nivel:          g('nivel')   ? g('nivel').value                    : 'aberto',
       data:           data.value,
-      dataFim:        g('datafim') ? g('datafim').value                     : '',
-      horarioInicio:  g('hinicio') ? g('hinicio').value                     : '',
-      horarioFim:     g('hfim')    ? g('hfim').value                        : '',
+      dataFim:        g('datafim') ? g('datafim').value                  : '',
+      horarioInicio:  g('hinicio') ? g('hinicio').value                  : '',
+      horarioFim:     g('hfim')    ? g('hfim').value                     : '',
       arenaId,
       arenaNome,
-      vagas:          g('vagas')   ? parseInt(g('vagas').value, 10) || 0    : 0,
-      valorInscricao: g('valor')   ? parseFloat(g('valor').value)   || 0    : 0,
-      status:         g('status')  ? g('status').value                      : 'planejado',
-      descricao:      g('desc')    ? g('desc').value.trim()                 : '',
+      vagas:          g('vagas')   ? parseInt(g('vagas').value, 10) || 0 : 0,
+      valorInscricao: g('valor')   ? parseFloat(g('valor').value)  || 0  : 0,
+      status:         g('status')  ? g('status').value                   : 'planejado',
+      descricao:      g('desc')    ? g('desc').value.trim()              : '',
     };
 
     if (id) {
       Storage.update(this.STORAGE_KEY, id, record);
       UI.toast(`Evento "${record.nome}" atualizado com sucesso!`, 'success');
+      UI.closeModal();
+      // se estiver na página de detalhe, volta para lá
+      if (this._detail.id === id) {
+        this._detail.tab = 'dados';
+        this._renderDetail();
+        return;
+      }
     } else {
       Storage.create(this.STORAGE_KEY, record);
       UI.toast(`Evento "${record.nome}" criado com sucesso!`, 'success');
@@ -432,20 +876,18 @@ const EventoModule = {
   async deleteEvento(id) {
     const evento = Storage.getById(this.STORAGE_KEY, id);
     if (!evento) return;
-
     const confirmed = await UI.confirm(
       `Deseja realmente excluir o evento "${evento.nome}"? Esta ação não pode ser desfeita.`,
       'Excluir Evento'
     );
     if (!confirmed) return;
-
     Storage.delete(this.STORAGE_KEY, id);
     UI.toast(`Evento "${evento.nome}" excluído.`, 'success');
     this.render();
   },
 
   /* ------------------------------------------------------------------ */
-  /*  Filter handlers                                                     */
+  /*  Filtros                                                              */
   /* ------------------------------------------------------------------ */
 
   handleSearch(value) {
@@ -464,10 +906,7 @@ const EventoModule = {
   },
 
   clearFilters() {
-    this._state.search       = '';
-    this._state.filterStatus = '';
-    this._state.filterTipo   = '';
-    this._state.filterArena  = '';
+    this._state.search = this._state.filterStatus = this._state.filterTipo = this._state.filterArena = '';
     this.render();
   },
 
@@ -480,16 +919,14 @@ const EventoModule = {
         : this.renderEmpty();
     }
     const countEl = document.querySelector('.results-count');
-    if (countEl) {
-      countEl.textContent = `${filtered.length} evento${filtered.length !== 1 ? 's' : ''}`;
-    }
+    if (countEl) countEl.textContent = `${filtered.length} evento${filtered.length !== 1 ? 's' : ''}`;
   },
 
   /* ------------------------------------------------------------------ */
   /*  Helpers                                                             */
   /* ------------------------------------------------------------------ */
 
-  _formatData(iso) {
+  _fmtData(iso) {
     if (!iso) return '—';
     const [y, m, d] = iso.split('-');
     return new Date(+y, +m - 1, +d).toLocaleDateString('pt-BR', {
