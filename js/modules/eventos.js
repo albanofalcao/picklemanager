@@ -750,6 +750,28 @@ const EventoModule = {
 
     Storage.update(this.STORAGE_KEY, eventoId, { tarefas });
     UI.toast('Tarefa adicionada.', 'success');
+
+    // Notificar responsável por e-mail se tiver e-mail cadastrado
+    const nomeResp = document.getElementById('tar-resp')?.value || '';
+    if (nomeResp) {
+      const usuario = Storage.getAll('usuarios').find(u => u.nome === nomeResp);
+      if (usuario?.email) {
+        const evento = Storage.getById(this.STORAGE_KEY, eventoId);
+        const novaTarefa = tarefas[tarefas.length - 1];
+        const prazoStr = novaTarefa.prazo ? ` | Prazo: ${this._fmtData(novaTarefa.prazo)}` : '';
+        const assunto = encodeURIComponent(`[${evento?.nome || 'Evento'}] Nova tarefa atribuída a você`);
+        const corpo   = encodeURIComponent(
+          `Olá, ${nomeResp}!\n\n` +
+          `Uma nova tarefa foi atribuída a você no evento "${evento?.nome || ''}".\n\n` +
+          `📋 Tarefa: ${novaTarefa.descricao}\n` +
+          `${novaTarefa.dataInicio ? `📅 Início: ${this._fmtData(novaTarefa.dataInicio)}\n` : ''}` +
+          `${novaTarefa.prazo ? `⏰ Prazo: ${this._fmtData(novaTarefa.prazo)}\n` : ''}` +
+          `\nAcesse o sistema para acompanhar o andamento.\n\nAtenciosamente,\nEquipe PickleManager`
+        );
+        window.open(`mailto:${usuario.email}?subject=${assunto}&body=${corpo}`, '_blank');
+      }
+    }
+
     this._detail.tab = 'tarefas';
     this._renderDetail();
   },
