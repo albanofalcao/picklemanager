@@ -75,6 +75,7 @@ const App = {
     { route: 'professores', icon: '🎓', label: 'Professores'         },
     { route: 'turmas',      icon: '🏸', label: 'Grades'              },
     { route: 'eventos',     icon: '🏆', label: 'Eventos'             },
+    { route: 'loja',        icon: '🛒', label: 'Loja'                },
     { route: 'dayuse',      icon: '🚪', label: 'Day Use'             },
     { route: 'financeiro',  icon: '💰', label: 'Financeiro'          },
     { route: 'manutencao',  icon: '🔧', label: 'Manutenção'          },
@@ -84,10 +85,10 @@ const App = {
   ],
 
   SEED_PERFIS: [
-    { key: 'admin',         label: 'Administrador',    descricao: 'Acesso total ao sistema, incluindo gestão de usuários',    cor: 'badge-danger',  modulos: ['dashboard','arenas','alunos','planos','professores','turmas','eventos','dayuse','financeiro','manutencao','relatorios','cadastros','admin'] },
-    { key: 'gerente',       label: 'Gerente',          descricao: 'Acesso a todos os módulos operacionais',                   cor: 'badge-warning', modulos: ['dashboard','arenas','alunos','planos','professores','turmas','eventos','dayuse','financeiro','manutencao','relatorios','cadastros'] },
-    { key: 'recepcionista', label: 'Recepcionista',    descricao: 'Atendimento ao aluno, matrículas e turmas',               cor: 'badge-blue',    modulos: ['dashboard','alunos','turmas','eventos','dayuse'] },
-    { key: 'financeiro',    label: 'Financeiro',       descricao: 'Controle financeiro e planos de contratação',              cor: 'badge-success', modulos: ['dashboard','financeiro','planos','alunos','dayuse','relatorios'] },
+    { key: 'admin',         label: 'Administrador',    descricao: 'Acesso total ao sistema, incluindo gestão de usuários',    cor: 'badge-danger',  modulos: ['dashboard','arenas','alunos','planos','professores','turmas','eventos','loja','dayuse','financeiro','manutencao','relatorios','cadastros','admin'] },
+    { key: 'gerente',       label: 'Gerente',          descricao: 'Acesso a todos os módulos operacionais',                   cor: 'badge-warning', modulos: ['dashboard','arenas','alunos','planos','professores','turmas','eventos','loja','dayuse','financeiro','manutencao','relatorios','cadastros'] },
+    { key: 'recepcionista', label: 'Recepcionista',    descricao: 'Atendimento ao aluno, matrículas e turmas',               cor: 'badge-blue',    modulos: ['dashboard','alunos','turmas','eventos','loja','dayuse'] },
+    { key: 'financeiro',    label: 'Financeiro',       descricao: 'Controle financeiro e planos de contratação',              cor: 'badge-success', modulos: ['dashboard','financeiro','planos','alunos','loja','dayuse','relatorios'] },
     { key: 'manutencao',    label: 'Manutenção',       descricao: 'Gestão de arenas e chamados de manutenção',               cor: 'badge-gray',    modulos: ['dashboard','arenas','manutencao'] },
     { key: 'professor',     label: 'Professor',        descricao: 'Acesso às grades e aulas do próprio professor',            cor: 'badge-blue',    modulos: ['turmas'] },
     { key: 'aluno',         label: 'Aluno',            descricao: 'Acesso às grades e aulas em que está inscrito',             cor: 'badge-success', modulos: ['turmas'] },
@@ -464,6 +465,7 @@ const App = {
       .add('professores', () => Auth.hasPermission('professores') ? ProfessorModule.render()         : this._forbidden())
       .add('turmas',      () => Auth.hasPermission('turmas')      ? TurmasModule.render()            : this._forbidden())
       .add('eventos',     () => Auth.hasPermission('eventos')     ? EventoModule.render()            : this._forbidden())
+      .add('loja',        () => Auth.hasPermission('loja')        ? LojaModule.render()              : this._forbidden())
       .add('financeiro',  () => Auth.hasPermission('financeiro')  ? FinanceiroModule.render()        : this._forbidden())
       .add('manutencao',  () => Auth.hasPermission('manutencao')  ? ManutencaoModule.render()        : this._forbidden())
       .add('relatorios',  () => Auth.hasPermission('relatorios')  ? RelatoriosModule.render()        : this._forbidden())
