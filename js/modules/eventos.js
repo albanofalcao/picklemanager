@@ -621,55 +621,76 @@ const EventoModule = {
   /* ---- ABA: TAREFAS ---- */
 
   _tabTarefas(e) {
-    const tarefas   = e.tarefas || [];
-    const total     = tarefas.length;
-    const concluidas = tarefas.filter(t => t.concluida).length;
-    const pct       = total ? Math.round((concluidas / total) * 100) : 0;
-    const corBar    = pct === 100 ? 'var(--success)' : pct >= 50 ? 'var(--warning)' : 'var(--primary)';
+    const tarefas    = e.tarefas || [];
+    const total      = tarefas.length;
+    const pctGeral   = total
+      ? Math.round(tarefas.reduce((s, t) => s + (parseInt(t.execucao, 10) || 0), 0) / total)
+      : 0;
+    const corBar = pctGeral === 100 ? 'var(--success)' : pctGeral >= 50 ? 'var(--warning)' : 'var(--primary)';
 
-    const linhaT = t => `
-      <tr class="${t.concluida ? 'tarefa-concluida' : ''}">
-        <td style="width:36px;text-align:center;">
-          <input type="checkbox" ${t.concluida ? 'checked' : ''}
-            onchange="EventoModule._toggleTarefa('${e.id}','${t.id}',this.checked)"
-            style="cursor:pointer;width:16px;height:16px;" />
-        </td>
-        <td style="${t.concluida ? 'text-decoration:line-through;color:var(--text-muted);' : ''}">${UI.escape(t.descricao)}</td>
+    const usuarios = Storage.getAll('usuarios').filter(u => u.status === 'ativo');
+    const userOpts = `<option value="">— Selecionar —</option>` +
+      usuarios.map(u => `<option value="${UI.escape(u.nome)}">${UI.escape(u.nome)} (${UI.escape(u.perfil || '')})</option>`).join('');
+
+    const barPct = pct => {
+      const c = pct === 100 ? 'var(--success)' : pct >= 50 ? 'var(--warning)' : 'var(--primary)';
+      return `<div style="display:flex;align-items:center;gap:6px;min-width:120px;">
+        <div style="flex:1;background:var(--border-color);border-radius:99px;height:7px;overflow:hidden;">
+          <div style="width:${pct}%;height:100%;background:${c};border-radius:99px;"></div>
+        </div>
+        <span style="font-size:12px;font-weight:600;white-space:nowrap;">${pct}%</span>
+      </div>`;
+    };
+
+    const linhaT = t => {
+      const exec = parseInt(t.execucao, 10) || 0;
+      const concluida = exec === 100;
+      return `
+      <tr class="${concluida ? 'tarefa-concluida' : ''}">
+        <td style="${concluida ? 'text-decoration:line-through;color:var(--text-muted);' : ''}">${UI.escape(t.descricao)}</td>
         <td>${UI.escape(t.responsavel || '—')}</td>
+        <td>${t.dataInicio ? this._fmtData(t.dataInicio) : '—'}</td>
         <td>${t.prazo ? this._fmtData(t.prazo) : '—'}</td>
-        <td style="text-align:center;">
-          <span class="badge ${t.concluida ? 'badge-success' : 'badge-gray'}">${t.concluida ? 'Concluída' : 'Pendente'}</span>
+        <td style="min-width:150px;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            ${barPct(exec)}
+            <input type="number" min="0" max="100" value="${exec}"
+              style="width:52px;height:26px;padding:2px 4px;font-size:12px;border:1px solid var(--border-color);border-radius:6px;text-align:center;"
+              onchange="EventoModule._atualizarExecucao('${e.id}','${t.id}',this.value)"
+              title="% de execução" />
+          </div>
         </td>
         <td style="text-align:center;">
           <button class="btn btn-ghost btn-sm danger" style="padding:2px 8px;"
             onclick="EventoModule._removerTarefa('${e.id}','${t.id}')" title="Remover">🗑️</button>
         </td>
       </tr>`;
+    };
 
     return `
-      <!-- PROGRESSO -->
+      <!-- PROGRESSO GERAL -->
       <div class="card" style="margin-bottom:20px;">
         <div class="card-body" style="padding:20px;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-            <span style="font-weight:700;font-size:14px;">Progresso das tarefas</span>
-            <span style="font-size:13px;color:var(--text-muted);">${concluidas} de ${total} concluídas (${pct}%)</span>
+            <span style="font-weight:700;font-size:14px;">Progresso geral das tarefas</span>
+            <span style="font-size:13px;color:var(--text-muted);">${total} tarefa${total !== 1 ? 's' : ''} · média ${pctGeral}% executado</span>
           </div>
           <div style="background:var(--border-color);border-radius:99px;height:10px;overflow:hidden;">
-            <div style="width:${pct}%;height:100%;background:${corBar};border-radius:99px;transition:width .4s;"></div>
+            <div style="width:${pctGeral}%;height:100%;background:${corBar};border-radius:99px;transition:width .4s;"></div>
           </div>
         </div>
       </div>
 
-      <!-- LISTA DE TAREFAS -->
+      <!-- LISTA -->
       <div class="card">
         <div class="card-body" style="padding:0 0 8px;">
           <table class="data-table">
             <thead><tr>
-              <th></th>
               <th>Tarefa</th>
               <th>Responsável</th>
+              <th>Início</th>
               <th>Prazo</th>
-              <th style="text-align:center;">Status</th>
+              <th>Execução</th>
               <th></th>
             </tr></thead>
             <tbody>
@@ -680,18 +701,22 @@ const EventoModule = {
           </table>
 
           <!-- Formulário adicionar tarefa -->
-          <div style="padding:12px 20px;border-top:1px solid var(--border-color);background:var(--bg-secondary);border-radius:0 0 12px 12px;">
+          <div style="padding:14px 20px;border-top:1px solid var(--border-color);background:var(--bg-secondary);border-radius:0 0 12px 12px;">
             <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
               <div style="flex:3;min-width:180px;">
-                <label class="form-label" style="font-size:11px;">Tarefa</label>
+                <label class="form-label" style="font-size:11px;">Tarefa <span class="required-star">*</span></label>
                 <input id="tar-desc" class="form-input" style="height:34px;" placeholder="ex: Confirmar reserva da arena" />
               </div>
-              <div style="flex:1;min-width:120px;">
-                <label class="form-label" style="font-size:11px;">Responsável (opcional)</label>
-                <input id="tar-resp" class="form-input" style="height:34px;" placeholder="Nome" />
+              <div style="flex:1;min-width:140px;">
+                <label class="form-label" style="font-size:11px;">Responsável</label>
+                <select id="tar-resp" class="form-select" style="height:34px;">${userOpts}</select>
               </div>
-              <div style="width:140px;">
-                <label class="form-label" style="font-size:11px;">Prazo (opcional)</label>
+              <div style="width:136px;">
+                <label class="form-label" style="font-size:11px;">Data início</label>
+                <input id="tar-inicio" class="form-input" style="height:34px;" type="date" />
+              </div>
+              <div style="width:136px;">
+                <label class="form-label" style="font-size:11px;">Prazo</label>
                 <input id="tar-prazo" class="form-input" style="height:34px;" type="date" />
               </div>
               <button class="btn btn-primary btn-sm" style="height:34px;"
@@ -717,9 +742,10 @@ const EventoModule = {
     tarefas.push({
       id:          `${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
       descricao:   desc.value.trim(),
-      responsavel: document.getElementById('tar-resp')?.value.trim() || '',
+      responsavel: document.getElementById('tar-resp')?.value || '',
+      dataInicio:  document.getElementById('tar-inicio')?.value || '',
       prazo:       document.getElementById('tar-prazo')?.value || '',
-      concluida:   false,
+      execucao:    0,
     });
 
     Storage.update(this.STORAGE_KEY, eventoId, { tarefas });
@@ -728,11 +754,12 @@ const EventoModule = {
     this._renderDetail();
   },
 
-  _toggleTarefa(eventoId, tarefaId, checked) {
+  _atualizarExecucao(eventoId, tarefaId, valor) {
+    const pct = Math.min(100, Math.max(0, parseInt(valor, 10) || 0));
     const evento = Storage.getById(this.STORAGE_KEY, eventoId);
     if (!evento) return;
     const tarefas = (evento.tarefas || []).map(t =>
-      t.id === tarefaId ? { ...t, concluida: checked } : t
+      t.id === tarefaId ? { ...t, execucao: pct } : t
     );
     Storage.update(this.STORAGE_KEY, eventoId, { tarefas });
     this._detail.tab = 'tarefas';
