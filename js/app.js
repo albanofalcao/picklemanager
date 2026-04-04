@@ -335,10 +335,10 @@ const App = {
    */
   _migratePerfis() {
     const novosPorPerfil = {
-      admin:         ['relatorios', 'turmas', 'dayuse'],
-      gerente:       ['relatorios', 'turmas', 'dayuse'],
-      recepcionista: ['turmas', 'dayuse'],
-      financeiro:    ['relatorios', 'dayuse'],
+      admin:         ['relatorios', 'turmas', 'dayuse', 'loja'],
+      gerente:       ['relatorios', 'turmas', 'dayuse', 'loja'],
+      recepcionista: ['turmas', 'dayuse', 'loja'],
+      financeiro:    ['relatorios', 'dayuse', 'loja'],
       professor:     ['turmas'],
       aluno:         ['turmas'],
     };

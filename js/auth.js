@@ -18,6 +18,7 @@ const ALL_MODULES = [
   { key: 'professores', label: 'Professores',           required: false },
   { key: 'turmas',      label: 'Turmas',                required: false },
   { key: 'eventos',     label: 'Eventos',               required: false },
+  { key: 'loja',        label: 'Loja',                  required: false },
   { key: 'financeiro',  label: 'Financeiro',            required: false },
   { key: 'manutencao',  label: 'Manutenção',            required: false },
   { key: 'relatorios',  label: 'Relatórios',            required: false },
