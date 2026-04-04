@@ -20,6 +20,8 @@ const LojaModule = {
   /*  Entry point                                                         */
   /* ------------------------------------------------------------------ */
 
+  _filterArena: '',
+
   render(tab) {
     if (tab) this._tab = tab;
     const area = document.getElementById('content-area');
@@ -70,6 +72,15 @@ const LojaModule = {
         </div>
       </div>
 
+      <div class="filters-bar" style="margin-bottom:16px;">
+        <select class="filter-select" onchange="LojaModule._filterArena=this.value;LojaModule.render()">
+          <option value="">Todas as arenas</option>
+          ${Storage.getAll('arenas').filter(a=>a.status==='ativa').sort((a,b)=>a.nome.localeCompare(b.nome)).map(a=>
+            `<option value="${a.id}" ${this._filterArena===a.id?'selected':''}>${UI.escape(a.nome)}</option>`
+          ).join('')}
+        </select>
+      </div>
+
       <div class="tabs-bar" style="margin-bottom:24px;">
         <button class="tab-btn ${this._tab==='produtos'     ?'active':''}" onclick="LojaModule.render('produtos')">📦 Produtos</button>
         <button class="tab-btn ${this._tab==='estoque'      ?'active':''}" onclick="LojaModule.render('estoque')">🗃️ Estoque</button>
@@ -113,6 +124,7 @@ const LojaModule = {
   _tabProdutos() {
     const produtos = Storage.getAll(this.SK_PROD)
       .filter(p => p.status !== 'inativo')
+      .filter(p => !this._filterArena || p.arenaId === this._filterArena)
       .sort((a,b) => a.nome.localeCompare(b.nome));
 
     if (!produtos.length) return `
@@ -135,6 +147,7 @@ const LojaModule = {
               <th>Produto</th>
               <th>Categoria</th>
               <th>Marca</th>
+              <th>Arena</th>
               <th style="text-align:right;">Custo</th>
               <th style="text-align:right;">Venda</th>
               <th style="text-align:center;">Estoque</th>
@@ -147,6 +160,7 @@ const LojaModule = {
                   <td><strong>${UI.escape(p.nome)}</strong>${p.sku ? `<br><small style="color:var(--text-muted);">SKU: ${UI.escape(p.sku)}</small>` : ''}</td>
                   <td><span class="badge badge-blue">${UI.escape(p.categoria||'—')}</span></td>
                   <td>${UI.escape(p.marca||'—')}</td>
+                  <td>${UI.escape(p.arenaNome||'—')}</td>
                   <td style="text-align:right;">${this._fmt(p.precoCusto||0)}</td>
                   <td style="text-align:right;font-weight:600;">${this._fmt(p.precoVenda||0)}</td>
                   <td style="text-align:center;"><strong>${p.estoqueAtual||0}</strong> / mín ${p.estoqueMinimo||0}</td>
@@ -176,6 +190,11 @@ const LojaModule = {
       `<option ${(p?.categoria||''===c)?'selected':''}>${c}</option>`
     ).join('');
 
+    const arenaOpts = `<option value="">— Todas as arenas —</option>` +
+      Storage.getAll('arenas').filter(a=>a.status==='ativa').sort((a,b)=>a.nome.localeCompare(b.nome)).map(a =>
+        `<option value="${a.id}" ${p?.arenaId===a.id?'selected':''}>${UI.escape(a.nome)}</option>`
+      ).join('');
+
     UI.openModal({
       title: isEdit ? `Editar — ${p.nome}` : 'Novo Produto',
       content: `
@@ -200,9 +219,13 @@ const LojaModule = {
               <input id="lp-sku" class="form-input" value="${v('sku')}" placeholder="ex: RQ-001" />
             </div>
             <div class="form-group">
-              <label class="form-label">Fornecedor</label>
-              <select id="lp-forn" class="form-select">${fornOpts}</select>
+              <label class="form-label">Arena (ponto de venda)</label>
+              <select id="lp-arena" class="form-select">${arenaOpts}</select>
             </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Fornecedor</label>
+            <select id="lp-forn" class="form-select">${fornOpts}</select>
           </div>
           <div class="form-grid-2">
             <div class="form-group">
@@ -244,6 +267,8 @@ const LojaModule = {
       categoria:    document.getElementById('lp-cat')?.value    || '',
       marca:        document.getElementById('lp-marca')?.value.trim() || '',
       sku:          document.getElementById('lp-sku')?.value.trim()   || '',
+      arenaId:      document.getElementById('lp-arena')?.value  || '',
+      arenaNome:    (() => { const s = document.getElementById('lp-arena'); return s?.selectedOptions[0]?.text || ''; })(),
       fornecedorId: document.getElementById('lp-forn')?.value   || '',
       precoCusto:   parseFloat(document.getElementById('lp-custo')?.value)  || 0,
       precoVenda:   parseFloat(document.getElementById('lp-venda')?.value)  || 0,
