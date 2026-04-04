@@ -751,29 +751,47 @@ const EventoModule = {
     Storage.update(this.STORAGE_KEY, eventoId, { tarefas });
     UI.toast('Tarefa adicionada.', 'success');
 
-    // Notificar responsável por e-mail se tiver e-mail cadastrado
-    const nomeResp = document.getElementById('tar-resp')?.value || '';
-    if (nomeResp) {
-      const usuario = Storage.getAll('usuarios').find(u => u.nome === nomeResp);
-      if (usuario?.email) {
-        const evento = Storage.getById(this.STORAGE_KEY, eventoId);
-        const novaTarefa = tarefas[tarefas.length - 1];
-        const prazoStr = novaTarefa.prazo ? ` | Prazo: ${this._fmtData(novaTarefa.prazo)}` : '';
-        const assunto = encodeURIComponent(`[${evento?.nome || 'Evento'}] Nova tarefa atribuída a você`);
-        const corpo   = encodeURIComponent(
-          `Olá, ${nomeResp}!\n\n` +
-          `Uma nova tarefa foi atribuída a você no evento "${evento?.nome || ''}".\n\n` +
-          `📋 Tarefa: ${novaTarefa.descricao}\n` +
-          `${novaTarefa.dataInicio ? `📅 Início: ${this._fmtData(novaTarefa.dataInicio)}\n` : ''}` +
-          `${novaTarefa.prazo ? `⏰ Prazo: ${this._fmtData(novaTarefa.prazo)}\n` : ''}` +
-          `\nAcesse o sistema para acompanhar o andamento.\n\nAtenciosamente,\nEquipe PickleManager`
-        );
-        window.open(`mailto:${usuario.email}?subject=${assunto}&body=${corpo}`, '_blank');
-      }
-    }
+    // Notificar responsável por e-mail
+    this._notificarTarefa(eventoId, tarefas[tarefas.length - 1]);
 
     this._detail.tab = 'tarefas';
     this._renderDetail();
+  },
+
+  async _notificarTarefa(eventoId, tarefa) {
+    if (!tarefa.responsavel) return;
+    const usuario = Storage.getAll('usuarios').find(u => u.nome === tarefa.responsavel);
+    if (!usuario?.email) return;
+
+    const evento = Storage.getById(this.STORAGE_KEY, eventoId);
+
+    // EmailJS — envio automático (requer configuração em js/emailjs-config.js)
+    if (typeof EmailJSConfig !== 'undefined' && EmailJSConfig.ativo) {
+      const enviado = await EmailJSConfig.enviar({
+        to_email:    usuario.email,
+        to_name:     usuario.nome,
+        evento_nome: evento?.nome || '',
+        tarefa:      tarefa.descricao,
+        data_inicio: tarefa.dataInicio ? this._fmtData(tarefa.dataInicio) : '—',
+        prazo:       tarefa.prazo     ? this._fmtData(tarefa.prazo)       : '—',
+      });
+      if (enviado) {
+        UI.toast(`E-mail enviado para ${usuario.nome}.`, 'success');
+        return;
+      }
+    }
+
+    // Fallback: abre cliente de e-mail local
+    const assunto = encodeURIComponent(`[${evento?.nome || 'Evento'}] Nova tarefa atribuída a você`);
+    const corpo   = encodeURIComponent(
+      `Olá, ${tarefa.responsavel}!\n\n` +
+      `Uma nova tarefa foi atribuída a você no evento "${evento?.nome || ''}".\n\n` +
+      `📋 Tarefa: ${tarefa.descricao}\n` +
+      (tarefa.dataInicio ? `📅 Início: ${this._fmtData(tarefa.dataInicio)}\n` : '') +
+      (tarefa.prazo      ? `⏰ Prazo: ${this._fmtData(tarefa.prazo)}\n`       : '') +
+      `\nAcesse o sistema para acompanhar o andamento.\n\nAtenciosamente,\nEquipe PickleManager`
+    );
+    window.open(`mailto:${usuario.email}?subject=${assunto}&body=${corpo}`, '_blank');
   },
 
   _atualizarExecucao(eventoId, tarefaId, valor) {
