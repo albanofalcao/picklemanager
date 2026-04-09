@@ -5,10 +5,11 @@
  * Abas: Produtos | Estoque | Vendas | Fornecedores | Relatórios
  */
 const LojaModule = {
-  SK_PROD: 'loja_produtos',
-  SK_FORN: 'loja_fornecedores',
-  SK_VEND: 'loja_vendas',
-  SK_MOV:  'loja_estoque_mov',
+  SK_PROD:   'loja_produtos',
+  SK_FORN:   'loja_fornecedores',
+  SK_VEND:   'loja_vendas',
+  SK_MOV:    'loja_estoque_mov',
+  SK_COMPRA: 'loja_compras',
 
   _tab: 'produtos',
 
@@ -38,7 +39,7 @@ const LojaModule = {
         ${this._tab === 'produtos'    ? `<button class="btn btn-primary" onclick="LojaModule.openModalProduto()">+ Novo Produto</button>` : ''}
         ${this._tab === 'fornecedores'? `<button class="btn btn-primary" onclick="LojaModule.openModalFornecedor()">+ Novo Fornecedor</button>` : ''}
         ${this._tab === 'vendas'      ? `<button class="btn btn-primary" onclick="LojaModule.openModalVenda()">🛍️ Nova Venda</button>` : ''}
-        ${this._tab === 'estoque'     ? `<button class="btn btn-secondary" onclick="LojaModule.openModalMovEstoque()">📥 Entrada de Mercadoria</button>` : ''}
+        ${this._tab === 'estoque'     ? `<button class="btn btn-primary" onclick="LojaModule.openModalCompra()">📥 Pedido de Compra</button>` : ''}
       </div>
 
       <div class="stats-grid" style="margin-bottom:24px;">
@@ -379,67 +380,279 @@ const LojaModule = {
             </table>
           </div>
         </div>
-      </div>`;
+      </div>
+
+      <!-- Histórico de compras -->
+      ${(() => {
+        const compras = Storage.getAll(this.SK_COMPRA).slice().sort((a,b)=>(b.data||'').localeCompare(a.data||'')).slice(0,20);
+        return `
+        <div class="card">
+          <div class="card-header" style="padding:14px 18px;">
+            <h3 style="margin:0;font-size:14px;font-weight:700;">🧾 Histórico de Compras</h3>
+          </div>
+          <div class="card-body" style="padding:0;">
+            <table class="data-table">
+              <thead><tr>
+                <th>Data</th>
+                <th>Fornecedor</th>
+                <th>NF</th>
+                <th>Itens</th>
+                <th style="text-align:right;">Total</th>
+                <th></th>
+              </tr></thead>
+              <tbody>
+                ${compras.length ? compras.map(c => `
+                  <tr>
+                    <td style="white-space:nowrap;">${this._fmtData(c.data)}</td>
+                    <td>${UI.escape(c.fornecedorNome||'—')}</td>
+                    <td>${UI.escape(c.nf||'—')}</td>
+                    <td style="color:var(--text-muted);font-size:13px;">${(c.itens||[]).map(i=>UI.escape(i.produtoNome)).join(', ').slice(0,60)||'—'}</td>
+                    <td style="text-align:right;font-weight:700;">${this._fmt(c.total||0)}</td>
+                    <td><button class="btn btn-ghost btn-sm" onclick="LojaModule._verCompra('${c.id}')" title="Detalhes">👁️</button></td>
+                  </tr>`).join('')
+                : '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:16px;">Nenhuma compra registrada</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        </div>`;
+      })()}`;
   },
 
-  openModalMovEstoque() {
-    const prodOpts = `<option value="">— Selecionar produto —</option>` +
-      Storage.getAll(this.SK_PROD).filter(p=>p.status!=='inativo').sort((a,b)=>a.nome.localeCompare(b.nome)).map(p =>
-        `<option value="${p.id}">${UI.escape(p.nome)} (estoque: ${p.estoqueAtual||0})</option>`
+  _verCompra(id) {
+    const c = Storage.getById(this.SK_COMPRA, id);
+    if (!c) return;
+    UI.openModal({
+      title: `Compra — ${this._fmtData(c.data)}`,
+      content: `
+        <div style="font-size:14px;">
+          <div style="display:flex;gap:24px;margin-bottom:16px;flex-wrap:wrap;">
+            <div><strong>Fornecedor:</strong> ${UI.escape(c.fornecedorNome||'—')}</div>
+            <div><strong>NF:</strong> ${UI.escape(c.nf||'—')}</div>
+            ${c.obs ? `<div><strong>Obs:</strong> ${UI.escape(c.obs)}</div>` : ''}
+          </div>
+          <table class="data-table">
+            <thead><tr><th>Produto</th><th style="text-align:center;">Qtd</th><th style="text-align:right;">Custo Unit.</th><th style="text-align:right;">Total</th></tr></thead>
+            <tbody>${(c.itens||[]).map(i=>`
+              <tr>
+                <td>${UI.escape(i.produtoNome)}</td>
+                <td style="text-align:center;">${i.qtd}</td>
+                <td style="text-align:right;">${this._fmt(i.custoUnit)}</td>
+                <td style="text-align:right;font-weight:600;">${this._fmt(i.total)}</td>
+              </tr>`).join('')}
+            </tbody>
+            <tfoot><tr>
+              <td colspan="3" style="text-align:right;font-weight:800;padding:10px 12px;">TOTAL</td>
+              <td style="text-align:right;font-weight:800;padding:10px 12px;color:var(--primary);">${this._fmt(c.total||0)}</td>
+            </tr></tfoot>
+          </table>
+        </div>`,
+      confirmLabel: null,
+    });
+  },
+
+  openModalCompra() {
+    const fornOpts = `<option value="">— Selecionar fornecedor —</option>` +
+      Storage.getAll(this.SK_FORN).sort((a,b)=>a.nome.localeCompare(b.nome)).map(f =>
+        `<option value="${f.id}">${UI.escape(f.nome)}</option>`
       ).join('');
 
+    const prodOpts = `<option value="">— Selecionar produto —</option>` +
+      Storage.getAll(this.SK_PROD).filter(p=>p.status!=='inativo')
+        .sort((a,b)=>a.nome.localeCompare(b.nome)).map(p =>
+          `<option value="${p.id}" data-custo="${p.precoCusto||0}">${UI.escape(p.nome)} (estoque: ${p.estoqueAtual||0})</option>`
+        ).join('');
+
+    window._lojaCompraItens = [];
+
     UI.openModal({
-      title: '📥 Entrada de Mercadoria',
+      title: '📥 Pedido de Compra',
       content: `
         <div class="form-grid">
-          <div class="form-group">
-            <label class="form-label">Produto <span class="required-star">*</span></label>
-            <select id="mov-prod" class="form-select">${prodOpts}</select>
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Fornecedor <span class="required-star">*</span></label>
+              <select id="cp-forn" class="form-select">${fornOpts}</select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Nota Fiscal (NF)</label>
+              <input id="cp-nf" class="form-input" placeholder="ex: 001234" />
+            </div>
           </div>
           <div class="form-grid-2">
             <div class="form-group">
-              <label class="form-label">Quantidade <span class="required-star">*</span></label>
-              <input id="mov-qtd" class="form-input" type="number" min="1" value="1" />
+              <label class="form-label">Data de entrada</label>
+              <input id="cp-data" class="form-input" type="date" value="${new Date().toISOString().slice(0,10)}" />
             </div>
             <div class="form-group">
-              <label class="form-label">Data</label>
-              <input id="mov-data" class="form-input" type="date" value="${new Date().toISOString().slice(0,10)}" />
+              <label class="form-label">Observações</label>
+              <input id="cp-obs" class="form-input" placeholder="Opcional" />
             </div>
           </div>
-          <div class="form-group">
-            <label class="form-label">Observação</label>
-            <input id="mov-obs" class="form-input" placeholder="ex: Compra NF 1234" />
+
+          <!-- Itens da compra -->
+          <div class="card" style="border:1px solid var(--border-color);border-radius:10px;padding:14px;margin-top:4px;">
+            <div style="font-weight:700;font-size:13px;margin-bottom:10px;">Itens da compra</div>
+            <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px;">
+              <div style="flex:3;min-width:160px;">
+                <label class="form-label" style="font-size:11px;">Produto</label>
+                <select id="cp-prod" class="form-select" style="height:34px;"
+                  onchange="LojaModule._onProdCompraSelect()">${prodOpts}</select>
+              </div>
+              <div style="width:70px;">
+                <label class="form-label" style="font-size:11px;">Qtd</label>
+                <input id="cp-qtd" class="form-input" style="height:34px;" type="number" min="1" value="1" />
+              </div>
+              <div style="width:120px;">
+                <label class="form-label" style="font-size:11px;">Custo unit. (R$)</label>
+                <input id="cp-custo" class="form-input" style="height:34px;" type="number" min="0" step="0.01" placeholder="0,00" />
+              </div>
+              <button class="btn btn-secondary btn-sm" style="height:34px;"
+                onclick="LojaModule._addItemCompra()">+ Item</button>
+            </div>
+            <table class="data-table">
+              <thead><tr>
+                <th>Produto</th>
+                <th style="text-align:center;">Qtd</th>
+                <th style="text-align:right;">Custo Unit.</th>
+                <th style="text-align:right;">Total</th>
+                <th></th>
+              </tr></thead>
+              <tbody id="cp-itens-body">
+                <tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:10px;">Nenhum item adicionado</td></tr>
+              </tbody>
+              <tfoot><tr>
+                <td colspan="3" style="text-align:right;font-weight:700;padding:10px 12px;">Total da compra</td>
+                <td style="text-align:right;font-weight:700;padding:10px 12px;color:var(--primary);" id="cp-total">R$ 0,00</td>
+                <td></td>
+              </tr></tfoot>
+            </table>
+          </div>
+
+          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 14px;font-size:12px;color:#166534;">
+            💡 O estoque de cada produto será atualizado automaticamente ao confirmar.
+            O custo unitário informado substituirá o custo cadastrado no produto.
           </div>
         </div>`,
-      confirmLabel: 'Registrar Entrada',
-      onConfirm: () => this._saveMovEstoque(),
+      confirmLabel: '✅ Confirmar Entrada',
+      onConfirm: () => this._saveCompra(),
     });
   },
 
-  _saveMovEstoque() {
-    const prodSel = document.getElementById('mov-prod');
-    const qtdEl   = document.getElementById('mov-qtd');
-    if (!prodSel?.value) { UI.toast('Selecione o produto.','warning'); return; }
-    const qtd = parseInt(qtdEl?.value,10)||0;
+  _onProdCompraSelect() {
+    const sel = document.getElementById('cp-prod');
+    const custo = sel?.selectedOptions[0]?.dataset.custo || '0';
+    const el = document.getElementById('cp-custo');
+    if (el) el.value = parseFloat(custo).toFixed(2);
+  },
+
+  _addItemCompra() {
+    const sel   = document.getElementById('cp-prod');
+    const qtdEl = document.getElementById('cp-qtd');
+    const cusEl = document.getElementById('cp-custo');
+    if (!sel?.value) { UI.toast('Selecione um produto.','warning'); return; }
+    const qtd   = parseInt(qtdEl?.value,10)||1;
+    const custo = parseFloat(cusEl?.value)||0;
     if (qtd <= 0) { UI.toast('Informe a quantidade.','warning'); return; }
 
-    const produto = Storage.getById(this.SK_PROD, prodSel.value);
+    const produto = Storage.getById(this.SK_PROD, sel.value);
     if (!produto) return;
 
-    const novoEstoque = (parseInt(produto.estoqueAtual,10)||0) + qtd;
-    Storage.update(this.SK_PROD, produto.id, { estoqueAtual: novoEstoque });
+    // Agrupa se produto já está na lista
+    const existente = window._lojaCompraItens.find(i => i.produtoId === produto.id);
+    if (existente) {
+      existente.qtd   += qtd;
+      existente.total  = existente.qtd * existente.custoUnit;
+    } else {
+      window._lojaCompraItens.push({
+        produtoId:   produto.id,
+        produtoNome: produto.nome,
+        qtd,
+        custoUnit: custo,
+        total:     qtd * custo,
+      });
+    }
 
-    Storage.create(this.SK_MOV, {
-      data:        document.getElementById('mov-data')?.value || new Date().toISOString().slice(0,10),
-      produtoId:   produto.id,
-      produtoNome: produto.nome,
-      tipo:        'entrada',
-      quantidade:  qtd,
-      motivo:      document.getElementById('mov-obs')?.value.trim() || 'Entrada manual',
+    this._renderItensCompra();
+    sel.value = '';
+    if (qtdEl) qtdEl.value = '1';
+    if (cusEl) cusEl.value = '';
+  },
+
+  _renderItensCompra() {
+    const itens = window._lojaCompraItens || [];
+    const tbody = document.getElementById('cp-itens-body');
+    const totEl = document.getElementById('cp-total');
+    if (!tbody) return;
+
+    const total = itens.reduce((s,i) => s + (i.total||0), 0);
+    tbody.innerHTML = itens.length
+      ? itens.map((i, idx) => `
+          <tr>
+            <td>${UI.escape(i.produtoNome)}</td>
+            <td style="text-align:center;">${i.qtd}</td>
+            <td style="text-align:right;">${this._fmt(i.custoUnit)}</td>
+            <td style="text-align:right;font-weight:600;">${this._fmt(i.total)}</td>
+            <td style="text-align:center;">
+              <button class="btn btn-ghost btn-sm danger" style="padding:2px 6px;"
+                onclick="LojaModule._remItemCompra(${idx})">✕</button>
+            </td>
+          </tr>`).join('')
+      : '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:10px;">Nenhum item</td></tr>';
+
+    if (totEl) totEl.textContent = this._fmt(total);
+  },
+
+  _remItemCompra(idx) {
+    window._lojaCompraItens.splice(idx, 1);
+    this._renderItensCompra();
+  },
+
+  _saveCompra() {
+    const itens = window._lojaCompraItens || [];
+    if (!itens.length) { UI.toast('Adicione pelo menos um item.','warning'); return; }
+
+    const fornSel = document.getElementById('cp-forn');
+    if (!fornSel?.value) { UI.toast('Selecione o fornecedor.','warning'); return; }
+
+    const fornecedor = Storage.getById(this.SK_FORN, fornSel.value);
+    const nf   = document.getElementById('cp-nf')?.value.trim()  || '';
+    const data = document.getElementById('cp-data')?.value        || new Date().toISOString().slice(0,10);
+    const obs  = document.getElementById('cp-obs')?.value.trim()  || '';
+    const totalCompra = itens.reduce((s,i) => s + (i.total||0), 0);
+
+    // Registra pedido de compra
+    Storage.create(this.SK_COMPRA, {
+      data,
+      fornecedorId:   fornecedor?.id   || '',
+      fornecedorNome: fornecedor?.nome || '',
+      nf,
+      obs,
+      itens,
+      total: totalCompra,
     });
 
-    UI.toast(`Entrada de ${qtd} un. registrada. Novo estoque: ${novoEstoque}.`, 'success');
+    // Atualiza estoque e custo de cada produto
+    itens.forEach(item => {
+      const prod = Storage.getById(this.SK_PROD, item.produtoId);
+      if (!prod) return;
+      const novoEst = (parseInt(prod.estoqueAtual,10)||0) + item.qtd;
+      Storage.update(this.SK_PROD, item.produtoId, {
+        estoqueAtual: novoEst,
+        ...(item.custoUnit > 0 ? { precoCusto: item.custoUnit } : {}),
+      });
+      Storage.create(this.SK_MOV, {
+        data,
+        produtoId:   item.produtoId,
+        produtoNome: item.produtoNome,
+        tipo:        'entrada',
+        quantidade:  item.qtd,
+        motivo:      `Compra${nf ? ' NF ' + nf : ''}${fornecedor ? ' — ' + fornecedor.nome : ''}`,
+      });
+    });
+
+    UI.toast(`Compra registrada! ${itens.length} produto(s) | Total: ${this._fmt(totalCompra)}`, 'success');
     UI.closeModal();
+    window._lojaCompraItens = [];
     this.render('estoque');
   },
 
