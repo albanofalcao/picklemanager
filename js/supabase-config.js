@@ -10,7 +10,7 @@ const SUPABASE_KEY = 'sb_publishable_KI5wL-O5QMqkdVKOxJwKGg_yJkXlsrx';
  *
  * Exemplo: const TENANT_ID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
  */
-const TENANT_ID = '';
+const TENANT_ID = 'f4dfd40b-5525-4392-b71e-9a0ed1c9507c';
 
 const SupabaseClient = window.supabase
   ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
