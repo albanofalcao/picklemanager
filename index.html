@@ -35,6 +35,12 @@
         <button type="button" class="btn btn-ghost btn-sm" style="color:var(--color-primary,#3b9e8f);font-size:13px;"
           onclick="Auth.showEsqueciSenha()">Esqueci minha senha</button>
       </div>
+      <div style="text-align:center;margin-top:8px;padding-top:12px;border-top:1px solid var(--card-border,#e8dfc8);">
+        <button type="button" class="btn btn-ghost btn-sm"
+          style="color:var(--text-muted,#8aab9f);font-size:11px;"
+          onclick="SuperAdmin.init()">🔧 Área Administrativa</button>
+      </div>
+
       <div class="login-hint" style="margin-bottom:0;">
         <div style="margin-bottom:6px;font-weight:600;color:var(--text-secondary);">Logins de demonstração:</div>
         <div style="display:flex;flex-direction:column;gap:4px;">
@@ -209,6 +215,8 @@
   <div class="toast-container" id="toast-container" aria-live="polite"></div>
 
   <!-- ========== SCRIPTS (order matters) ========== -->
+  <script src="js/supabase.min.js"></script>
+  <script src="js/supabase-config.js"></script>
   <script src="js/storage.js"></script>
   <script src="js/listas-service.js"></script>
   <script src="js/ui.js?v=4"></script>
@@ -237,6 +245,7 @@
   <script src="js/emailjs-config.js"></script>
   <script src="js/modules/stubs.js"></script>
   <script src="js/notifications.js"></script>
+  <script src="js/superadmin.js"></script>
   <script src="js/portal.js"></script>
   <script src="js/app.js"></script>
 
