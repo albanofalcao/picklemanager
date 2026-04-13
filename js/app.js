@@ -556,11 +556,16 @@ const App = {
 };
 
 // Bootstrap on DOM ready
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   Theme.init();
+
+  // Inicializa banco Supabase se TENANT_ID configurado,
+  // caso contrário o app roda em modo localStorage normalmente.
+  await DB.init(typeof TENANT_ID !== 'undefined' ? TENANT_ID : '');
+
   App.seedData();
   App._migratePerfis();
-  Auth.loadPerfis();   // populate global PERFIS from localStorage
+  Auth.loadPerfis();
   Auth.bindLoginForm();
 
   if (Auth.getSession()) {
