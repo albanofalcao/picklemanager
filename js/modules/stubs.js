@@ -135,18 +135,6 @@ function renderDashboard() {
     : `<div style="padding:16px;text-align:center;color:var(--text-muted);font-size:13px;">Sem aulas agendadas para hoje ou amanhã.</div>`;
 
   area.innerHTML = `
-    <!-- Welcome Banner compacto -->
-    <div class="welcome-banner welcome-banner-compact">
-      <div>
-        <div class="welcome-title" style="font-size:18px;">
-          Olá, ${UI.escape(session ? session.nome.split(' ')[0] : 'Usuário')}!
-          <img src="img/pickleball-paddle.svg" alt="Pickleball" style="width:22px;height:22px;vertical-align:middle;margin-left:6px;">
-        </div>
-        <div class="welcome-sub" style="font-size:12px;margin-top:2px;">
-          ${new Date().toLocaleDateString('pt-BR', { weekday:'long', day:'2-digit', month:'long' })}
-        </div>
-      </div>
-    </div>
 
     <!-- Stats compactos (1 linha) -->
     <div class="dash-stats-row">

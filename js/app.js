@@ -546,7 +546,6 @@ const App = {
             <span class="badge ${cor}" style="font-size:10px;">${UI.escape(perfilLabel)}</span>
           </div>
           <div class="header-avatar" title="${UI.escape(session.nome)}">${session.avatar}</div>
-          <button class="btn btn-ghost btn-sm" onclick="Auth.confirmLogout()" title="Sair">⏻</button>
         </div>`;
     }
 
