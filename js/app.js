@@ -73,7 +73,7 @@ const App = {
     { route: 'alunos',      icon: '👥', label: 'Alunos'              },
     { route: 'planos',      icon: '📋', label: 'Planos de Contratação'},
     { route: 'professores', icon: '🎓', label: 'Professores'         },
-    { route: 'turmas',      icon: '🏸', label: 'Grades'              },
+    { route: 'turmas',      icon: '🏸', label: 'Aulas'               },
     { route: 'eventos',     icon: '🏆', label: 'Eventos'             },
     { route: 'loja',        icon: '🛒', label: 'Loja'                },
     { route: 'dayuse',      icon: '🚪', label: 'Day Use'             },
