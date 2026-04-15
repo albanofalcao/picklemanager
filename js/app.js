@@ -69,7 +69,6 @@ const App = {
 
   NAV_ITEMS: [
     { route: 'dashboard',   icon: '📊', label: 'Dashboard'            },
-    { route: 'arenas',      icon: '🏟️', label: 'Arenas'              },
     { route: 'alunos',      icon: '👥', label: 'Alunos'              },
     { route: 'planos',      icon: '📋', label: 'Planos de Contratação'},
     { route: 'professores', icon: '🎓', label: 'Professores'         },
@@ -455,6 +454,7 @@ const App = {
     this.renderSidebar();
     this.updateHeaderUser();
     this.updateDate();
+    this.loadTenantName();
     setInterval(() => this.updateDate(), 60000);
 
     Router
@@ -486,6 +486,25 @@ const App = {
         <div class="empty-desc">Você não tem permissão para acessar este módulo.<br>Fale com o administrador do sistema.</div>
         <button class="btn btn-secondary mt-16" onclick="Router.navigate('dashboard')">Voltar ao Dashboard</button>
       </div>`;
+  },
+
+  /** Carrega nome do tenant do Supabase e atualiza sidebar */
+  async loadTenantName() {
+    if (!SupabaseClient || !TENANT_ID) return;
+    try {
+      const { data } = await SupabaseClient
+        .from('tenants')
+        .select('nome')
+        .eq('id', TENANT_ID)
+        .single();
+      if (data?.nome) {
+        const el = document.getElementById('brand-sub');
+        if (el) el.textContent = data.nome;
+        // Atualiza também no portal e login
+        document.querySelectorAll('.login-brand-sub, .portal-brand-sub, .brand-sub')
+          .forEach(e => e.textContent = data.nome);
+      }
+    } catch (e) { /* silencioso */ }
   },
 
   /** Rebuild sidebar filtering by current user permissions */
