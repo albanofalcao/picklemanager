@@ -90,39 +90,40 @@ const DB = {
   async _loadAll() {
     const tid = this._tenantId;
 
-    // Tabelas regulares (não-catálogo)
+    // Tabelas regulares (não-catálogo) — carrega TODAS em paralelo
     const regularTables = [...new Set(
       Object.entries(this.TABLE_MAP)
         .filter(([k]) => !this.CATALOG_KEYS.has(k))
         .map(([, t]) => t)
     )];
 
-    for (const table of regularTables) {
-      const { data, error } = await SupabaseClient
-        .from(table)
-        .select('id, data, created_at, updated_at')
-        .eq('tenant_id', tid);
+    const [tableResults, catResult] = await Promise.all([
+      // Todas as tabelas regulares em paralelo
+      Promise.all(regularTables.map(table =>
+        SupabaseClient
+          .from(table)
+          .select('id, data, created_at, updated_at')
+          .eq('tenant_id', tid)
+          .then(({ data, error }) => ({ table, data, error }))
+      )),
+      // Catálogos em paralelo com as demais
+      SupabaseClient
+        .from('app_catalogos')
+        .select('id, tipo, data, created_at, updated_at')
+        .eq('tenant_id', tid),
+    ]);
 
-      if (error) {
-        console.warn('[DB] Erro ao carregar', table, ':', error.message);
-        continue;
-      }
-
+    // Processa tabelas regulares
+    for (const { table, data, error } of tableResults) {
+      if (error) { console.warn('[DB] Erro ao carregar', table, ':', error.message); continue; }
       const rows = (data || []).map(r => this._fromRow(r));
-
-      // Armazena sob todas as chaves Storage que mapeiam para esta tabela
       for (const [sk, tbl] of Object.entries(this.TABLE_MAP)) {
-        if (tbl === table && !this.CATALOG_KEYS.has(sk)) {
-          this._cache[sk] = rows;
-        }
+        if (tbl === table && !this.CATALOG_KEYS.has(sk)) this._cache[sk] = rows;
       }
     }
 
     // Catálogos — carrega tudo e filtra por "tipo" no data
-    const { data: catRows, error: catErr } = await SupabaseClient
-      .from('app_catalogos')
-      .select('id, tipo, data, created_at, updated_at')
-      .eq('tenant_id', tid);
+    const { data: catRows, error: catErr } = catResult;
 
     if (catErr) {
       console.warn('[DB] Erro ao carregar catálogos:', catErr.message);
