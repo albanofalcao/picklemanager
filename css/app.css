@@ -127,9 +127,11 @@ img, svg { display: block; max-width: 100%; }
 }
 
 .brand-sub {
-  font-size: 11px;
-  color: var(--sidebar-text);
-  margin-top: 1px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sidebar-text-active);
+  margin-top: 2px;
+  letter-spacing: -0.2px;
 }
 
 .sidebar-nav {
