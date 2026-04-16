@@ -487,6 +487,7 @@ const MatriculaModule = {
 
     UI.closeModal();
     this.render();
+    this._refreshDependentes();
   },
 
   async deleteMatricula(id) {
@@ -507,6 +508,7 @@ const MatriculaModule = {
     Storage.delete(this.STORAGE_KEY, id);
     UI.toast(`Matrícula de "${mat.alunoNome}" excluída.`, 'success');
     this.render();
+    this._refreshDependentes();
   },
 
   /* ------------------------------------------------------------------ */
@@ -544,6 +546,30 @@ const MatriculaModule = {
     const countEl = document.querySelector('.results-count');
     if (countEl) {
       countEl.textContent = `${filtered.length} matrícula${filtered.length !== 1 ? 's' : ''}`;
+    }
+  },
+
+  /**
+   * Atualiza em cascata todos os módulos que dependem de matrículas:
+   * - Lista de alunos (badge de plano na tabela)
+   * - Perfil de aluno aberto (se houver modal visível com dados de aluno)
+   */
+  _refreshDependentes() {
+    // 1. Atualiza tabela de alunos se estiver visível
+    const alunosList = document.getElementById('alunos-list');
+    if (alunosList && typeof AlunoModule !== 'undefined') {
+      const filtered = AlunoModule.getFiltered();
+      alunosList.innerHTML = filtered.length ? AlunoModule.renderTable(filtered) : AlunoModule.renderEmpty();
+    }
+
+    // 2. Atualiza cards de stats de alunos se visíveis
+    const statsEls = document.querySelectorAll('.stat-number[data-stat]');
+    if (statsEls.length && typeof AlunoModule !== 'undefined') {
+      const stats = AlunoModule.getStats();
+      statsEls.forEach(el => {
+        const key = el.dataset.stat;
+        if (key && stats[key] !== undefined) el.textContent = stats[key];
+      });
     }
   },
 

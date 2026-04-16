@@ -773,10 +773,12 @@ const AlunoModule = {
     const mesAtual = new Date().toISOString().slice(0, 7);
     const saldoHtml = SaldoService.barSaldo(id, mesAtual);
 
-    // ── Plano contratado ──────────────────────────────────────────────
-    const matriculaAtiva = Storage.getAll('matriculas')
-      .filter(m => m.alunoId === id && m.status === 'ativa')
-      .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))[0] || null;
+    // ── Matrículas (ativa + histórico) ───────────────────────────────
+    const todasMatriculasAluno = Storage.getAll('matriculas')
+      .filter(m => m.alunoId === id)
+      .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+
+    const matriculaAtiva = todasMatriculasAluno.find(m => m.status === 'ativa') || null;
 
     // Estatísticas de uso do plano (mês atual)
     const mesAtual2 = new Date().toISOString().slice(0, 7);
@@ -799,23 +801,40 @@ const AlunoModule = {
     const reposDisponiveis = Math.max(0, maxRepos - reposUsadas2);
 
     const TIPO_PLANO = { mensal:'Mensal', trimestral:'Trimestral', semestral:'Semestral', anual:'Anual' };
+    const fmtD = s => { if (!s) return '—'; const [y,m,d] = s.split('-'); return `${d}/${m}/${y}`; };
+
+    const STATUS_MAT = {
+      ativa:     { label:'Ativa',     badge:'badge-success' },
+      expirada:  { label:'Expirada',  badge:'badge-gray'    },
+      cancelada: { label:'Cancelada', badge:'badge-danger'  },
+      suspensa:  { label:'Suspensa',  badge:'badge-warning' },
+    };
+
+    // Bloco da matrícula ativa
     let planoHtml;
     if (!matriculaAtiva) {
-      planoHtml = `<p class="text-muted" style="font-style:italic;margin:4px 0;">Sem matrícula ativa. <button class="btn btn-ghost btn-sm" onclick="MatriculaModule.openModal();UI.closeModal();" style="font-size:12px;">+ Nova matrícula</button></p>`;
+      planoHtml = `<p class="text-muted" style="font-style:italic;margin:4px 0 12px;">
+        Sem matrícula ativa.
+        <button class="btn btn-ghost btn-sm" onclick="MatriculaModule.openModal();UI.closeModal();" style="font-size:12px;">+ Nova matrícula</button>
+      </p>`;
     } else {
-      const tipoLabel   = plano ? (TIPO_PLANO[plano.tipo] || plano.tipo || '—') : '—';
-      const fmtD        = s => { if (!s) return '—'; const [y,m,d] = s.split('-'); return `${d}/${m}/${y}`; };
-      const pctClass    = pctUso >= 75 ? 'color:var(--success)' : pctUso >= 50 ? 'color:var(--warning,#d97706)' : 'color:var(--danger)';
+      const tipoLabel = plano ? (TIPO_PLANO[plano.tipo] || plano.tipo || '—') : '—';
+      const pctClass  = pctUso >= 75 ? 'color:var(--success)' : pctUso >= 50 ? 'color:var(--warning,#d97706)' : 'color:var(--danger)';
 
-      const gradesDias  = inscricoes.map(i => {
+      const gradesDias = inscricoes.map(i => {
         const t = Storage.getById('turmas', i.turmaId);
         if (!t) return null;
-        const diasSemMap  = { dom:'Dom', seg:'Seg', ter:'Ter', qua:'Qua', qui:'Qui', sex:'Sex', sab:'Sáb' };
+        const diasSemMap = { dom:'Dom', seg:'Seg', ter:'Ter', qua:'Qua', qui:'Qui', sex:'Sex', sab:'Sáb' };
         const dias = (t.diasSemana || []).map(d => diasSemMap[d] || d).join(', ');
         return `<span class="aluno-grade-chip">${UI.escape(t.nome)}</span>${dias ? `<span class="text-muted" style="font-size:11px;">(${dias})</span>` : ''}`;
       }).filter(Boolean);
 
       planoHtml = `
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+          <span class="badge badge-success">✅ Matrícula Ativa</span>
+          <button class="btn btn-ghost btn-sm" onclick="MatriculaModule.openModal('${matriculaAtiva.id}');UI.closeModal();" style="font-size:11px;">✏️ Editar</button>
+          <button class="btn btn-ghost btn-sm" onclick="MatriculaModule.openModal();UI.closeModal();" style="font-size:11px;">+ Nova</button>
+        </div>
         <div class="info-grid" style="grid-template-columns:repeat(2,1fr);gap:8px 16px;font-size:0.85rem;margin-bottom:12px;">
           <div><span class="text-muted">Plano:</span> <strong>${UI.escape(matriculaAtiva.planoNome || '—')}</strong></div>
           <div><span class="text-muted">Tipo:</span> ${tipoLabel}</div>
@@ -833,14 +852,31 @@ const AlunoModule = {
           </div>
           <div class="stat-card" style="padding:10px 12px;">
             <div style="font-size:1.4rem;font-weight:800;text-align:center;color:${reposDisponiveis > 0 ? 'var(--success)' : 'var(--text-muted)'};">${reposDisponiveis}</div>
-            <div class="stat-label" style="text-align:center;">Reposições disponíveis</div>
+            <div class="stat-label" style="text-align:center;">Reposições disp.</div>
           </div>
         </div>
         <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">
-          ℹ️ Direito a até <strong>${maxRepos}</strong> reposições (50% de ${aulasContratadas} aulas) · ${reposUsadas2} utilizadas
+          ℹ️ Direito a até <strong>${maxRepos}</strong> reposições · ${reposUsadas2} utilizadas
         </div>
-        ${gradesDias.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">${gradesDias.join('')}</div>` : ''}`;
+        ${gradesDias.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:10px;">${gradesDias.join('')}</div>` : ''}`;
     }
+
+    // Histórico de matrículas (todas exceto a ativa já exibida acima)
+    const historico = todasMatriculasAluno.filter(m => m.id !== (matriculaAtiva?.id));
+    const historicoHtml = historico.length
+      ? `<div style="margin-top:12px;border-top:1px solid var(--card-border);padding-top:10px;">
+          <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:6px;">HISTÓRICO</div>
+          ${historico.map(m => {
+            const st = STATUS_MAT[m.status] || { label: m.status, badge: 'badge-gray' };
+            return `<div style="display:flex;align-items:center;gap:8px;font-size:13px;padding:4px 0;border-bottom:1px solid var(--card-border);">
+              <span class="badge ${st.badge}" style="font-size:10px;">${st.label}</span>
+              <span style="flex:1;">${UI.escape(m.planoNome || '—')}</span>
+              <span class="text-muted">${fmtD(m.dataInicio)} → ${fmtD(m.dataFim)}</span>
+              <button class="btn btn-ghost btn-sm" onclick="MatriculaModule.openModal('${m.id}');UI.closeModal();" title="Editar" style="font-size:11px;padding:2px 6px;">✏️</button>
+            </div>`;
+          }).join('')}
+        </div>`
+      : '';
 
     // ── Reposições ────────────────────────────────────────────────────
     const todasAulas = Storage.getAll('aulas');
@@ -919,8 +955,9 @@ const AlunoModule = {
       </div>
 
       <div class="detalhe-section">
-        <div class="detalhe-section-title">📋 Plano Contratado</div>
+        <div class="detalhe-section-title">🎫 Matrículas</div>
         ${planoHtml}
+        ${historicoHtml}
       </div>
 
       <div class="detalhe-section">
