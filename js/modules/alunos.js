@@ -10,7 +10,6 @@ const AlunoModule = {
     search:       '',
     filterStatus: '',
     filterNivel:  '',
-    tab:          'alunos', // 'alunos' | 'matriculas'
   },
 
   STATUS: {
@@ -20,6 +19,7 @@ const AlunoModule = {
   },
 
   NIVEL: {
+    kids:          'Kids',
     iniciante:     'Iniciante',
     intermediario: 'Intermediário',
     avancado:      'Avançado',
@@ -27,9 +27,10 @@ const AlunoModule = {
   },
 
   NIVEL_BADGE: {
-    iniciante:     'badge-blue',
-    intermediario: 'badge-success',
-    avancado:      'badge-warning',
+    kids:          'badge-blue',
+    iniciante:     'badge-success',
+    intermediario: 'badge-warning',
+    avancado:      'badge-danger',
     profissional:  'badge-danger',
   },
 
@@ -70,19 +71,7 @@ const AlunoModule = {
   /*  Render                                                              */
   /* ------------------------------------------------------------------ */
 
-  _tabBtn(key, label) {
-    return `<button class="tab-btn ${this._state.tab === key ? 'active' : ''}"
-      onclick="AlunoModule.switchTab('${key}')">${label}</button>`;
-  },
-
-  switchTab(tab) {
-    this._state.tab = tab;
-    if (tab === 'matriculas') this._renderMatriculas();
-    else this.render();
-  },
-
   render() {
-    this._state.tab = 'alunos';
     const stats    = this.getStats();
     const filtered = this.getFiltered();
     const area     = document.getElementById('content-area');
@@ -98,11 +87,6 @@ const AlunoModule = {
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Novo Aluno
         </button>
-      </div>
-
-      <div class="tabs-bar">
-        ${this._tabBtn('alunos', '👥 Alunos')}
-        ${this._tabBtn('matriculas', '📝 Matrículas')}
       </div>
 
       <div class="stats-grid">
@@ -274,99 +258,6 @@ const AlunoModule = {
   },
 
   /* ------------------------------------------------------------------ */
-  /*  Matrículas tab                                                      */
-  /* ------------------------------------------------------------------ */
-
-  _renderMatriculas() {
-    MatriculaModule._syncVencidas();
-    const stats    = MatriculaModule.getStats();
-    const filtered = MatriculaModule.getFiltered();
-    const area     = document.getElementById('content-area');
-    if (!area) return;
-
-    const planos = Storage.getAll('planos').filter(p => p.status === 'ativo');
-    const planoFilterOpts = planos.map(p =>
-      `<option value="${p.id}" ${MatriculaModule._state.filterPlano === p.id ? 'selected' : ''}>${UI.escape(p.nome)}</option>`
-    ).join('');
-
-    area.innerHTML = `
-      <div class="page-header">
-        <div class="page-header-text">
-          <h2>Alunos</h2>
-          <p>Cadastro e gestão de alunos matriculados</p>
-        </div>
-        <button class="btn btn-primary" onclick="MatriculaModule.openModal()">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          Nova Matrícula
-        </button>
-      </div>
-
-      <div class="tabs-bar">
-        ${this._tabBtn('alunos', '👥 Alunos')}
-        ${this._tabBtn('matriculas', '📝 Matrículas')}
-      </div>
-
-      <div class="stats-grid">
-        <div class="stat-card">
-          <div class="stat-icon blue">📝</div>
-          <div class="stat-info">
-            <div class="stat-value">${stats.total}</div>
-            <div class="stat-label">Total de Matrículas</div>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon green">✅</div>
-          <div class="stat-info">
-            <div class="stat-value">${stats.ativas}</div>
-            <div class="stat-label">Ativas</div>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon amber">⚠️</div>
-          <div class="stat-info">
-            <div class="stat-value">${stats.vencidas}</div>
-            <div class="stat-label">Vencidas</div>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon gray">⚪</div>
-          <div class="stat-info">
-            <div class="stat-value">${stats.encerradas}</div>
-            <div class="stat-label">Encerradas</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="filters-bar">
-        <div class="search-wrapper">
-          <span class="search-icon">🔍</span>
-          <input type="text" class="search-input"
-            placeholder="Buscar por aluno ou plano…"
-            value="${UI.escape(MatriculaModule._state.search)}"
-            oninput="MatriculaModule.handleSearch(this.value)" />
-        </div>
-        <select class="filter-select" onchange="MatriculaModule.handleFilterStatus(this.value)">
-          <option value="">Todos os status</option>
-          ${Object.entries(MatriculaModule.STATUS).map(([k, v]) =>
-            `<option value="${k}" ${MatriculaModule._state.filterStatus === k ? 'selected' : ''}>${v.label}</option>`
-          ).join('')}
-        </select>
-        <select class="filter-select" onchange="MatriculaModule.handleFilterPlano(this.value)">
-          <option value="">Todos os planos</option>
-          ${planoFilterOpts}
-        </select>
-        <span class="results-count">
-          ${filtered.length} matrícula${filtered.length !== 1 ? 's' : ''}
-        </span>
-      </div>
-
-      <div class="alunos-table-wrap" id="matriculas-list">
-        ${filtered.length ? MatriculaModule.renderTable(filtered) : MatriculaModule.renderEmpty()}
-      </div>
-    `;
-  },
-
-  /* ------------------------------------------------------------------ */
   /*  Modal / Form                                                        */
   /* ------------------------------------------------------------------ */
 
@@ -379,93 +270,227 @@ const AlunoModule = {
     const statusOptions = Object.entries(this.STATUS).map(([k, cfg]) =>
       `<option value="${k}" ${aluno && aluno.status === k ? 'selected' : ''}>${cfg.label}</option>`).join('');
 
+    const ladoOpts = [
+      { v:'',       l:'— Selecionar —' },
+      { v:'destro',  l:'Destro' },
+      { v:'canhoto', l:'Canhoto' },
+      { v:'ambos',   l:'Ambidestro' },
+    ].map(o => `<option value="${o.v}" ${aluno?.ladoDominante===o.v?'selected':''}>${o.l}</option>`).join('');
+
+    const idade = aluno?.dataNascimento ? this._calcIdade(aluno.dataNascimento) : '';
+
     const content = `
-      <div class="form-grid">
-        <div class="form-group">
-          <label class="form-label" for="a-nome">Nome completo <span class="required-star">*</span></label>
-          <input id="a-nome" name="nome" type="text" class="form-input"
-            placeholder="ex: João da Silva"
-            value="${v('nome')}" required autocomplete="off" />
-        </div>
+  <div class="form-grid">
 
-        <div class="form-grid-2">
-          <div class="form-group">
-            <label class="form-label" for="a-cpf">CPF</label>
-            <input id="a-cpf" name="cpf" type="text" class="form-input"
-              placeholder="000.000.000-00"
-              value="${v('cpf')}" maxlength="14" autocomplete="off"
-              oninput="AlunoModule._maskCpf(this)" />
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="a-telefone">Telefone</label>
-            <input id="a-telefone" name="telefone" type="text" class="form-input"
-              placeholder="(00) 00000-0000"
-              value="${v('telefone')}" maxlength="15" autocomplete="off"
-              oninput="AlunoModule._maskTel(this)" />
-          </div>
-        </div>
+    <div class="aluno-secao-titulo">👤 Dados Pessoais</div>
 
-        <div class="form-group">
-          <label class="form-label" for="a-email">E-mail</label>
-          <input id="a-email" name="email" type="email" class="form-input"
-            placeholder="aluno@email.com"
-            value="${v('email')}" autocomplete="off" />
-        </div>
+    <div class="form-group">
+      <label class="form-label" for="a-nome">Nome completo <span class="required-star">*</span></label>
+      <input id="a-nome" type="text" class="form-input" placeholder="ex: João da Silva"
+        value="${v('nome')}" required autocomplete="off" />
+    </div>
 
-        <div class="form-grid-2">
-          <div class="form-group">
-            <label class="form-label" for="a-nascimento">Data de nascimento</label>
-            <input id="a-nascimento" name="dataNascimento" type="date" class="form-input"
-              value="${v('dataNascimento')}" />
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="a-nivel">Nível</label>
-            <select id="a-nivel" name="nivel" class="form-select">
-              ${nivelOptions}
-            </select>
-          </div>
-        </div>
+    <div class="form-grid-2">
+      <div class="form-group">
+        <label class="form-label" for="a-telefone">Telefone</label>
+        <input id="a-telefone" type="text" class="form-input" placeholder="(00) 00000-0000"
+          value="${v('telefone')}" maxlength="15" oninput="AlunoModule._maskTel(this)" />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="a-email">E-mail</label>
+        <input id="a-email" type="email" class="form-input" placeholder="aluno@email.com"
+          value="${v('email')}" autocomplete="off" />
+      </div>
+    </div>
 
-        <div class="form-group">
-          <label class="form-label" for="a-status">Status</label>
-          <select id="a-status" name="status" class="form-select">
-            ${statusOptions}
-          </select>
-        </div>
+    <div class="aluno-secao-titulo" style="font-size:12px;margin-top:4px;">📱 Redes Sociais</div>
+    <div class="form-grid-2">
+      <div class="form-group">
+        <label class="form-label" for="a-rs-instagram">
+          <span style="color:#E1306C;">●</span> Instagram
+        </label>
+        <input id="a-rs-instagram" type="text" class="form-input" placeholder="@usuario"
+          value="${v('rsInstagram')}" autocomplete="off" />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="a-rs-facebook">
+          <span style="color:#1877F2;">●</span> Facebook
+        </label>
+        <input id="a-rs-facebook" type="text" class="form-input" placeholder="nome ou link"
+          value="${v('rsFacebook')}" autocomplete="off" />
+      </div>
+    </div>
+    <div class="form-grid-2">
+      <div class="form-group">
+        <label class="form-label" for="a-rs-tiktok">
+          <span style="color:#000;">●</span> TikTok
+        </label>
+        <input id="a-rs-tiktok" type="text" class="form-input" placeholder="@usuario"
+          value="${v('rsTikTok')}" autocomplete="off" />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="a-rs-youtube">
+          <span style="color:#FF0000;">●</span> YouTube
+        </label>
+        <input id="a-rs-youtube" type="text" class="form-input" placeholder="canal"
+          value="${v('rsYouTube')}" autocomplete="off" />
+      </div>
+    </div>
+    <div class="form-grid-2">
+      <div class="form-group">
+        <label class="form-label" for="a-rs-twitter">
+          <span style="color:#1DA1F2;">●</span> X / Twitter
+        </label>
+        <input id="a-rs-twitter" type="text" class="form-input" placeholder="@usuario"
+          value="${v('rsTwitter')}" autocomplete="off" />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="a-rs-linkedin">
+          <span style="color:#0A66C2;">●</span> LinkedIn
+        </label>
+        <input id="a-rs-linkedin" type="text" class="form-input" placeholder="perfil"
+          value="${v('rsLinkedIn')}" autocomplete="off" />
+      </div>
+    </div>
 
-        <div class="aluno-secao-titulo">👕 Vestuário</div>
-        <div class="form-grid-3">
-          <div class="form-group">
-            <label class="form-label" for="a-camisa">Camiseta</label>
-            <select id="a-camisa" class="form-select">
-              <option value="">—</option>
-              ${['PP','P','M','G','GG','XG','XXG'].map(s =>
-                `<option value="${s}" ${v('tamanhoCamisa')===s?'selected':''}>${s}</option>`).join('')}
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="a-short">Short</label>
-            <select id="a-short" class="form-select">
-              <option value="">—</option>
-              ${['PP','P','M','G','GG','XG','XXG'].map(s =>
-                `<option value="${s}" ${v('tamanhoShort')===s?'selected':''}>${s}</option>`).join('')}
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="a-sapato">Calçado (nº)</label>
-            <input id="a-sapato" type="number" class="form-input"
-              placeholder="ex: 42" min="28" max="48"
-              value="${v('tamanhoSapato')}" />
-          </div>
-        </div>
+    <div class="form-grid-2">
+      <div class="form-group">
+        <label class="form-label" for="a-cpf">CPF</label>
+        <input id="a-cpf" type="text" class="form-input" placeholder="000.000.000-00"
+          value="${v('cpf')}" maxlength="14" oninput="AlunoModule._maskCpf(this)" />
+      </div>
+    </div>
 
-        <div class="form-group">
-          <label class="form-label" for="a-obs">Observações</label>
-          <textarea id="a-obs" name="observacoes" class="form-textarea"
-            placeholder="Informações adicionais sobre o aluno…" rows="3">${aluno ? UI.escape(aluno.observacoes || '') : ''}</textarea>
+    <div class="form-grid-2">
+      <div class="form-group">
+        <label class="form-label" for="a-nascimento">Data de nascimento</label>
+        <input id="a-nascimento" type="date" class="form-input"
+          value="${v('dataNascimento')}"
+          oninput="AlunoModule._showIdade(this)" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Idade</label>
+        <div id="a-idade-display" class="form-input" style="background:var(--bg-secondary);display:flex;align-items:center;color:var(--text-secondary);">
+          ${idade ? `<strong>${idade} anos</strong>` : '<span style="color:var(--text-muted);">— preencha o nascimento</span>'}
         </div>
+      </div>
+    </div>
 
-      </div>`;
+    <div class="form-group">
+      <label class="form-label" for="a-rua">Endereço — Rua</label>
+      <input id="a-rua" type="text" class="form-input" placeholder="ex: Rua das Flores, 123"
+        value="${v('enderecoRua')}" autocomplete="off" />
+    </div>
+
+    <div class="form-grid-2">
+      <div class="form-group">
+        <label class="form-label" for="a-bairro">Bairro</label>
+        <input id="a-bairro" type="text" class="form-input" placeholder="ex: Centro"
+          value="${v('enderecoBairro')}" autocomplete="off" />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="a-cidade">Cidade</label>
+        <input id="a-cidade" type="text" class="form-input" placeholder="ex: São Paulo"
+          value="${v('enderecoCidade')}" autocomplete="off" />
+      </div>
+    </div>
+
+    <div class="form-grid-2">
+      <div class="form-group">
+        <label class="form-label" for="a-cep">CEP</label>
+        <input id="a-cep" type="text" class="form-input" placeholder="00000-000"
+          value="${v('enderecoCep')}" maxlength="9" oninput="AlunoModule._maskCep(this)" />
+      </div>
+      <div></div>
+    </div>
+
+    <div class="aluno-secao-titulo">🏓 Dados do Esporte</div>
+
+    <div class="form-grid-2">
+      <div class="form-group">
+        <label class="form-label" for="a-peso">Peso (kg)</label>
+        <input id="a-peso" type="number" class="form-input" placeholder="ex: 75" min="20" max="200" step="0.1"
+          value="${v('peso')}" />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="a-altura">Altura (cm)</label>
+        <input id="a-altura" type="number" class="form-input" placeholder="ex: 175" min="100" max="230"
+          value="${v('altura')}" />
+      </div>
+    </div>
+
+    <div class="form-grid-2">
+      <div class="form-group">
+        <label class="form-label" for="a-lado">Lado dominante</label>
+        <select id="a-lado" class="form-select">${ladoOpts}</select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="a-nivel">Nível no esporte</label>
+        <select id="a-nivel" class="form-select">${nivelOptions}</select>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label" for="a-raquete">Raquete que usa</label>
+      <input id="a-raquete" type="text" list="raquete-suggestions" class="form-input"
+        placeholder="Digite ou selecione o modelo"
+        value="${v('raquete')}" autocomplete="off" />
+      <datalist id="raquete-suggestions">
+        <option value="Selkirk Vanguard 2.0">
+        <option value="Selkirk SLK Halo">
+        <option value="JOOLA Ben Johns Hyperion">
+        <option value="JOOLA Perseus">
+        <option value="Paddletek Tempest Wave Pro">
+        <option value="Paddletek Phoenix Pro">
+        <option value="Engage Poach Advantage">
+        <option value="Engage Encore Pro">
+        <option value="Franklin Ben Johns Signature">
+        <option value="Head Radical Pro">
+        <option value="Wilson Juice">
+        <option value="ProXR Palladium">
+        <option value="Vulcan V530">
+        <option value="Babolat Touch Lite">
+      </datalist>
+    </div>
+
+    <div class="aluno-secao-titulo">⚙️ Configurações</div>
+
+    <div class="form-group">
+      <label class="form-label" for="a-status">Status</label>
+      <select id="a-status" class="form-select">${statusOptions}</select>
+    </div>
+
+    <div class="aluno-secao-titulo">👕 Vestuário</div>
+    <div class="form-grid-3">
+      <div class="form-group">
+        <label class="form-label" for="a-camisa">Camiseta</label>
+        <select id="a-camisa" class="form-select">
+          <option value="">—</option>
+          ${['PP','P','M','G','GG','XG','XXG'].map(s =>
+            `<option value="${s}" ${v('tamanhoCamisa')===s?'selected':''}>${s}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="a-short">Short</label>
+        <select id="a-short" class="form-select">
+          <option value="">—</option>
+          ${['PP','P','M','G','GG','XG','XXG'].map(s =>
+            `<option value="${s}" ${v('tamanhoShort')===s?'selected':''}>${s}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="a-sapato">Calçado (nº)</label>
+        <input id="a-sapato" type="number" class="form-input" placeholder="ex: 42" min="28" max="48"
+          value="${v('tamanhoSapato')}" />
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label" for="a-obs">Observações</label>
+      <textarea id="a-obs" class="form-textarea" placeholder="Informações adicionais…" rows="2">${aluno ? UI.escape(aluno.observacoes || '') : ''}</textarea>
+    </div>
+
+  </div>`;
 
     UI.openModal({
       title:        isEdit ? `Editar Aluno — ${aluno.nome}` : 'Novo Aluno',
@@ -508,6 +533,20 @@ const AlunoModule = {
       tamanhoCamisa:  g('camisa')     ? g('camisa').value            : '',
       tamanhoShort:   g('short')      ? g('short').value             : '',
       tamanhoSapato:  g('sapato')     ? g('sapato').value            : '',
+      rsInstagram:    g('rs-instagram') ? g('rs-instagram').value.trim() : '',
+      rsFacebook:     g('rs-facebook')  ? g('rs-facebook').value.trim()  : '',
+      rsTikTok:       g('rs-tiktok')    ? g('rs-tiktok').value.trim()    : '',
+      rsYouTube:      g('rs-youtube')   ? g('rs-youtube').value.trim()   : '',
+      rsTwitter:      g('rs-twitter')   ? g('rs-twitter').value.trim()   : '',
+      rsLinkedIn:     g('rs-linkedin')  ? g('rs-linkedin').value.trim()  : '',
+      enderecoRua:    g('rua')        ? g('rua').value.trim()        : '',
+      enderecoBairro: g('bairro')     ? g('bairro').value.trim()     : '',
+      enderecoCidade: g('cidade')     ? g('cidade').value.trim()     : '',
+      enderecoCep:    g('cep')        ? g('cep').value.trim()        : '',
+      peso:           g('peso')       ? g('peso').value              : '',
+      altura:         g('altura')     ? g('altura').value            : '',
+      ladoDominante:  g('lado')       ? g('lado').value              : '',
+      raquete:        g('raquete')    ? g('raquete').value.trim()    : '',
     };
 
     if (id) {
@@ -607,7 +646,7 @@ const AlunoModule = {
     const status     = this.STATUS[aluno.status] || { label: aluno.status, badge: 'badge-gray' };
     const nivelLabel = this.NIVEL[aluno.nivel]   || aluno.nivel || '—';
     const nivelBadge = this.NIVEL_BADGE[aluno.nivel] || 'badge-gray';
-    const idade      = aluno.dataNascimento ? this._calcIdade(aluno.dataNascimento) + ' anos' : '—';
+    const idade      = aluno.dataNascimento ? this._calcIdade(aluno.dataNascimento) : '—';
 
     // Turmas em que o aluno está inscrito (ativas)
     const inscricoes = Storage.getAll('turmaAlunos').filter(i => i.alunoId === id && i.status === 'ativo');
@@ -731,41 +770,68 @@ const AlunoModule = {
       .filter(m => m.alunoId === id && m.status === 'ativa')
       .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))[0] || null;
 
+    // Estatísticas de uso do plano (mês atual)
+    const mesAtual2 = new Date().toISOString().slice(0, 7);
+    const plano = matriculaAtiva ? Storage.getById('planos', matriculaAtiva.planoId) : null;
+    const aulasContratadas = plano ? (parseInt(plano.aulasIncluidas, 10) || 0) : 0;
+
+    const aulasDoMes = Storage.getAll('aulas').filter(a =>
+      turmaIds.includes(a.turmaId) && (a.data || '').startsWith(mesAtual2) && a.status === 'concluida'
+    );
+    const presencasDoMes = Storage.getAll('presencas').filter(p =>
+      p.alunoId === id && p.presente && aulasDoMes.some(a => a.id === p.aulaId)
+    );
+    const aulasRealizadas = presencasDoMes.length;
+    const pctUso = aulasContratadas > 0 ? Math.round((aulasRealizadas / aulasContratadas) * 100) : 0;
+
+    const maxRepos = Math.floor(aulasContratadas * 0.5);
+    const reposUsadas2 = Storage.getAll('aulas').filter(a =>
+      a.tipo === 'reposicao' && (a.alunoReposicaoId === id || a.alunoId === id) && a.status === 'concluida'
+    ).length;
+    const reposDisponiveis = Math.max(0, maxRepos - reposUsadas2);
+
     const TIPO_PLANO = { mensal:'Mensal', trimestral:'Trimestral', semestral:'Semestral', anual:'Anual' };
     let planoHtml;
     if (!matriculaAtiva) {
-      planoHtml = `<p class="text-muted" style="font-style:italic;margin:4px 0;">Sem matrícula ativa.</p>`;
+      planoHtml = `<p class="text-muted" style="font-style:italic;margin:4px 0;">Sem matrícula ativa. <button class="btn btn-ghost btn-sm" onclick="MatriculaModule.openModal();UI.closeModal();" style="font-size:12px;">+ Nova matrícula</button></p>`;
     } else {
-      const plano       = Storage.getById('planos', matriculaAtiva.planoId);
       const tipoLabel   = plano ? (TIPO_PLANO[plano.tipo] || plano.tipo || '—') : '—';
-      const aulas       = plano ? (plano.aulasIncluidas || 0) : 0;
-      const [ai, af]    = [matriculaAtiva.dataInicio, matriculaAtiva.dataFim];
       const fmtD        = s => { if (!s) return '—'; const [y,m,d] = s.split('-'); return `${d}/${m}/${y}`; };
+      const pctClass    = pctUso >= 75 ? 'color:var(--success)' : pctUso >= 50 ? 'color:var(--warning,#d97706)' : 'color:var(--danger)';
 
-      // Grades inscritas com dias da semana
-      const diasSemMap  = { dom:'Dom', seg:'Seg', ter:'Ter', qua:'Qua', qui:'Qui', sex:'Sex', sab:'Sáb' };
       const gradesDias  = inscricoes.map(i => {
         const t = Storage.getById('turmas', i.turmaId);
         if (!t) return null;
+        const diasSemMap  = { dom:'Dom', seg:'Seg', ter:'Ter', qua:'Qua', qui:'Qui', sex:'Sex', sab:'Sáb' };
         const dias = (t.diasSemana || []).map(d => diasSemMap[d] || d).join(', ');
         return `<span class="aluno-grade-chip">${UI.escape(t.nome)}</span>${dias ? `<span class="text-muted" style="font-size:11px;">(${dias})</span>` : ''}`;
       }).filter(Boolean);
 
-      const vezesSemana = [...new Set(inscricoes.flatMap(i => {
-        const t = Storage.getById('turmas', i.turmaId);
-        return t ? (t.diasSemana || []) : [];
-      }))].length;
-
       planoHtml = `
-        <div class="info-grid" style="grid-template-columns:repeat(2,1fr);gap:8px 16px;font-size:0.85rem;">
+        <div class="info-grid" style="grid-template-columns:repeat(2,1fr);gap:8px 16px;font-size:0.85rem;margin-bottom:12px;">
           <div><span class="text-muted">Plano:</span> <strong>${UI.escape(matriculaAtiva.planoNome || '—')}</strong></div>
           <div><span class="text-muted">Tipo:</span> ${tipoLabel}</div>
-          <div><span class="text-muted">Aulas incluídas:</span> ${aulas}/mês</div>
-          <div><span class="text-muted">Freq. semanal:</span> ${vezesSemana}x / semana</div>
-          <div><span class="text-muted">Início:</span> ${fmtD(ai)}</div>
-          <div><span class="text-muted">Vencimento:</span> ${fmtD(af)}</div>
+          <div><span class="text-muted">Início:</span> ${fmtD(matriculaAtiva.dataInicio)}</div>
+          <div><span class="text-muted">Vencimento:</span> ${fmtD(matriculaAtiva.dataFim)}</div>
         </div>
-        ${gradesDias.length ? `<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;">${gradesDias.join('')}</div>` : ''}`;
+        <div class="stats-grid" style="grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px;">
+          <div class="stat-card" style="padding:10px 12px;">
+            <div style="font-size:1.4rem;font-weight:800;text-align:center;">${aulasContratadas}</div>
+            <div class="stat-label" style="text-align:center;">Aulas / mês</div>
+          </div>
+          <div class="stat-card" style="padding:10px 12px;">
+            <div style="font-size:1.4rem;font-weight:800;text-align:center;${pctClass}">${aulasRealizadas}</div>
+            <div class="stat-label" style="text-align:center;">Realizadas (${pctUso}%)</div>
+          </div>
+          <div class="stat-card" style="padding:10px 12px;">
+            <div style="font-size:1.4rem;font-weight:800;text-align:center;color:${reposDisponiveis > 0 ? 'var(--success)' : 'var(--text-muted)'};">${reposDisponiveis}</div>
+            <div class="stat-label" style="text-align:center;">Reposições disponíveis</div>
+          </div>
+        </div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">
+          ℹ️ Direito a até <strong>${maxRepos}</strong> reposições (50% de ${aulasContratadas} aulas) · ${reposUsadas2} utilizadas
+        </div>
+        ${gradesDias.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">${gradesDias.join('')}</div>` : ''}`;
     }
 
     // ── Reposições ────────────────────────────────────────────────────
@@ -802,17 +868,40 @@ const AlunoModule = {
 
     const content = `
       <div class="detalhe-section">
-        <div class="detalhe-section-title">Dados pessoais</div>
+        <div class="detalhe-section-title">👤 Dados Pessoais</div>
         <div class="info-grid" style="grid-template-columns:repeat(2,1fr);">
           <div><span class="text-muted">Nome:</span> <strong>${UI.escape(aluno.nome)}</strong></div>
           <div><span class="text-muted">Status:</span> <span class="badge ${status.badge}">${status.label}</span></div>
           <div><span class="text-muted">CPF:</span> ${UI.escape(aluno.cpf || '—')}</div>
           <div><span class="text-muted">Telefone:</span> ${UI.escape(aluno.telefone || '—')}</div>
           <div><span class="text-muted">E-mail:</span> ${UI.escape(aluno.email || '—')}</div>
-          <div><span class="text-muted">Idade:</span> ${UI.escape(idade)}</div>
-          <div><span class="text-muted">Nível:</span> <span class="badge ${nivelBadge}">${UI.escape(nivelLabel)}</span></div>
-          <div><span class="text-muted">Cadastro:</span> ${UI.formatDate(aluno.createdAt)}</div>
+          ${[
+            aluno.rsInstagram ? `<span style="color:#E1306C;">●</span> <strong>Instagram:</strong> ${UI.escape(aluno.rsInstagram)}` : '',
+            aluno.rsFacebook  ? `<span style="color:#1877F2;">●</span> <strong>Facebook:</strong> ${UI.escape(aluno.rsFacebook)}`   : '',
+            aluno.rsTikTok    ? `<span style="color:#000;">●</span> <strong>TikTok:</strong> ${UI.escape(aluno.rsTikTok)}`           : '',
+            aluno.rsYouTube   ? `<span style="color:#FF0000;">●</span> <strong>YouTube:</strong> ${UI.escape(aluno.rsYouTube)}`     : '',
+            aluno.rsTwitter   ? `<span style="color:#1DA1F2;">●</span> <strong>X/Twitter:</strong> ${UI.escape(aluno.rsTwitter)}`  : '',
+            aluno.rsLinkedIn  ? `<span style="color:#0A66C2;">●</span> <strong>LinkedIn:</strong> ${UI.escape(aluno.rsLinkedIn)}`  : '',
+          ].filter(Boolean).map(rs => `<div style="grid-column:1/-1;font-size:13px;">${rs}</div>`).join('') || '<div style="grid-column:1/-1;"><span class="text-muted">Redes sociais:</span> —</div>'}
+          <div><span class="text-muted">Data de Nasc.:</span> ${aluno.dataNascimento ? UI.formatDate(aluno.dataNascimento) : '—'}</div>
+          <div><span class="text-muted">Idade:</span> ${idade !== '—' ? `<strong>${idade} anos</strong>` : '—'}</div>
+          ${(aluno.enderecoRua || aluno.enderecoBairro || aluno.enderecoCidade) ? `
+          <div style="grid-column:1/-1;">
+            <span class="text-muted">Endereço:</span>
+            ${[aluno.enderecoRua, aluno.enderecoBairro, aluno.enderecoCidade, aluno.enderecoCep].filter(Boolean).map(s => UI.escape(s)).join(' · ')}
+          </div>` : ''}
           ${aluno.observacoes ? `<div style="grid-column:1/-1;"><span class="text-muted">Obs:</span> ${UI.escape(aluno.observacoes)}</div>` : ''}
+        </div>
+      </div>
+
+      <div class="detalhe-section">
+        <div class="detalhe-section-title">🏓 Dados do Esporte</div>
+        <div class="info-grid" style="grid-template-columns:repeat(2,1fr);">
+          <div><span class="text-muted">Nível:</span> <span class="badge ${nivelBadge}">${UI.escape(nivelLabel)}</span></div>
+          <div><span class="text-muted">Lado dominante:</span> ${ {'destro':'Destro','canhoto':'Canhoto','ambos':'Ambidestro'}[aluno.ladoDominante] || '—'}</div>
+          <div><span class="text-muted">Peso:</span> ${aluno.peso ? aluno.peso + ' kg' : '—'}</div>
+          <div><span class="text-muted">Altura:</span> ${aluno.altura ? aluno.altura + ' cm' : '—'}</div>
+          ${aluno.raquete ? `<div style="grid-column:1/-1;"><span class="text-muted">Raquete:</span> <strong>${UI.escape(aluno.raquete)}</strong></div>` : ''}
         </div>
       </div>
 
@@ -888,6 +977,20 @@ const AlunoModule = {
     if (v.length > 10) v = v.replace(/(\d{2})(\d{5})(\d{0,4})/, '($1) $2-$3');
     else if (v.length > 6) v = v.replace(/(\d{2})(\d{4})(\d{0,4})/, '($1) $2-$3');
     else if (v.length > 2) v = v.replace(/(\d{2})(\d{0,5})/, '($1) $2');
+    el.value = v;
+  },
+
+  _showIdade(input) {
+    const age = this._calcIdade(input.value);
+    const el = document.getElementById('a-idade-display');
+    if (el) el.innerHTML = age && age !== '—'
+      ? `<strong>${age} anos</strong>`
+      : '<span style="color:var(--text-muted);">— preencha o nascimento</span>';
+  },
+
+  _maskCep(el) {
+    let v = el.value.replace(/\D/g, '').slice(0, 8);
+    if (v.length > 5) v = v.replace(/(\d{5})(\d{0,3})/, '$1-$2');
     el.value = v;
   },
 };
