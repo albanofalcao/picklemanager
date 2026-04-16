@@ -498,6 +498,34 @@ const AlunoModule = {
       <textarea id="a-obs" class="form-textarea" placeholder="Informações adicionais…" rows="2">${aluno ? UI.escape(aluno.observacoes || '') : ''}</textarea>
     </div>
 
+    ${isEdit ? (() => {
+      const mats = Storage.getAll('matriculas')
+        .filter(m => m.alunoId === id)
+        .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+      const fmtD = s => { if (!s) return '—'; const [y,mm,d] = s.split('-'); return `${d}/${mm}/${y}`; };
+      const ST = {
+        ativa:     '<span class="badge badge-success" style="font-size:10px;">Ativa</span>',
+        expirada:  '<span class="badge badge-gray"    style="font-size:10px;">Expirada</span>',
+        cancelada: '<span class="badge badge-danger"  style="font-size:10px;">Cancelada</span>',
+        suspensa:  '<span class="badge badge-warning" style="font-size:10px;">Suspensa</span>',
+      };
+      const linhas = mats.length
+        ? mats.map(m => `
+            <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--card-border);font-size:13px;flex-wrap:wrap;">
+              ${ST[m.status] || `<span class="badge badge-gray" style="font-size:10px;">${m.status}</span>`}
+              <span style="flex:1;font-weight:600;">${UI.escape(m.planoNome || '—')}</span>
+              <span class="text-muted">${fmtD(m.dataInicio)} → ${fmtD(m.dataFim)}</span>
+              <button class="btn btn-ghost btn-sm" onclick="MatriculaModule.openModal('${m.id}');UI.closeModal();" style="font-size:11px;padding:2px 8px;">✏️ Editar</button>
+            </div>`).join('')
+        : `<p class="text-muted" style="font-style:italic;font-size:13px;margin:6px 0;">Nenhuma matrícula registrada.</p>`;
+      return `
+        <div class="aluno-secao-titulo">🎫 Matrículas</div>
+        <div style="border:1px solid var(--card-border);border-radius:var(--radius-sm);padding:4px 12px 4px;margin-bottom:8px;">
+          ${linhas}
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="MatriculaModule.openModal();UI.closeModal();" style="font-size:12px;margin-bottom:8px;">+ Nova matrícula</button>`;
+    })() : ''}
+
   </div>`;
 
     UI.openModal({
