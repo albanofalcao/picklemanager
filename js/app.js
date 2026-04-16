@@ -70,6 +70,7 @@ const App = {
   NAV_ITEMS: [
     { route: 'dashboard',   icon: '📊', label: 'Dashboard'            },
     { route: 'alunos',      icon: '👥', label: 'Alunos'              },
+    { route: 'matriculas',  icon: '🎫', label: 'Matrículas'          },
     { route: 'planos',      icon: '📋', label: 'Planos de Contratação'},
     { route: 'professores', icon: '🎓', label: 'Professores'         },
     { route: 'turmas',      icon: '🏸', label: 'Aulas'               },
@@ -84,9 +85,9 @@ const App = {
   ],
 
   SEED_PERFIS: [
-    { key: 'admin',         label: 'Administrador',    descricao: 'Acesso total ao sistema, incluindo gestão de usuários',    cor: 'badge-danger',  modulos: ['dashboard','arenas','alunos','planos','professores','turmas','eventos','loja','dayuse','financeiro','manutencao','relatorios','cadastros','admin'] },
-    { key: 'gerente',       label: 'Gerente',          descricao: 'Acesso a todos os módulos operacionais',                   cor: 'badge-warning', modulos: ['dashboard','arenas','alunos','planos','professores','turmas','eventos','loja','dayuse','financeiro','manutencao','relatorios','cadastros'] },
-    { key: 'recepcionista', label: 'Recepcionista',    descricao: 'Atendimento ao aluno, matrículas e turmas',               cor: 'badge-blue',    modulos: ['dashboard','alunos','turmas','eventos','loja','dayuse'] },
+    { key: 'admin',         label: 'Administrador',    descricao: 'Acesso total ao sistema, incluindo gestão de usuários',    cor: 'badge-danger',  modulos: ['dashboard','arenas','alunos','matriculas','planos','professores','turmas','eventos','loja','dayuse','financeiro','manutencao','relatorios','cadastros','admin'] },
+    { key: 'gerente',       label: 'Gerente',          descricao: 'Acesso a todos os módulos operacionais',                   cor: 'badge-warning', modulos: ['dashboard','arenas','alunos','matriculas','planos','professores','turmas','eventos','loja','dayuse','financeiro','manutencao','relatorios','cadastros'] },
+    { key: 'recepcionista', label: 'Recepcionista',    descricao: 'Atendimento ao aluno, matrículas e turmas',               cor: 'badge-blue',    modulos: ['dashboard','alunos','matriculas','turmas','eventos','loja','dayuse'] },
     { key: 'financeiro',    label: 'Financeiro',       descricao: 'Controle financeiro e planos de contratação',              cor: 'badge-success', modulos: ['dashboard','financeiro','planos','alunos','loja','dayuse','relatorios'] },
     { key: 'manutencao',    label: 'Manutenção',       descricao: 'Gestão de arenas e chamados de manutenção',               cor: 'badge-gray',    modulos: ['dashboard','arenas','manutencao'] },
     { key: 'professor',     label: 'Professor',        descricao: 'Acesso às grades e aulas do próprio professor',            cor: 'badge-blue',    modulos: ['turmas'] },
@@ -334,9 +335,9 @@ const App = {
    */
   _migratePerfis() {
     const novosPorPerfil = {
-      admin:         ['relatorios', 'turmas', 'dayuse', 'loja'],
-      gerente:       ['relatorios', 'turmas', 'dayuse', 'loja'],
-      recepcionista: ['turmas', 'dayuse', 'loja'],
+      admin:         ['relatorios', 'turmas', 'dayuse', 'loja', 'matriculas'],
+      gerente:       ['relatorios', 'turmas', 'dayuse', 'loja', 'matriculas'],
+      recepcionista: ['turmas', 'dayuse', 'loja', 'matriculas'],
       financeiro:    ['relatorios', 'dayuse', 'loja'],
       professor:     ['turmas'],
       aluno:         ['turmas'],
@@ -461,6 +462,7 @@ const App = {
       .add('dashboard',   () => Auth.hasPermission('dashboard')   ? renderStub('dashboard')          : this._forbidden())
       .add('arenas',      () => Auth.hasPermission('arenas')      ? ArenaModule.render()             : this._forbidden())
       .add('alunos',      () => Auth.hasPermission('alunos')      ? AlunoModule.render()             : this._forbidden())
+      .add('matriculas',  () => Auth.hasPermission('matriculas')  ? MatriculaModule.render()         : this._forbidden())
       .add('planos',      () => Auth.hasPermission('planos')      ? PlanoModule.render()             : this._forbidden())
       .add('professores', () => Auth.hasPermission('professores') ? ProfessorModule.render()         : this._forbidden())
       .add('turmas',      () => Auth.hasPermission('turmas')      ? TurmasModule.render()            : this._forbidden())
