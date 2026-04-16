@@ -803,7 +803,7 @@ const LojaModule = {
     }
 
     window._lojaVendaItens = window._lojaVendaItens || [];
-    window._lojaVendaItens.push({ produtoId: produto.id, produtoNome: produto.nome, qtd, precoUnit: preco, total: qtd * preco });
+    window._lojaVendaItens.push({ produtoId: produto.id, produtoNome: produto.nome, qtd, precoUnit: preco, precoCusto: produto.precoCusto || 0, total: qtd * preco });
 
     this._renderItensVenda();
     sel.value = '';
@@ -899,6 +899,7 @@ const LojaModule = {
     const formaMap  = { 'Dinheiro':'dinheiro','PIX':'pix','Cartão de Crédito':'cartao_credito','Cartão de Débito':'cartao_debito','Transferência':'transferencia' };
 
     try {
+      // Lançamento de receita
       Storage.create('financeiro', {
         data,
         tipo:           'receita',
@@ -906,10 +907,26 @@ const LojaModule = {
         descricao,
         valor:          total,
         formaPagamento: formaMap[forma] || 'dinheiro',
-        status:         'recebido',
+        status:         'pago',
         origem:         'loja',
         origemId:       vendaId,
       });
+
+      // Lançamento automático de CMV (custo do estoque vendido)
+      const totalCMV = itens.reduce((s, i) => s + (parseFloat(i.precoCusto)||0) * (i.qtd||1), 0);
+      if (totalCMV > 0.01) {
+        Storage.create('financeiro', {
+          data,
+          tipo:           'cmv',
+          categoria:      'cmv_loja',
+          descricao:      `CMV — ${descricao}`.slice(0, 120),
+          valor:          totalCMV,
+          formaPagamento: 'interno',
+          status:         'pago',
+          origem:         'loja',
+          origemId:       vendaId,
+        });
+      }
     } catch(e) {
       console.warn('Erro ao lançar no financeiro:', e);
     }

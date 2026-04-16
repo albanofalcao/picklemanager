@@ -14,7 +14,8 @@ const FinanceiroModule = {
     filterMes:    '',
   },
 
-  STORAGE_KEY_PC: 'planoContas',
+  STORAGE_KEY_PC:  'planoContas',
+  STORAGE_KEY_ORC: 'orcamento',
 
   TIPO_PC: {
     receita:    { label: 'Receita',    badge: 'badge-success' },
@@ -28,6 +29,7 @@ const FinanceiroModule = {
   TIPO: {
     receita: { label: 'Receita', badge: 'badge-success', color: 'green' },
     despesa: { label: 'Despesa', badge: 'badge-danger',  color: 'red'   },
+    cmv:     { label: 'CMV',     badge: 'badge-blue',    color: 'blue'  },
   },
 
   STATUS: {
@@ -54,6 +56,25 @@ const FinanceiroModule = {
     marketing:    'Marketing',
     outro_d:      'Outro',
   },
+
+  /* Linhas padrão do DRE — usadas no orçamento e no comparativo */
+  _DRE_LINHAS: [
+    { grupo:'receita', id:'mensalidade',  label:'Mensalidades',             cats:['mensalidade','Mensalidade'] },
+    { grupo:'receita', id:'aula_avulsa',  label:'Aulas Avulsas / Pacotes',  cats:['aula_avulsa','Aula Avulsa','pacote','Pacote de Aulas'] },
+    { grupo:'receita', id:'day_use',      label:'Day Use',                  cats:['day_use','Day Use'] },
+    { grupo:'receita', id:'loja_venda',   label:'Loja — Vendas',            cats:['Venda de Produtos','loja_venda'] },
+    { grupo:'receita', id:'eventos',      label:'Eventos / Torneios',       cats:['inscricao_evento','Inscrição em Evento'] },
+    { grupo:'receita', id:'outro_r',      label:'Outras Receitas',          cats:['outro_r','Outro'] },
+    { grupo:'cmv',     id:'cmv_loja',     label:'CMV — Custo dos Produtos', cats:['cmv_loja','cmv'] },
+    { grupo:'cmv',     id:'cmv_interno',  label:'Consumo Interno',          cats:['cmv_interno'] },
+    { grupo:'despesa', id:'salarios',     label:'Pessoal / Salários',       cats:['salarios','Salários'] },
+    { grupo:'despesa', id:'aluguel',      label:'Aluguel',                  cats:['aluguel','Aluguel'] },
+    { grupo:'despesa', id:'utilities',    label:'Luz / Água / Internet',    cats:['utilities','Água / Luz / Internet'] },
+    { grupo:'despesa', id:'manutencao',   label:'Manutenção',               cats:['manutencao','Manutenção'] },
+    { grupo:'despesa', id:'marketing',    label:'Marketing',                cats:['marketing','Marketing'] },
+    { grupo:'despesa', id:'equipamentos', label:'Equipamentos',             cats:['equipamentos','Equipamentos'] },
+    { grupo:'despesa', id:'outro_d',      label:'Outras Despesas',          cats:['outro_d','Outro'] },
+  ],
 
   FORMA_PAGAMENTO: {
     dinheiro:        'Dinheiro',
@@ -93,10 +114,12 @@ const FinanceiroModule = {
   getStats() {
     const mes  = this._state.filterMes || new Date().toISOString().slice(0, 7);
     const doMes = this.getAll().filter(l => l.data && l.data.slice(0, 7) === mes && l.status !== 'cancelado');
-    const receitas  = doMes.filter(l => l.tipo === 'receita').reduce((s, l) => s + (parseFloat(l.valor) || 0), 0);
-    const despesas  = doMes.filter(l => l.tipo === 'despesa').reduce((s, l) => s + (parseFloat(l.valor) || 0), 0);
-    const pendentes = this.getAll().filter(l => l.status === 'pendente').length;
-    return { receitas, despesas, saldo: receitas - despesas, pendentes };
+    const receitas    = doMes.filter(l => l.tipo === 'receita').reduce((s, l) => s + (parseFloat(l.valor) || 0), 0);
+    const cmv         = doMes.filter(l => l.tipo === 'cmv').reduce((s, l) => s + (parseFloat(l.valor) || 0), 0);
+    const despesas    = doMes.filter(l => l.tipo === 'despesa').reduce((s, l) => s + (parseFloat(l.valor) || 0), 0);
+    const pendentes   = this.getAll().filter(l => l.status === 'pendente').length;
+    const margemBruta = receitas - cmv;
+    return { receitas, cmv, margemBruta, despesas, saldo: margemBruta - despesas, pendentes };
   },
 
   _getMesesDisponiveis() {
@@ -122,11 +145,21 @@ const FinanceiroModule = {
     const tabsBar = `
       <div class="tabs-bar">
         <button class="tab-btn ${tab === 'lancamentos' ? 'active' : ''}" onclick="FinanceiroModule.switchTab('lancamentos')">💰 Lançamentos</button>
+        <button class="tab-btn ${tab === 'orcamento'   ? 'active' : ''}" onclick="FinanceiroModule.switchTab('orcamento')">📊 Orçamento</button>
+        <button class="tab-btn ${tab === 'dre'         ? 'active' : ''}" onclick="FinanceiroModule.switchTab('dre')">📈 DRE</button>
         <button class="tab-btn ${tab === 'planoContas' ? 'active' : ''}" onclick="FinanceiroModule.switchTab('planoContas')">📋 Plano de Contas</button>
       </div>`;
 
     if (tab === 'planoContas') {
       area.innerHTML = tabsBar + this._renderPlanoContas();
+      return;
+    }
+    if (tab === 'orcamento') {
+      area.innerHTML = tabsBar + this._renderOrcamento();
+      return;
+    }
+    if (tab === 'dre') {
+      area.innerHTML = tabsBar + this._renderDRE();
       return;
     }
 
@@ -193,9 +226,10 @@ const FinanceiroModule = {
           ${mesOptions}
         </select>
         <select class="filter-select" onchange="FinanceiroModule.handleFilterTipo(this.value)">
-          <option value="">Receitas e Despesas</option>
+          <option value="">Todos os tipos</option>
           <option value="receita"  ${this._state.filterTipo === 'receita'  ? 'selected' : ''}>Receitas</option>
           <option value="despesa"  ${this._state.filterTipo === 'despesa'  ? 'selected' : ''}>Despesas</option>
+          <option value="cmv"      ${this._state.filterTipo === 'cmv'      ? 'selected' : ''}>CMV</option>
         </select>
         <select class="filter-select" onchange="FinanceiroModule.handleFilterStatus(this.value)">
           <option value="">Todos os status</option>
@@ -588,6 +622,9 @@ const FinanceiroModule = {
       CadastrosModule.getCategoriasDespesa(),
       lanc && tipoAtual === 'despesa' ? (lanc.categoria || '') : ''
     );
+    const catCMVOptions = `
+      <option value="cmv_loja"    ${lanc?.categoria === 'cmv_loja'    ? 'selected' : ''}>CMV — Custo dos Produtos</option>
+      <option value="cmv_interno" ${lanc?.categoria === 'cmv_interno' ? 'selected' : ''}>Consumo Interno (Materiais)</option>`;
 
     const content = `
       <div class="form-grid">
@@ -616,7 +653,7 @@ const FinanceiroModule = {
           <div class="form-group" id="fi-cat-wrap">
             <label class="form-label" for="fi-cat">Categoria</label>
             <select id="fi-cat" class="form-select">
-              ${tipoAtual === 'receita' ? catRecOptions : catDesOptions}
+              ${tipoAtual === 'receita' ? catRecOptions : tipoAtual === 'cmv' ? catCMVOptions : catDesOptions}
             </select>
           </div>
           <div class="form-group">
@@ -663,12 +700,18 @@ const FinanceiroModule = {
   _toggleCategoria(tipo) {
     const cat = document.getElementById('fi-cat');
     if (!cat) return;
-    const items = tipo === 'receita'
-      ? CadastrosModule.getCategoriasReceita()
-      : CadastrosModule.getCategoriasDespesa();
-    cat.innerHTML = items.map(c =>
-      `<option value="${UI.escape(c.nome)}">${UI.escape(c.nome)}</option>`
-    ).join('');
+    if (tipo === 'cmv') {
+      cat.innerHTML = `
+        <option value="cmv_loja">CMV — Custo dos Produtos</option>
+        <option value="cmv_interno">Consumo Interno (Materiais)</option>`;
+    } else {
+      const items = tipo === 'receita'
+        ? CadastrosModule.getCategoriasReceita()
+        : CadastrosModule.getCategoriasDespesa();
+      cat.innerHTML = items.map(c =>
+        `<option value="${UI.escape(c.nome)}">${UI.escape(c.nome)}</option>`
+      ).join('');
+    }
   },
 
   /* ------------------------------------------------------------------ */
@@ -785,6 +828,425 @@ const FinanceiroModule = {
   /*  Helpers                                                             */
   /* ------------------------------------------------------------------ */
 
+  /* ------------------------------------------------------------------ */
+  /*  Orçamento — Render                                                  */
+  /* ------------------------------------------------------------------ */
+
+  _renderOrcamento() {
+    const mesSel   = this._state.filterMes || new Date().toISOString().slice(0, 7);
+    const mesLabel = this._formatMesLabel(mesSel);
+
+    const hoje = new Date();
+    const todosMeses = [];
+    for (let i = -3; i <= 12; i++) {
+      const d  = new Date(hoje.getFullYear(), hoje.getMonth() + i, 1);
+      todosMeses.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
+    }
+    const mesOptions = todosMeses.map(m =>
+      `<option value="${m}" ${mesSel === m ? 'selected' : ''}>${this._formatMesLabel(m)}</option>`
+    ).join('');
+
+    const orcamentos = Storage.getAll(this.STORAGE_KEY_ORC)
+      .filter(o => o.periodo === mesSel)
+      .sort((a, b) => {
+        const ord = { receita: 0, cmv: 1, despesa: 2 };
+        return (ord[a.tipo] ?? 3) - (ord[b.tipo] ?? 3);
+      });
+
+    const totRec    = orcamentos.filter(o => o.tipo === 'receita').reduce((s, o) => s + (parseFloat(o.valor)||0), 0);
+    const totCMV    = orcamentos.filter(o => o.tipo === 'cmv').reduce((s, o) => s + (parseFloat(o.valor)||0), 0);
+    const totDesp   = orcamentos.filter(o => o.tipo === 'despesa').reduce((s, o) => s + (parseFloat(o.valor)||0), 0);
+    const resultado = totRec - totCMV - totDesp;
+
+    const rows = orcamentos.map(o => {
+      const tipoCfg = this.TIPO[o.tipo] || { label: o.tipo, badge: 'badge-gray' };
+      return `
+        <tr>
+          <td><span class="badge ${tipoCfg.badge}">${tipoCfg.label}</span></td>
+          <td>${UI.escape(o.categoria || '—')}</td>
+          <td style="text-align:right;font-weight:600;">${this._fmt(o.valor)}</td>
+          <td class="aluno-row-actions">
+            <button class="btn btn-ghost btn-sm" onclick="FinanceiroModule.openModalOrcamento('${o.id}')">✏️</button>
+            <button class="btn btn-ghost btn-sm danger" onclick="FinanceiroModule.deleteOrcamento('${o.id}')">🗑️</button>
+          </td>
+        </tr>`;
+    }).join('');
+
+    return `
+      <div class="page-header">
+        <div class="page-header-text">
+          <h2>Orçamento</h2>
+          <p>Planejamento financeiro — valores projetados por período</p>
+        </div>
+        <button class="btn btn-primary" onclick="FinanceiroModule.openModalOrcamento()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Nova Linha
+        </button>
+      </div>
+
+      <div class="filters-bar" style="margin-bottom:20px;">
+        <label class="form-label" style="margin:0;white-space:nowrap;">Período:</label>
+        <select class="filter-select" onchange="FinanceiroModule._state.filterMes=this.value;FinanceiroModule.switchTab('orcamento')">
+          ${mesOptions}
+        </select>
+        <button class="btn btn-secondary btn-sm" onclick="FinanceiroModule.switchTab('dre')" style="margin-left:auto;">
+          📈 Ver DRE Comparativo →
+        </button>
+      </div>
+
+      <div class="financeiro-banner" style="margin-bottom:20px;">
+        <div class="fin-banner-item">
+          <div class="fin-banner-label">Receitas orçadas</div>
+          <div class="fin-banner-value receita">${this._fmt(totRec)}</div>
+        </div>
+        <div class="fin-banner-sep">−</div>
+        <div class="fin-banner-item">
+          <div class="fin-banner-label">CMV orçado</div>
+          <div class="fin-banner-value" style="color:var(--color-primary,#3b9e8f);">${this._fmt(totCMV)}</div>
+        </div>
+        <div class="fin-banner-sep">−</div>
+        <div class="fin-banner-item">
+          <div class="fin-banner-label">Despesas orçadas</div>
+          <div class="fin-banner-value despesa">${this._fmt(totDesp)}</div>
+        </div>
+        <div class="fin-banner-sep">=</div>
+        <div class="fin-banner-item">
+          <div class="fin-banner-label">Resultado orçado</div>
+          <div class="fin-banner-value ${resultado < 0 ? 'financeiro-saldo-neg' : 'financeiro-saldo-pos'}">${this._fmt(resultado)}</div>
+        </div>
+      </div>
+
+      <div class="alunos-table-wrap">
+        ${orcamentos.length ? `
+          <div class="table-card">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Tipo</th>
+                  <th>Categoria</th>
+                  <th style="text-align:right;">Valor Orçado</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+        ` : `
+          <div class="empty-state">
+            <div class="empty-icon">📊</div>
+            <div class="empty-title">Nenhum item orçado para ${UI.escape(mesLabel)}</div>
+            <div class="empty-desc">Adicione as linhas de orçamento para comparar projetado × realizado no DRE.</div>
+            <button class="btn btn-primary mt-16" onclick="FinanceiroModule.openModalOrcamento()">+ Adicionar primeira linha</button>
+          </div>
+        `}
+      </div>`;
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  DRE — Demonstrativo de Resultado (Orçado × Realizado)              */
+  /* ------------------------------------------------------------------ */
+
+  _renderDRE() {
+    const mesSel   = this._state.filterMes || new Date().toISOString().slice(0, 7);
+    const mesLabel = this._formatMesLabel(mesSel);
+
+    const hoje = new Date();
+    const todosMeses = [];
+    for (let i = -11; i <= 3; i++) {
+      const d  = new Date(hoje.getFullYear(), hoje.getMonth() + i, 1);
+      todosMeses.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
+    }
+    const mesOptions = todosMeses.map(m =>
+      `<option value="${m}" ${mesSel === m ? 'selected' : ''}>${this._formatMesLabel(m)}</option>`
+    ).join('');
+
+    const realizado = this.getAll()
+      .filter(l => l.data && l.data.slice(0, 7) === mesSel && l.status !== 'cancelado');
+    const orcado = Storage.getAll(this.STORAGE_KEY_ORC)
+      .filter(o => o.periodo === mesSel);
+
+    const linhaReal = (linha) =>
+      realizado
+        .filter(r => r.tipo === linha.grupo &&
+          linha.cats.some(c => c.toLowerCase() === (r.categoria||'').toLowerCase()))
+        .reduce((s, r) => s + (parseFloat(r.valor)||0), 0);
+
+    const linhaOrc = (linha) =>
+      orcado
+        .filter(o => o.tipo === linha.grupo && o.catId === linha.id)
+        .reduce((s, o) => s + (parseFloat(o.valor)||0), 0);
+
+    const buildLinhas = (grupo) =>
+      this._DRE_LINHAS
+        .filter(l => l.grupo === grupo)
+        .map(l => ({ ...l, real: linhaReal(l), orc: linhaOrc(l) }))
+        .filter(l => l.real > 0.01 || l.orc > 0.01);
+
+    const linhasRec  = buildLinhas('receita');
+    const linhasCMV  = buildLinhas('cmv');
+    const linhasDesp = buildLinhas('despesa');
+
+    const allRecReal    = realizado.filter(r=>r.tipo==='receita').reduce((s,r)=>s+(parseFloat(r.valor)||0),0);
+    const mapRecReal    = linhasRec.reduce((s,l)=>s+l.real,0);
+    const outrosRecReal = Math.max(0, allRecReal - mapRecReal);
+    const totRecOrc     = orcado.filter(o=>o.tipo==='receita').reduce((s,o)=>s+(parseFloat(o.valor)||0),0);
+
+    const totCMVReal  = realizado.filter(r=>r.tipo==='cmv').reduce((s,r)=>s+(parseFloat(r.valor)||0),0);
+    const totCMVOrc   = orcado.filter(o=>o.tipo==='cmv').reduce((s,o)=>s+(parseFloat(o.valor)||0),0);
+
+    const allDespReal   = realizado.filter(r=>r.tipo==='despesa').reduce((s,r)=>s+(parseFloat(r.valor)||0),0);
+    const mapDespReal   = linhasDesp.reduce((s,l)=>s+l.real,0);
+    const outrosDespReal = Math.max(0, allDespReal - mapDespReal);
+    const totDespOrc    = orcado.filter(o=>o.tipo==='despesa').reduce((s,o)=>s+(parseFloat(o.valor)||0),0);
+
+    const margBrutaReal = allRecReal  - totCMVReal;
+    const margBrutaOrc  = totRecOrc   - totCMVOrc;
+    const resultReal    = margBrutaReal - allDespReal;
+    const resultOrc     = margBrutaOrc  - totDespOrc;
+
+    const fmtVar = (orc, real, negGood=false) => {
+      const v    = real - orc;
+      const p    = orc !== 0 ? (v / Math.abs(orc)) * 100 : (real !== 0 ? 100 : 0);
+      const good = negGood ? v <= 0 : v >= 0;
+      const sty  = Math.abs(v) < 0.01 ? '' : good ? 'color:var(--success,#16a34a)' : 'color:var(--danger,#ef4444)';
+      return `<td style="${sty};text-align:right;">${Math.abs(v)<0.01 ? '—' : (v>0?'+':'')+this._fmt(v)}</td>`
+           + `<td style="${sty};text-align:right;">${orc!==0 ? (p>0?'+':'')+p.toFixed(1)+'%' : '—'}</td>`;
+    };
+
+    const dreRow = (label, orc, real, indent=false, negGood=false) => {
+      const b  = 'font-weight:600;';
+      const pl = indent ? 'padding-left:24px;' : '';
+      return `<tr>
+        <td style="${pl}">${label}</td>
+        <td style="text-align:right;">${(orc > 0.01) ? this._fmt(orc) : '—'}</td>
+        <td style="text-align:right;">${(real > 0.01) ? this._fmt(real) : '—'}</td>
+        ${fmtVar(orc, real, negGood)}
+      </tr>`;
+    };
+
+    const secRow = (label) =>
+      `<tr style="background:var(--bg-secondary,#f8f5ec);">
+        <td colspan="5" style="font-weight:700;font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:var(--text-muted);padding:7px 12px;">${label}</td>
+      </tr>`;
+
+    const totRow = (label, orc, real, bgColor='', negGood=false) => {
+      const v    = real - orc;
+      const p    = orc !== 0 ? (v / Math.abs(orc)) * 100 : (real !== 0 ? 100 : 0);
+      const good = negGood ? v <= 0 : v >= 0;
+      const sty  = Math.abs(v) < 0.01 ? '' : good ? 'color:var(--success,#16a34a)' : 'color:var(--danger,#ef4444)';
+      const bg   = bgColor || 'background:var(--card-bg)';
+      return `<tr style="${bg};border-top:2px solid var(--border-color);border-bottom:2px solid var(--border-color);">
+        <td style="font-weight:800;font-size:14px;">${label}</td>
+        <td style="font-weight:800;text-align:right;">${this._fmt(orc)}</td>
+        <td style="font-weight:800;text-align:right;">${this._fmt(real)}</td>
+        <td style="font-weight:800;${sty};text-align:right;">${Math.abs(v)<0.01?'—':(v>0?'+':'')+this._fmt(v)}</td>
+        <td style="font-weight:800;${sty};text-align:right;">${orc!==0?(p>0?'+':'')+p.toFixed(1)+'%':'—'}</td>
+      </tr>`;
+    };
+
+    const hasData = realizado.length > 0 || orcado.length > 0;
+
+    return `
+      <div class="page-header">
+        <div class="page-header-text">
+          <h2>DRE — Demonstrativo de Resultado</h2>
+          <p>Orçado × Realizado · ${UI.escape(mesLabel)}</p>
+        </div>
+        <button class="btn btn-secondary" onclick="FinanceiroModule.switchTab('orcamento')">
+          📊 Editar Orçamento
+        </button>
+      </div>
+
+      <div class="filters-bar" style="margin-bottom:20px;">
+        <label class="form-label" style="margin:0;white-space:nowrap;">Período:</label>
+        <select class="filter-select" onchange="FinanceiroModule._state.filterMes=this.value;FinanceiroModule.switchTab('dre')">
+          ${mesOptions}
+        </select>
+      </div>
+
+      ${!hasData ? `
+        <div class="empty-state">
+          <div class="empty-icon">📈</div>
+          <div class="empty-title">Sem dados para ${UI.escape(mesLabel)}</div>
+          <div class="empty-desc">Nenhum lançamento ou orçamento encontrado para este período.</div>
+        </div>
+      ` : `
+        <div class="table-card" style="overflow-x:auto;">
+          <table class="data-table" style="min-width:580px;">
+            <thead>
+              <tr>
+                <th style="text-align:left;min-width:200px;">Linha</th>
+                <th style="text-align:right;min-width:110px;">Orçado</th>
+                <th style="text-align:right;min-width:110px;">Realizado</th>
+                <th style="text-align:right;min-width:120px;">Variação (R$)</th>
+                <th style="text-align:right;min-width:90px;">Variação (%)</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${secRow('📈 RECEITAS')}
+              ${linhasRec.map(l => dreRow(l.label, l.orc, l.real, true)).join('')}
+              ${outrosRecReal > 0.01 ? dreRow('Outros (não categorizados)', 0, outrosRecReal, true) : ''}
+              ${totRow('TOTAL RECEITAS', totRecOrc, allRecReal)}
+
+              ${secRow('📦 CUSTO DA MERCADORIA VENDIDA (CMV)')}
+              ${linhasCMV.map(l => dreRow(l.label, l.orc, l.real, true, true)).join('')}
+              ${(totCMVReal > 0.01 && linhasCMV.length === 0) ? dreRow('CMV (automático — Loja)', 0, totCMVReal, true, true) : ''}
+              ${totRow('TOTAL CMV', totCMVOrc, totCMVReal, '', true)}
+
+              ${totRow('= MARGEM BRUTA', margBrutaOrc, margBrutaReal, 'background:var(--bg-secondary,#f8f5ec)')}
+
+              ${secRow('📉 DESPESAS OPERACIONAIS')}
+              ${linhasDesp.map(l => dreRow(l.label, l.orc, l.real, true, true)).join('')}
+              ${outrosDespReal > 0.01 ? dreRow('Outros (não categorizados)', 0, outrosDespReal, true, true) : ''}
+              ${totRow('TOTAL DESPESAS', totDespOrc, allDespReal, '', true)}
+
+              ${totRow('= RESULTADO',
+                resultOrc, resultReal,
+                resultReal >= 0 ? 'background:rgba(22,163,74,.08)' : 'background:rgba(239,68,68,.08)'
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        ${(totRecOrc === 0 && totCMVOrc === 0 && totDespOrc === 0) ? `
+          <div style="margin-top:12px;padding:12px 16px;background:var(--bg-secondary);border-radius:10px;font-size:13px;color:var(--text-muted);">
+            💡 Sem orçamento cadastrado para ${UI.escape(mesLabel)}.
+            <a href="#" onclick="event.preventDefault();FinanceiroModule.switchTab('orcamento')" style="color:var(--primary,#3b9e8f);">
+              Adicionar orçamento →
+            </a>
+          </div>` : ''}
+      `}`;
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Orçamento — Modal / CRUD                                           */
+  /* ------------------------------------------------------------------ */
+
+  openModalOrcamento(id = null) {
+    const orc    = id ? Storage.getById(this.STORAGE_KEY_ORC, id) : null;
+    const isEdit = !!orc;
+    const mesSel = this._state.filterMes || new Date().toISOString().slice(0, 7);
+
+    const hoje = new Date();
+    const mesesOpts = [];
+    for (let i = -2; i <= 11; i++) {
+      const d  = new Date(hoje.getFullYear(), hoje.getMonth() + i, 1);
+      const ym = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      mesesOpts.push(`<option value="${ym}" ${(orc ? orc.periodo : mesSel) === ym ? 'selected' : ''}>${this._formatMesLabel(ym)}</option>`);
+    }
+
+    const tipoAtual = orc?.tipo || 'receita';
+    const tipoOpts  = [
+      { k: 'receita', l: 'Receita'     },
+      { k: 'cmv',     l: 'CMV (Custo)' },
+      { k: 'despesa', l: 'Despesa'     },
+    ].map(t => `<option value="${t.k}" ${tipoAtual === t.k ? 'selected' : ''}>${t.l}</option>`).join('');
+
+    UI.openModal({
+      title:        isEdit ? 'Editar linha de orçamento' : 'Nova linha de orçamento',
+      content: `
+        <div class="form-grid">
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Período <span class="required-star">*</span></label>
+              <select id="orc-periodo" class="form-select">${mesesOpts.join('')}</select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Tipo <span class="required-star">*</span></label>
+              <select id="orc-tipo" class="form-select" onchange="FinanceiroModule._toggleOrcCategoria(this.value)">${tipoOpts}</select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Categoria <span class="required-star">*</span></label>
+            <select id="orc-cat" class="form-select">
+              ${this._buildOrcCatOptions(tipoAtual, orc?.catId || '')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Valor Orçado (R$) <span class="required-star">*</span></label>
+            <input id="orc-valor" type="number" class="form-input" min="0" step="0.01"
+              placeholder="0,00" value="${orc ? orc.valor : ''}" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Observações</label>
+            <input id="orc-obs" type="text" class="form-input" placeholder="Opcional"
+              value="${orc ? UI.escape(orc.obs || '') : ''}" />
+          </div>
+        </div>`,
+      confirmLabel: isEdit ? 'Salvar alterações' : 'Adicionar',
+      onConfirm:    () => this.saveOrcamento(id),
+    });
+  },
+
+  _buildOrcCatOptions(tipo, selected) {
+    return this._DRE_LINHAS
+      .filter(l => l.grupo === tipo)
+      .map(c => `<option value="${c.id}" ${selected === c.id ? 'selected' : ''}>${UI.escape(c.label)}</option>`)
+      .join('');
+  },
+
+  _toggleOrcCategoria(tipo) {
+    const el = document.getElementById('orc-cat');
+    if (el) el.innerHTML = this._buildOrcCatOptions(tipo, '');
+  },
+
+  saveOrcamento(id = null) {
+    const g     = n => document.getElementById(`orc-${n}`);
+    const valor = g('valor');
+    const cat   = g('cat');
+
+    if (!valor?.value || parseFloat(valor.value) <= 0) {
+      valor?.classList.add('error');
+      UI.toast('Informe o valor orçado.', 'warning');
+      return;
+    }
+    if (!cat?.value) {
+      UI.toast('Selecione a categoria.', 'warning');
+      return;
+    }
+
+    const tipo  = g('tipo')?.value || 'receita';
+    const catId = cat.value;
+    const linha = this._DRE_LINHAS.find(l => l.id === catId);
+
+    const record = {
+      periodo:   g('periodo')?.value || new Date().toISOString().slice(0, 7),
+      tipo,
+      catId,
+      categoria: linha ? linha.label : catId,
+      valor:     parseFloat(valor.value) || 0,
+      obs:       g('obs')?.value.trim() || '',
+    };
+
+    if (id) {
+      Storage.update(this.STORAGE_KEY_ORC, id, record);
+      UI.toast('Linha de orçamento atualizada!', 'success');
+    } else {
+      Storage.create(this.STORAGE_KEY_ORC, record);
+      UI.toast('Linha adicionada!', 'success');
+    }
+
+    UI.closeModal();
+    this.switchTab('orcamento');
+  },
+
+  async deleteOrcamento(id) {
+    const orc = Storage.getById(this.STORAGE_KEY_ORC, id);
+    if (!orc) return;
+    const ok = await UI.confirm(
+      `Remover "${orc.categoria}" do orçamento de ${this._formatMesLabel(orc.periodo)}?`,
+      'Remover linha'
+    );
+    if (!ok) return;
+    Storage.delete(this.STORAGE_KEY_ORC, id);
+    UI.toast('Linha removida.', 'success');
+    this.switchTab('orcamento');
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Helpers                                                             */
+  /* ------------------------------------------------------------------ */
+
   _fmt(valor) {
     return (parseFloat(valor) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   },
@@ -797,6 +1259,10 @@ const FinanceiroModule = {
 
   _categoriaLabel(tipo, cat) {
     if (!cat) return '—';
+    if (tipo === 'cmv') {
+      const map = { cmv_loja: 'CMV — Custo dos Produtos', cmv_interno: 'Consumo Interno' };
+      return map[cat] || cat;
+    }
     // Try legacy key map first (for old data), then show stored value as-is
     return (tipo === 'receita'
       ? (this.CATEGORIA_RECEITA[cat] || cat)

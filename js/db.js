@@ -53,6 +53,7 @@ const DB = {
     turmaAlunos:       'app_turma_alunos',
     turmas:            'app_turmas',
     usuarios:          'app_usuarios',
+    orcamento:         'app_orcamento',
   },
 
   // Catálogos que compartilham a tabela app_catalogos
