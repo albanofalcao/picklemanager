@@ -67,6 +67,14 @@ const AlunoModule = {
     };
   },
 
+  /**
+   * Verifica se um aluno possui matrícula ativa.
+   * Usado para bloquear operações (turmas, aulas, eventos) em alunos sem matrícula.
+   */
+  temMatriculaAtiva(alunoId) {
+    return Storage.getAll('matriculas').some(m => m.alunoId === alunoId && m.status === 'ativa');
+  },
+
   /* ------------------------------------------------------------------ */
   /*  Render                                                              */
   /* ------------------------------------------------------------------ */

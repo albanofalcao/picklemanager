@@ -2145,10 +2145,10 @@ const TurmasModule = {
     const vagas     = turma?.vagas || 0;
     const disponiveis = Math.max(0, vagas - inscritos.length);
 
-    // Alunos disponíveis para adicionar (ativos, ainda não inscritos)
+    // Alunos disponíveis para adicionar (ativos, com matrícula ativa, ainda não inscritos)
     const inscritosIds = new Set(inscritos.map(i => i.alunoId));
     const alunosDisponiveis = Storage.getAll('alunos')
-      .filter(a => a.status === 'ativo' && !inscritosIds.has(a.id))
+      .filter(a => a.status === 'ativo' && !inscritosIds.has(a.id) && AlunoModule.temMatriculaAtiva(a.id))
       .sort((a, b) => a.nome.localeCompare(b.nome));
 
     const alunoOpts = `<option value="">— Selecionar aluno —</option>` +
@@ -2181,11 +2181,14 @@ const TurmasModule = {
         </div>
 
         <div>
-          <label class="form-label" style="margin-bottom:6px;">Adicionar aluno</label>
+          <label class="form-label" style="margin-bottom:6px;">Adicionar aluno
+            <span class="text-muted" style="font-size:11px;font-weight:400;margin-left:6px;">⚠️ Apenas alunos com matrícula ativa</span>
+          </label>
           <div style="display:flex;gap:8px;">
             <select id="inscr-aluno-sel" class="form-select" style="flex:1;">${alunoOpts}</select>
             <button class="btn btn-primary" onclick="TurmasModule._adicionarInscricao('${turmaId}')">Adicionar</button>
           </div>
+          ${alunosDisponiveis.length === 0 ? `<p class="text-muted" style="font-size:12px;margin-top:6px;">Nenhum aluno com matrícula ativa disponível. <a href="#" onclick="MatriculaModule && MatriculaModule.openModal(); return false;" style="color:var(--primary);">+ Nova matrícula</a></p>` : ''}
         </div>
 
         <div>
@@ -2203,6 +2206,12 @@ const TurmasModule = {
     const sel   = document.getElementById('inscr-aluno-sel');
     const opt   = sel && sel.selectedOptions[0];
     if (!sel || !sel.value) { UI.toast('Selecione um aluno.', 'warning'); return; }
+
+    // Bloqueia alunos sem matrícula ativa (validação de segurança)
+    if (!AlunoModule.temMatriculaAtiva(sel.value)) {
+      UI.toast('Aluno não possui matrícula ativa. Cadastre uma matrícula antes de inscrever na grade.', 'warning');
+      return;
+    }
 
     const turma = Storage.getById(this.SK, turmaId);
     const vagas = turma?.vagas || 0;
