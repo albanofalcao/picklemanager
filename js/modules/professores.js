@@ -278,15 +278,12 @@ const ProfessorModule = {
         prof ? (prof.especialidade || '') : ''
       );
 
-    // Arenas checkboxes
-    const arenas = Storage.getAll('arenas').filter(a => a.status === 'ativa');
+    // Arenas — multi-select com busca (suporta centenas de arenas)
+    const todasArenasList = Storage.getAll('arenas').filter(a => a.status === 'ativa');
     const profArenas = Array.isArray(prof?.arenas) ? prof.arenas : [];
-    const arenasChecks = arenas.map(a => `
-      <label class="dia-check-label">
-        <input type="checkbox" name="prof-arena" value="${a.id}"
-          ${profArenas.includes(a.id) ? 'checked' : ''} />
-        <span>${UI.escape(a.nome)}</span>
-      </label>`).join('') || '<span class="text-muted" style="font-size:12px;">Nenhuma arena cadastrada.</span>';
+    const arenasOpts = todasArenasList.map(a =>
+      `<option value="${a.id}" ${profArenas.includes(a.id) ? 'selected' : ''}>${UI.escape(a.nome)}</option>`
+    ).join('');
 
     // Currículo rows
     const curriculoData = Array.isArray(prof?.curriculo) && prof.curriculo.length ? prof.curriculo : [{}];
@@ -531,10 +528,15 @@ const ProfessorModule = {
         </div>
 
         <div class="form-group">
-          <label class="form-label">Arenas onde leciona</label>
-          <div class="arenas-check-group" id="p-arenas-checks">
-            ${arenasChecks}
-          </div>
+          <label class="form-label" for="p-arenas">Arenas onde pode atuar</label>
+          <input type="text" id="p-arenas-search" class="form-input" placeholder="🔍 Buscar arena…"
+            oninput="ProfessorModule._filtrarArenas(this.value)"
+            style="margin-bottom:6px;" autocomplete="off" />
+          <select id="p-arenas" class="form-select" multiple size="5"
+            style="height:auto;min-height:100px;">
+            ${arenasOpts}
+          </select>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Segure Ctrl (ou ⌘) para selecionar mais de uma.</div>
         </div>
 
         <div class="form-group">
@@ -560,9 +562,53 @@ const ProfessorModule = {
           ${periodosGrid}
         </div>
 
+        <!-- CONTRATAÇÃO -->
+        <div class="aluno-secao-titulo">📄 Contratação</div>
+
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label" for="p-contrato-tipo">Regime de contratação</label>
+            <select id="p-contrato-tipo" class="form-select">
+              <option value="">— Não informado —</option>
+              <option value="clt"      ${v('contratoTipo') === 'clt'      ? 'selected' : ''}>CLT</option>
+              <option value="pj"       ${v('contratoTipo') === 'pj'       ? 'selected' : ''}>PJ — Pessoa Jurídica</option>
+              <option value="autonomo" ${v('contratoTipo') === 'autonomo' ? 'selected' : ''}>Autônomo</option>
+              <option value="estagio"  ${v('contratoTipo') === 'estagio'  ? 'selected' : ''}>Estágio</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="p-contrato-status">Status do contrato</label>
+            <select id="p-contrato-status" class="form-select">
+              <option value="">— Não informado —</option>
+              <option value="ativo"    ${v('contratoStatus') === 'ativo'    ? 'selected' : ''}>Ativo</option>
+              <option value="suspenso" ${v('contratoStatus') === 'suspenso' ? 'selected' : ''}>Suspenso</option>
+              <option value="encerrado"${v('contratoStatus') === 'encerrado'? 'selected' : ''}>Encerrado</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label" for="p-contrato-inicio">Início da vigência</label>
+            <input id="p-contrato-inicio" type="date" class="form-input"
+              value="${v('contratoInicio')}" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="p-contrato-fim">Fim da vigência</label>
+            <input id="p-contrato-fim" type="date" class="form-input"
+              value="${v('contratoFim')}" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="p-contrato-obs">Observações do contrato</label>
+          <textarea id="p-contrato-obs" class="form-textarea" rows="2"
+            placeholder="Detalhes, cláusulas ou informações relevantes…">${prof ? UI.escape(prof.contratoObs || '') : ''}</textarea>
+        </div>
+
         <!-- OBSERVAÇÕES -->
         <div class="form-group">
-          <label class="form-label" for="p-obs">Observações</label>
+          <label class="form-label" for="p-obs">Observações gerais</label>
           <textarea id="p-obs" class="form-textarea"
             placeholder="Informações adicionais sobre o professor…" rows="3">${prof ? UI.escape(prof.observacoes || '') : ''}</textarea>
         </div>
@@ -593,8 +639,8 @@ const ProfessorModule = {
     }
     nome.classList.remove('error');
 
-    const arenaChecks = document.querySelectorAll('input[name="prof-arena"]:checked');
-    const arenas = Array.from(arenaChecks).map(cb => cb.value);
+    const arenaSel = document.getElementById('p-arenas');
+    const arenas = arenaSel ? Array.from(arenaSel.selectedOptions).map(o => o.value) : [];
 
     // Currículo
     const curriculoRows = document.querySelectorAll('#p-curriculo-list .curriculo-row');
@@ -649,7 +695,12 @@ const ProfessorModule = {
       arenas,
       curriculo,
       periodos,
-      observacoes:     g('obs')           ? g('obs').value.trim()           : '',
+      contratoTipo:    g('contrato-tipo')   ? g('contrato-tipo').value         : '',
+      contratoStatus:  g('contrato-status') ? g('contrato-status').value       : '',
+      contratoInicio:  g('contrato-inicio') ? g('contrato-inicio').value       : '',
+      contratoFim:     g('contrato-fim')    ? g('contrato-fim').value          : '',
+      contratoObs:     g('contrato-obs')    ? g('contrato-obs').value.trim()   : '',
+      observacoes:     g('obs')             ? g('obs').value.trim()            : '',
     };
 
     if (id) {
@@ -765,6 +816,15 @@ const ProfessorModule = {
   _togglePeriodo(cb, inputId) {
     const inp = document.getElementById(inputId);
     if (inp) inp.style.display = cb.checked ? '' : 'none';
+  },
+
+  _filtrarArenas(query) {
+    const sel = document.getElementById('p-arenas');
+    if (!sel) return;
+    const q = query.toLowerCase();
+    Array.from(sel.options).forEach(opt => {
+      opt.style.display = !q || opt.text.toLowerCase().includes(q) ? '' : 'none';
+    });
   },
 
   _maskCnpj(el) {
