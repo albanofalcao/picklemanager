@@ -158,12 +158,6 @@ const ProfessorModule = {
   renderCard(p) {
     const status = this.STATUS[p.status] || { label: p.status, badge: 'badge-gray' };
     const esp    = (p.especialidade ? (this.ESPECIALIDADE[p.especialidade] || p.especialidade) : '—');
-    const dias   = Array.isArray(p.diasDisponiveis) && p.diasDisponiveis.length
-      ? p.diasDisponiveis.map(d => `<span class="dia-chip">${this.DIAS[d] || d}</span>`).join('')
-      : '<span class="text-muted text-sm">—</span>';
-    const horario = (p.horarioInicio && p.horarioFim)
-      ? `${UI.escape(p.horarioInicio)} – ${UI.escape(p.horarioFim)}`
-      : '—';
     const cadastro = UI.formatDate(p.createdAt);
     const todasArenas = Storage.getAll('arenas');
     const arenasChips = Array.isArray(p.arenas) && p.arenas.length
@@ -176,6 +170,15 @@ const ProfessorModule = {
     const obsBlock = p.observacoes
       ? `<div class="arena-obs"><div class="arena-obs-text">💬 ${UI.escape(p.observacoes)}</div></div>`
       : '';
+
+    let atestadoBadge = '';
+    if (p.atestadoMedico === 'sim') {
+      atestadoBadge = `<span class="badge badge-success">✅ Apto</span>`;
+    } else if (p.atestadoMedico === 'vencido') {
+      atestadoBadge = `<span class="badge badge-warning">⚠️ Vencido</span>`;
+    } else if (p.atestadoMedico === 'nao') {
+      atestadoBadge = `<span class="badge badge-gray">Sem atestado</span>`;
+    }
 
     return `
       <div class="arena-card" data-id="${p.id}" data-status="${UI.escape(p.status)}">
@@ -196,19 +199,25 @@ const ProfessorModule = {
             <div class="detail-label">Telefone</div>
             <div class="detail-value">${UI.escape(p.telefone || '—')}</div>
           </div>
+          ${p.cnpj ? `
           <div class="detail-item">
-            <div class="detail-label">Horário</div>
-            <div class="detail-value">${horario}</div>
-          </div>
+            <div class="detail-label">CNPJ</div>
+            <div class="detail-value">${UI.escape(p.cnpj)}</div>
+          </div>` : ''}
+          ${p.pixChave ? `
+          <div class="detail-item">
+            <div class="detail-label">PIX</div>
+            <div class="detail-value">${UI.escape(p.pixChave)}</div>
+          </div>` : ''}
+          ${atestadoBadge ? `
+          <div class="detail-item">
+            <div class="detail-label">Atestado</div>
+            <div class="detail-value">${atestadoBadge}</div>
+          </div>` : ''}
           <div class="detail-item">
             <div class="detail-label">Cadastro</div>
             <div class="detail-value">${cadastro}</div>
           </div>
-        </div>
-
-        <div style="padding:10px 16px 4px;border-top:1px solid #f1f5f9;">
-          <div class="detail-label" style="margin-bottom:6px;">Dias disponíveis</div>
-          <div class="dias-chips">${dias}</div>
         </div>
 
         ${arenasChips ? `
@@ -259,23 +268,73 @@ const ProfessorModule = {
     const prof   = id ? Storage.getById(this.STORAGE_KEY, id) : null;
     const isEdit = !!prof;
     const v      = (field, fallback = '') => prof ? UI.escape(String(prof[field] ?? fallback)) : fallback;
-    const dias   = Array.isArray(prof?.diasDisponiveis) ? prof.diasDisponiveis : [];
 
-    const espOptions = CadastrosModule.buildOptions(
-      CadastrosModule.getEspecialidades(),
-      prof ? (prof.especialidade || '') : ''
-    );
     const statusOptions = Object.entries(this.STATUS).map(([k, cfg]) =>
       `<option value="${k}" ${prof && prof.status === k ? 'selected' : ''}>${cfg.label}</option>`).join('');
 
-    const diasChecks = Object.entries(this.DIAS).map(([k, l]) => `
+    const espOptions = `<option value="">— Selecionar —</option>` +
+      CadastrosModule.buildOptions(
+        CadastrosModule.getEspecialidades(),
+        prof ? (prof.especialidade || '') : ''
+      );
+
+    // Arenas checkboxes
+    const arenas = Storage.getAll('arenas').filter(a => a.status === 'ativa');
+    const profArenas = Array.isArray(prof?.arenas) ? prof.arenas : [];
+    const arenasChecks = arenas.map(a => `
       <label class="dia-check-label">
-        <input type="checkbox" name="dias" value="${k}" ${dias.includes(k) ? 'checked' : ''} />
-        <span>${l}</span>
-      </label>`).join('');
+        <input type="checkbox" name="prof-arena" value="${a.id}"
+          ${profArenas.includes(a.id) ? 'checked' : ''} />
+        <span>${UI.escape(a.nome)}</span>
+      </label>`).join('') || '<span class="text-muted" style="font-size:12px;">Nenhuma arena cadastrada.</span>';
+
+    // Currículo rows
+    const curriculoData = Array.isArray(prof?.curriculo) && prof.curriculo.length ? prof.curriculo : [{}];
+    const curriculoRows = curriculoData.map(c => this._curriculoRow(c)).join('');
+
+    // Períodos de atuação
+    const dias = ['seg','ter','qua','qui','sex','sab','dom'];
+    const diaLabels = { seg:'Seg', ter:'Ter', qua:'Qua', qui:'Qui', sex:'Sex', sab:'Sáb', dom:'Dom' };
+    const turnos = [
+      { key: 'manha', label: 'Manhã',  desc: '06:00–12:00' },
+      { key: 'tarde', label: 'Tarde',  desc: '12:00–18:00' },
+      { key: 'noite', label: 'Noite',  desc: '18:00–22:00' },
+    ];
+    const periodos = prof?.periodos || {};
+
+    const periodosGrid = dias.map(day => {
+      const dayPeriodos = periodos[day] || {};
+      const turnosHtml = turnos.map(t => {
+        const horario = dayPeriodos[t.key] || '';
+        const checked = !!horario;
+        const inputId = `per-hor-${day}-${t.key}`;
+        return `
+          <div style="display:flex;align-items:center;gap:4px;flex:1;min-width:0;">
+            <input type="checkbox" name="per-${day}-${t.key}"
+              ${checked ? 'checked' : ''}
+              onchange="ProfessorModule._togglePeriodo(this,'${inputId}')" />
+            <span style="font-size:11px;white-space:nowrap;">${t.label}</span>
+            <input type="text" id="${inputId}" class="form-input"
+              placeholder="${t.desc}"
+              value="${UI.escape(horario)}"
+              style="font-size:11px;padding:2px 4px;min-width:0;width:100%;display:${checked ? '' : 'none'};" />
+          </div>`;
+      }).join('');
+      return `
+        <div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid #f1f5f9;">
+          <span style="min-width:36px;font-size:12px;font-weight:600;color:#64748b;">${diaLabels[day]}</span>
+          <div style="display:flex;gap:8px;flex:1;">
+            ${turnosHtml}
+          </div>
+        </div>`;
+    }).join('');
 
     const content = `
       <div class="form-grid">
+
+        <!-- IDENTIFICAÇÃO -->
+        <div class="aluno-secao-titulo">👤 Identificação</div>
+
         <div class="form-group">
           <label class="form-label" for="p-nome">Nome completo <span class="required-star">*</span></label>
           <input id="p-nome" type="text" class="form-input"
@@ -292,69 +351,222 @@ const ProfessorModule = {
               oninput="ProfessorModule._maskCpf(this)" />
           </div>
           <div class="form-group">
+            <label class="form-label" for="p-cnpj">CNPJ</label>
+            <input id="p-cnpj" type="text" class="form-input"
+              placeholder="00.000.000/0001-00"
+              value="${v('cnpj')}" maxlength="18" autocomplete="off"
+              oninput="ProfessorModule._maskCnpj(this)" />
+          </div>
+        </div>
+
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label" for="p-status">Status</label>
+            <select id="p-status" class="form-select">${statusOptions}</select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="p-antecedentes">Antecedentes criminais</label>
+            <select id="p-antecedentes" class="form-select">
+              <option value="" ${!prof?.antecedentes ? 'selected' : ''}>— Não informado —</option>
+              <option value="nao" ${prof?.antecedentes === 'nao' ? 'selected' : ''}>Não</option>
+              <option value="sim" ${prof?.antecedentes === 'sim' ? 'selected' : ''}>Sim</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- CONTATO -->
+        <div class="aluno-secao-titulo">📞 Contato</div>
+
+        <div class="form-grid-2">
+          <div class="form-group">
             <label class="form-label" for="p-telefone">Telefone</label>
             <input id="p-telefone" type="text" class="form-input"
               placeholder="(00) 00000-0000"
               value="${v('telefone')}" maxlength="15" autocomplete="off"
               oninput="ProfessorModule._maskTel(this)" />
           </div>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label" for="p-email">E-mail</label>
-          <input id="p-email" type="email" class="form-input"
-            placeholder="professor@email.com"
-            value="${v('email')}" autocomplete="off" />
-        </div>
-
-        <div class="form-grid-2">
           <div class="form-group">
-            <label class="form-label" for="p-especialidade">Especialidade</label>
-            <select id="p-especialidade" class="form-select">${espOptions}</select>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="p-status">Status</label>
-            <select id="p-status" class="form-select">${statusOptions}</select>
+            <label class="form-label" for="p-telefone2">Telefone 2</label>
+            <input id="p-telefone2" type="text" class="form-input"
+              placeholder="(00) 00000-0000"
+              value="${v('telefone2')}" maxlength="15" autocomplete="off"
+              oninput="ProfessorModule._maskTel(this)" />
           </div>
         </div>
 
         <div class="form-grid-2">
           <div class="form-group">
-            <label class="form-label" for="p-hinicio">Horário início</label>
-            <input id="p-hinicio" type="time" class="form-input" value="${v('horarioInicio')}" />
+            <label class="form-label" for="p-email">E-mail</label>
+            <input id="p-email" type="email" class="form-input"
+              placeholder="professor@email.com"
+              value="${v('email')}" autocomplete="off" />
           </div>
           <div class="form-group">
-            <label class="form-label" for="p-hfim">Horário fim</label>
-            <input id="p-hfim" type="time" class="form-input" value="${v('horarioFim')}" />
+            <label class="form-label" for="p-email2">E-mail 2</label>
+            <input id="p-email2" type="email" class="form-input"
+              placeholder="professor2@email.com"
+              value="${v('email2')}" autocomplete="off" />
           </div>
         </div>
 
+        <!-- ENDEREÇO -->
+        <div class="aluno-secao-titulo">📍 Endereço</div>
+
         <div class="form-group">
-          <label class="form-label">Dias disponíveis</label>
-          <div class="dias-check-group">${diasChecks}</div>
+          <label class="form-label" for="p-rua">Rua / Avenida</label>
+          <input id="p-rua" type="text" class="form-input"
+            placeholder="ex: Rua das Flores, 123"
+            value="${v('enderecoRua')}" autocomplete="off" />
+        </div>
+
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label" for="p-cidade">Cidade</label>
+            <input id="p-cidade" type="text" class="form-input"
+              placeholder="ex: São Paulo"
+              value="${v('enderecoCidade')}" autocomplete="off" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="p-cep">CEP</label>
+            <input id="p-cep" type="text" class="form-input"
+              placeholder="00000-000"
+              value="${v('enderecoCep')}" maxlength="9" autocomplete="off"
+              oninput="ProfessorModule._maskCep(this)" />
+          </div>
+        </div>
+
+        <!-- CONDIÇÕES FÍSICAS -->
+        <div class="aluno-secao-titulo">🏃 Condições Físicas</div>
+
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label" for="p-peso">Peso (kg)</label>
+            <input id="p-peso" type="number" class="form-input"
+              placeholder="ex: 75"
+              value="${v('peso')}" min="0" step="0.1" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="p-altura">Altura (cm)</label>
+            <input id="p-altura" type="number" class="form-input"
+              placeholder="ex: 175"
+              value="${v('altura')}" min="0" step="1" />
+          </div>
+        </div>
+
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label" for="p-atestado">Atestado médico</label>
+            <select id="p-atestado" class="form-select">
+              <option value="" ${!prof?.atestadoMedico ? 'selected' : ''}>— Não informado —</option>
+              <option value="sim"     ${prof?.atestadoMedico === 'sim'     ? 'selected' : ''}>Sim — apto</option>
+              <option value="nao"     ${prof?.atestadoMedico === 'nao'     ? 'selected' : ''}>Não possui</option>
+              <option value="vencido" ${prof?.atestadoMedico === 'vencido' ? 'selected' : ''}>Vencido</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="p-atestado-val">Validade atestado</label>
+            <input id="p-atestado-val" type="date" class="form-input"
+              value="${v('atestadoValidade')}" />
+          </div>
+        </div>
+
+        <!-- EQUIPAMENTOS / ROUPAS -->
+        <div class="aluno-secao-titulo">👕 Equipamentos / Roupas</div>
+
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label" for="p-roupa">Tamanho de roupa</label>
+            <select id="p-roupa" class="form-select">
+              <option value="">— Selecionar —</option>
+              ${['PP','P','M','G','GG','XG','XXG'].map(t =>
+                `<option value="${t}" ${prof?.tamanhoRoupa === t ? 'selected' : ''}>${t}</option>`
+              ).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="p-sapato">Tamanho de sapato</label>
+            <input id="p-sapato" type="number" class="form-input"
+              placeholder="ex: 42"
+              value="${v('tamanhoSapato')}" min="30" max="50" step="1" />
+          </div>
+        </div>
+
+        <!-- INFORMAÇÕES FINANCEIRAS -->
+        <div class="aluno-secao-titulo">💰 Informações Financeiras</div>
+
+        <div class="form-group">
+          <label class="form-label" for="p-pix">Chave PIX</label>
+          <input id="p-pix" type="text" class="form-input"
+            placeholder="CPF, e-mail, telefone ou chave aleatória"
+            value="${v('pixChave')}" autocomplete="off" />
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+          <div class="form-group">
+            <label class="form-label" for="p-banco">Banco</label>
+            <input id="p-banco" type="text" class="form-input"
+              placeholder="ex: Nubank"
+              value="${v('banco')}" autocomplete="off" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="p-agencia">Agência</label>
+            <input id="p-agencia" type="text" class="form-input"
+              placeholder="ex: 0001"
+              value="${v('agencia')}" autocomplete="off" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="p-conta">Conta</label>
+            <input id="p-conta" type="text" class="form-input"
+              placeholder="ex: 12345-6"
+              value="${v('conta')}" autocomplete="off" />
+          </div>
+        </div>
+
+        <!-- DADOS PROFISSIONAIS -->
+        <div class="aluno-secao-titulo">🎓 Dados Profissionais</div>
+
+        <div class="form-group">
+          <label class="form-label" for="p-especialidade">Nível / Especialidade</label>
+          <select id="p-especialidade" class="form-select">${espOptions}</select>
         </div>
 
         <div class="form-group">
           <label class="form-label">Arenas onde leciona</label>
           <div class="arenas-check-group" id="p-arenas-checks">
-            ${(() => {
-              const arenas = Storage.getAll('arenas').filter(a => a.status === 'ativa');
-              const profArenas = Array.isArray(prof?.arenas) ? prof.arenas : [];
-              return arenas.map(a => `
-                <label class="dia-check-label">
-                  <input type="checkbox" name="prof-arena" value="${a.id}"
-                    ${profArenas.includes(a.id) ? 'checked' : ''} />
-                  <span>${UI.escape(a.nome)}</span>
-                </label>`).join('') || '<span class="text-muted" style="font-size:12px;">Nenhuma arena cadastrada.</span>';
-            })()}
+            ${arenasChecks}
           </div>
         </div>
 
+        <div class="form-group">
+          <label class="form-label">Currículo / Certificações</label>
+          <div style="display:grid;grid-template-columns:1fr 140px 120px 32px;gap:6px;margin-bottom:4px;">
+            <span style="font-size:11px;color:#64748b;font-weight:600;">Curso / Certificação</span>
+            <span style="font-size:11px;color:#64748b;font-weight:600;">Período</span>
+            <span style="font-size:11px;color:#64748b;font-weight:600;">Validade</span>
+            <span></span>
+          </div>
+          <div id="p-curriculo-list">
+            ${curriculoRows}
+          </div>
+          <button type="button" class="btn btn-ghost btn-sm" style="margin-top:6px;"
+            onclick="ProfessorModule._addCurriculoRow()">+ Adicionar</button>
+        </div>
+
+        <!-- PERÍODOS DE ATUAÇÃO -->
+        <div class="aluno-secao-titulo">🗓️ Períodos de Atuação</div>
+
+        <div class="form-group">
+          <div style="font-size:11px;color:#64748b;margin-bottom:8px;">Marque os turnos disponíveis e informe o horário específico se necessário.</div>
+          ${periodosGrid}
+        </div>
+
+        <!-- OBSERVAÇÕES -->
         <div class="form-group">
           <label class="form-label" for="p-obs">Observações</label>
           <textarea id="p-obs" class="form-textarea"
             placeholder="Informações adicionais sobre o professor…" rows="3">${prof ? UI.escape(prof.observacoes || '') : ''}</textarea>
         </div>
+
       </div>`;
 
     UI.openModal({
@@ -362,6 +574,7 @@ const ProfessorModule = {
       content,
       confirmLabel: isEdit ? 'Salvar alterações' : 'Cadastrar Professor',
       onConfirm:    () => this.saveProfessor(id),
+      wide:         true,
     });
   },
 
@@ -370,7 +583,7 @@ const ProfessorModule = {
   /* ------------------------------------------------------------------ */
 
   saveProfessor(id = null) {
-    const g    = n => document.getElementById(`p-${n}`);
+    const g = n => document.getElementById(`p-${n}`);
     const nome = g('nome');
 
     if (!nome || !nome.value.trim()) {
@@ -380,24 +593,63 @@ const ProfessorModule = {
     }
     nome.classList.remove('error');
 
-    const diasChecked = [...document.querySelectorAll('input[name="dias"]:checked')]
-      .map(el => el.value);
-
     const arenaChecks = document.querySelectorAll('input[name="prof-arena"]:checked');
     const arenas = Array.from(arenaChecks).map(cb => cb.value);
 
+    // Currículo
+    const curriculoRows = document.querySelectorAll('#p-curriculo-list .curriculo-row');
+    const curriculo = Array.from(curriculoRows).map(row => ({
+      curso:    (row.querySelector('.cur-curso')?.value || '').trim(),
+      periodo:  (row.querySelector('.cur-periodo')?.value || '').trim(),
+      validade: (row.querySelector('.cur-validade')?.value || '').trim(),
+    })).filter(c => c.curso !== '');
+
+    // Períodos
+    const dias = ['seg','ter','qua','qui','sex','sab','dom'];
+    const turnosKeys = ['manha','tarde','noite'];
+    const periodos = {};
+    for (const day of dias) {
+      const dayObj = {};
+      for (const turno of turnosKeys) {
+        const cb = document.querySelector(`[name="per-${day}-${turno}"]`);
+        if (cb && cb.checked) {
+          const inp = document.getElementById(`per-hor-${day}-${turno}`);
+          dayObj[turno] = inp ? inp.value.trim() : '';
+        }
+      }
+      if (Object.keys(dayObj).length > 0) {
+        periodos[day] = dayObj;
+      }
+    }
+
     const data = {
-      nome:           nome.value.trim(),
-      cpf:            g('cpf')          ? g('cpf').value.trim()          : '',
-      telefone:       g('telefone')     ? g('telefone').value.trim()     : '',
-      email:          g('email')        ? g('email').value.trim()        : '',
-      especialidade:  g('especialidade')? g('especialidade').value        : 'iniciantes',
-      status:         g('status')       ? g('status').value              : 'ativo',
-      horarioInicio:  g('hinicio')      ? g('hinicio').value             : '',
-      horarioFim:     g('hfim')         ? g('hfim').value                : '',
-      diasDisponiveis: diasChecked,
+      nome:            nome.value.trim(),
+      cpf:             g('cpf')           ? g('cpf').value.trim()           : '',
+      cnpj:            g('cnpj')          ? g('cnpj').value.trim()          : '',
+      antecedentes:    g('antecedentes')  ? g('antecedentes').value         : '',
+      telefone:        g('telefone')      ? g('telefone').value.trim()      : '',
+      telefone2:       g('telefone2')     ? g('telefone2').value.trim()     : '',
+      email:           g('email')         ? g('email').value.trim()         : '',
+      email2:          g('email2')        ? g('email2').value.trim()        : '',
+      especialidade:   g('especialidade') ? g('especialidade').value        : '',
+      status:          g('status')        ? g('status').value               : 'ativo',
+      enderecoRua:     g('rua')           ? g('rua').value.trim()           : '',
+      enderecoCidade:  g('cidade')        ? g('cidade').value.trim()        : '',
+      enderecoCep:     g('cep')           ? g('cep').value.trim()           : '',
+      peso:            g('peso')          ? g('peso').value.trim()          : '',
+      altura:          g('altura')        ? g('altura').value.trim()        : '',
+      atestadoMedico:  g('atestado')      ? g('atestado').value             : '',
+      atestadoValidade:g('atestado-val')  ? g('atestado-val').value         : '',
+      tamanhoRoupa:    g('roupa')         ? g('roupa').value                : '',
+      tamanhoSapato:   g('sapato')        ? g('sapato').value.trim()        : '',
+      pixChave:        g('pix')           ? g('pix').value.trim()           : '',
+      banco:           g('banco')         ? g('banco').value.trim()         : '',
+      agencia:         g('agencia')       ? g('agencia').value.trim()       : '',
+      conta:           g('conta')         ? g('conta').value.trim()         : '',
       arenas,
-      observacoes:    g('obs')          ? g('obs').value.trim()          : '',
+      curriculo,
+      periodos,
+      observacoes:     g('obs')           ? g('obs').value.trim()           : '',
     };
 
     if (id) {
@@ -487,6 +739,48 @@ const ProfessorModule = {
   /* ------------------------------------------------------------------ */
   /*  Helpers                                                             */
   /* ------------------------------------------------------------------ */
+
+  _curriculoRow(c = {}) {
+    return `
+    <div class="curriculo-row" style="display:grid;grid-template-columns:1fr 140px 120px 32px;gap:6px;align-items:center;">
+      <input type="text" class="form-input cur-curso" placeholder="Curso / Certificação"
+        value="${UI.escape(c.curso || '')}" style="font-size:13px;" />
+      <input type="text" class="form-input cur-periodo" placeholder="ex: 2023"
+        value="${UI.escape(c.periodo || '')}" style="font-size:13px;" />
+      <input type="text" class="form-input cur-validade" placeholder="Validade"
+        value="${UI.escape(c.validade || '')}" style="font-size:13px;" />
+      <button type="button" class="btn btn-ghost btn-sm danger"
+        onclick="this.closest('.curriculo-row').remove()" style="padding:4px 8px;">✕</button>
+    </div>`;
+  },
+
+  _addCurriculoRow() {
+    const list = document.getElementById('p-curriculo-list');
+    if (!list) return;
+    const div = document.createElement('div');
+    div.innerHTML = this._curriculoRow({});
+    list.appendChild(div.firstElementChild);
+  },
+
+  _togglePeriodo(cb, inputId) {
+    const inp = document.getElementById(inputId);
+    if (inp) inp.style.display = cb.checked ? '' : 'none';
+  },
+
+  _maskCnpj(el) {
+    let v = el.value.replace(/\D/g,'').slice(0,14);
+    if (v.length > 12) v = v.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{0,2})/,'$1.$2.$3/$4-$5');
+    else if (v.length > 8) v = v.replace(/(\d{2})(\d{3})(\d{3})(\d{0,4})/,'$1.$2.$3/$4');
+    else if (v.length > 5) v = v.replace(/(\d{2})(\d{3})(\d{0,3})/,'$1.$2.$3');
+    else if (v.length > 2) v = v.replace(/(\d{2})(\d{0,3})/,'$1.$2');
+    el.value = v;
+  },
+
+  _maskCep(el) {
+    let v = el.value.replace(/\D/g,'').slice(0,8);
+    if (v.length > 5) v = v.replace(/(\d{5})(\d{0,3})/,'$1-$2');
+    el.value = v;
+  },
 
   _maskCpf(el) {
     let v = el.value.replace(/\D/g, '').slice(0, 11);
