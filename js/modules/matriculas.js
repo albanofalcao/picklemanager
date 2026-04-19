@@ -516,17 +516,49 @@ const MatriculaModule = {
       UI.toast(`Matrícula de "${data.alunoNome}" criada com sucesso!`, 'success');
     }
 
-    // Auto-inscrever aluno na grade selecionada (turmaAlunos)
+    // Auto-inscrever aluno na grade com período do plano comprado
     if (turmaId && alunoId) {
-      const jaInscrito = Storage.getAll('turmaAlunos')
-        .find(ta => ta.turmaId === turmaId && ta.alunoId === alunoId && ta.status === 'ativo');
-      if (!jaInscrito) {
+      // Calcula dataFim com base no tipo do plano
+      const MESES_PLANO = { mensal: 1, trimestral: 3, semestral: 6, anual: 12 };
+      const planoTipo   = planoOpt?.dataset?.tipo || '';
+      let dataFimInscricao = null;
+      if (MESES_PLANO[planoTipo]) {
+        const d = new Date(data.dataInicio + 'T00:00:00');
+        d.setMonth(d.getMonth() + MESES_PLANO[planoTipo]);
+        d.setDate(d.getDate() - 1); // último dia do período
+        dataFimInscricao = d.toISOString().slice(0, 10);
+      }
+      // avulso/pacote: sem dataFim fixa — encerra quando saldo = 0
+
+      // Se edição e trocou de grade, encerra inscrição na grade anterior
+      if (isEdit && matAtual?.turmaId && matAtual.turmaId !== turmaId) {
+        const inscAnterior = Storage.getAll('turmaAlunos')
+          .find(ta => ta.turmaId === matAtual.turmaId && ta.alunoId === alunoId);
+        if (inscAnterior) Storage.update('turmaAlunos', inscAnterior.id, { status: 'inativo' });
+      }
+
+      const inscExistente = Storage.getAll('turmaAlunos')
+        .find(ta => ta.turmaId === turmaId && ta.alunoId === alunoId);
+
+      if (inscExistente) {
+        // Atualiza inscrição existente (pode ter mudado dias/período)
+        Storage.update('turmaAlunos', inscExistente.id, {
+          diasSemana,
+          dataInscricao: data.dataInicio,
+          dataFim:       dataFimInscricao,
+          matriculaId:   matriculaId || inscExistente.matriculaId,
+          status:        'ativo',
+        });
+      } else {
         Storage.create('turmaAlunos', {
           turmaId,
           alunoId,
           alunoNome,
+          diasSemana,
           dataInscricao: data.dataInicio,
-          status: 'ativo',
+          dataFim:       dataFimInscricao,
+          matriculaId:   matriculaId || null,
+          status:        'ativo',
         });
       }
     }
@@ -556,11 +588,14 @@ const MatriculaModule = {
       .filter(l => l.matriculaId === id)
       .forEach(l => Storage.update('financeiro', l.id, { status: 'cancelado' }));
 
-    // Remover inscrição na grade vinculada
+    // Encerrar inscrição na grade vinculada (preserva histórico)
     if (mat.turmaId && mat.alunoId) {
       const insc = Storage.getAll('turmaAlunos')
-        .find(ta => ta.turmaId === mat.turmaId && ta.alunoId === mat.alunoId);
-      if (insc) Storage.delete('turmaAlunos', insc.id);
+        .find(ta => ta.turmaId === mat.turmaId && ta.alunoId === mat.alunoId && ta.status === 'ativo');
+      if (insc) Storage.update('turmaAlunos', insc.id, {
+        status: 'inativo',
+        dataFim: new Date().toISOString().slice(0, 10),
+      });
     }
 
     Storage.delete(this.STORAGE_KEY, id);
