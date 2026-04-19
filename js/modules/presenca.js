@@ -157,6 +157,22 @@ const PresencaModule = {
 
     const presentes = Array.from(checkboxes).filter(cb => cb.checked).length;
     UI.toast(`Presença salva: ${presentes} de ${checkboxes.length} aluno${checkboxes.length !== 1 ? 's' : ''} presentes.`, 'success');
+
+    // Verifica alunos avulsos com saldo esgotado após salvar
+    const alunosPresentes = Array.from(checkboxes).filter(cb => cb.checked).map(cb => cb.dataset.alunoId);
+    const esgotados = [];
+    alunosPresentes.forEach(alunoId => {
+      const s = SaldoService.getSaldo(alunoId);
+      if (s.avulso && s.disponivel <= 0 && s.matricula) {
+        // Encerra matrícula avulsa automaticamente
+        Storage.update('matriculas', s.matricula.id, { status: 'encerrada' });
+        esgotados.push(s.matricula.alunoNome || alunoId);
+      }
+    });
+    if (esgotados.length) {
+      UI.toast(`Saldo esgotado — matrícula avulsa encerrada: ${esgotados.join(', ')}`, 'warning');
+    }
+
     UI.closeModal();
     AulaModule.render();
   },

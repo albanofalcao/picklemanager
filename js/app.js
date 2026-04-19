@@ -13,21 +13,23 @@ const SaldoService = {
       .filter(m => m.alunoId === alunoId && m.status === 'ativa')
       .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))[0];
 
-    if (!matricula) return { total: 0, usado: 0, disponivel: 0, matricula: null, plano: null };
+    if (!matricula) return { total: 0, usado: 0, disponivel: 0, matricula: null, plano: null, avulso: false };
 
     const plano = Storage.getById('planos', matricula.planoId);
     const total = plano ? (parseInt(plano.aulasIncluidas) || 0) : 0;
 
-    // Aulas do mês com presença confirmada
-    const aulasDoMes = Storage.getAll('aulas')
-      .filter(a => a.data && a.data.slice(0, 7) === mesAno)
-      .map(a => a.id);
+    // Planos avulso/pacote: saldo total acumulado (não reseta por mês)
+    const isAvulso = plano && (plano.tipo === 'avulso' || plano.tipo === 'pacote');
+
+    const aulaIds = isAvulso
+      ? Storage.getAll('aulas').map(a => a.id)                                    // todas as aulas ever
+      : Storage.getAll('aulas').filter(a => a.data && a.data.slice(0, 7) === mesAno).map(a => a.id); // só do mês
 
     const usado = Storage.getAll('presencas')
-      .filter(p => p.alunoId === alunoId && p.presente === true && aulasDoMes.includes(p.aulaId))
+      .filter(p => p.alunoId === alunoId && p.presente === true && aulaIds.includes(p.aulaId))
       .length;
 
-    return { total, usado, disponivel: Math.max(0, total - usado), matricula, plano };
+    return { total, usado, disponivel: Math.max(0, total - usado), matricula, plano, avulso: isAvulso };
   },
 
   /** Renderiza badge compacto de saldo */
@@ -36,7 +38,8 @@ const SaldoService = {
     if (!s.total) return `<span class="badge badge-gray saldo-badge">Sem plano</span>`;
     const pct = s.total > 0 ? (s.usado / s.total) : 0;
     const cls = pct >= 1 ? 'badge-danger' : pct >= 0.75 ? 'badge-warning' : 'badge-success';
-    return `<span class="badge ${cls} saldo-badge" title="Saldo de aulas — ${mesAno}">${s.disponivel}/${s.total} aulas</span>`;
+    const label = s.avulso ? `${s.disponivel}/${s.total} avulsas` : `${s.disponivel}/${s.total} aulas`;
+    return `<span class="badge ${cls} saldo-badge" title="${s.avulso ? 'Saldo total de aulas avulsas' : 'Saldo de aulas — ' + mesAno}">${label}</span>`;
   },
 
   /** Renderiza barra de progresso de saldo */
@@ -48,16 +51,18 @@ const SaldoService = {
     const mes  = mesAno || new Date().toISOString().slice(0, 7);
     const [y, m] = mes.split('-');
     const mesLabel = new Date(+y, +m - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+    const tituloLabel = s.avulso ? 'Aulas avulsas — saldo total' : `Aulas — ${mesLabel}`;
     return `
       <div class="saldo-bar-wrap">
         <div class="saldo-bar-header">
-          <span class="saldo-bar-label">Aulas — ${mesLabel}</span>
+          <span class="saldo-bar-label">${tituloLabel}</span>
           <span class="saldo-bar-nums" style="color:${cor}">${s.usado} usada${s.usado !== 1 ? 's' : ''} de ${s.total}</span>
         </div>
         <div class="saldo-bar-track">
           <div class="saldo-bar-fill" style="width:${pct}%;background:${cor};"></div>
         </div>
         <div class="saldo-bar-plano">${s.plano ? s.plano.nome : ''}</div>
+        ${s.avulso && s.disponivel === 0 ? `<div style="font-size:11px;color:#dc2626;margin-top:4px;">⚠️ Saldo esgotado — matrícula será encerrada</div>` : ''}
       </div>`;
   },
 };
