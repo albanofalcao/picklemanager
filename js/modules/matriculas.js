@@ -244,6 +244,7 @@ const MatriculaModule = {
 
     const alunos = Storage.getAll('alunos').filter(a => a.status === 'ativo');
     const planos = Storage.getAll('planos').filter(p => p.status === 'ativo');
+    const grades = Storage.getAll('turmas').filter(t => t.status === 'ativa');
 
     const alunoOpts = `<option value="">— Selecionar aluno —</option>` +
       alunos.map(a =>
@@ -256,6 +257,34 @@ const MatriculaModule = {
         `<option value="${p.id}" data-nome="${UI.escape(p.nome)}" data-tipo="${p.tipo}" data-valor="${p.valor}" data-aulas="${p.aulasIncluidas || 0}"
           ${mat && mat.planoId === p.id ? 'selected' : ''}>${UI.escape(p.nome)} — ${this._fmtMoeda(p.valor)}</option>`
       ).join('');
+
+    const DIAS_MAP = { seg:'Seg', ter:'Ter', qua:'Qua', qui:'Qui', sex:'Sex', sab:'Sáb', dom:'Dom' };
+
+    // Dias da grade já selecionada (edição)
+    const gradeAtual = mat?.turmaId ? grades.find(t => t.id === mat.turmaId) : null;
+    const diasGradeAtual = gradeAtual?.diasSemana || [];
+    const diasSelecionados = mat?.diasSemana || [];
+
+    const gradeOpts = `<option value="">— Selecionar grade —</option>` +
+      grades.map(t => {
+        const dias = (t.diasSemana || []).map(d => DIAS_MAP[d] || d).join('/');
+        const horario = t.horarioInicio ? ` ${t.horarioInicio}` : '';
+        return `<option value="${t.id}"
+          data-dias='${JSON.stringify(t.diasSemana || [])}'
+          data-nome="${UI.escape(t.nome)}"
+          ${mat && mat.turmaId === t.id ? 'selected' : ''}>
+          ${UI.escape(t.nome)}${dias ? ` — ${dias}` : ''}${horario}
+        </option>`;
+      }).join('');
+
+    const diasChecksHtml = diasGradeAtual.length
+      ? diasGradeAtual.map(d => `
+          <label class="dia-check-label">
+            <input type="checkbox" name="mat-dia" value="${d}"
+              ${diasSelecionados.includes(d) ? 'checked' : ''} />
+            <span>${DIAS_MAP[d] || d}</span>
+          </label>`).join('')
+      : '<span class="text-muted" style="font-size:12px;">Selecione uma grade primeiro.</span>';
 
     const statusOpts = Object.entries(this.STATUS).map(([k, cfg]) =>
       `<option value="${k}" ${mat && mat.status === k ? 'selected' : ''}>${cfg.label}</option>`
@@ -279,6 +308,16 @@ const MatriculaModule = {
         <div class="form-group">
           <label class="form-label" for="mat-plano">Plano <span class="required-star">*</span></label>
           <select id="mat-plano" class="form-select" onchange="MatriculaModule._onPlanoChange()">${planoOpts}</select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="mat-grade">Grade de aulas <span class="required-star">*</span></label>
+          <select id="mat-grade" class="form-select" onchange="MatriculaModule._onGradeChange(this)">${gradeOpts}</select>
+        </div>
+
+        <div class="form-group" id="mat-dias-wrap">
+          <label class="form-label">Dias que o aluno vai frequentar <span class="required-star">*</span></label>
+          <div class="dias-check-group" id="mat-dias-checks">${diasChecksHtml}</div>
         </div>
 
         <div class="form-group">
@@ -377,6 +416,37 @@ const MatriculaModule = {
   },
 
   /* ------------------------------------------------------------------ */
+  /*  Grade change handler                                                */
+  /* ------------------------------------------------------------------ */
+
+  _onGradeChange(sel) {
+    const checksEl = document.getElementById('mat-dias-checks');
+    if (!checksEl) return;
+
+    const DIAS_MAP = { seg:'Seg', ter:'Ter', qua:'Qua', qui:'Qui', sex:'Sex', sab:'Sáb', dom:'Dom' };
+    const opt = sel.selectedOptions[0];
+
+    if (!opt || !opt.value) {
+      checksEl.innerHTML = '<span class="text-muted" style="font-size:12px;">Selecione uma grade primeiro.</span>';
+      return;
+    }
+
+    let dias = [];
+    try { dias = JSON.parse(opt.dataset.dias || '[]'); } catch (e) { dias = []; }
+
+    if (!dias.length) {
+      checksEl.innerHTML = '<span class="text-muted" style="font-size:12px;">Esta grade não possui dias definidos.</span>';
+      return;
+    }
+
+    checksEl.innerHTML = dias.map(d => `
+      <label class="dia-check-label">
+        <input type="checkbox" name="mat-dia" value="${d}" />
+        <span>${DIAS_MAP[d] || d}</span>
+      </label>`).join('');
+  },
+
+  /* ------------------------------------------------------------------ */
   /*  CRUD operations                                                     */
   /* ------------------------------------------------------------------ */
 
@@ -403,17 +473,28 @@ const MatriculaModule = {
     }
 
     const planoOpt = planoSel.selectedOptions[0];
+    const gradeEl  = g('grade');
+    const gradeOpt = gradeEl?.selectedOptions[0];
+    const diasSemana = Array.from(document.querySelectorAll('[name="mat-dia"]:checked')).map(cb => cb.value);
 
     // Em edição preserva aluno original; em criação lê do select
     const alunoId   = isEdit ? matAtual.alunoId   : alunoSel.value;
     const alunoOpt  = isEdit ? null : alunoSel.selectedOptions[0];
     const alunoNome = isEdit ? matAtual.alunoNome  : (alunoOpt ? (alunoOpt.dataset.nome || alunoOpt.textContent) : '');
 
+    const turmaId   = gradeEl?.value || (isEdit ? matAtual?.turmaId : '');
+    const turmaNome = gradeOpt?.value
+      ? (gradeOpt.dataset.nome || gradeOpt.textContent.trim())
+      : (isEdit ? matAtual?.turmaNome : '');
+
     const data = {
       alunoId,
       alunoNome,
       planoId:       planoSel.value,
       planoNome:     planoOpt ? (planoOpt.dataset.nome || planoOpt.textContent) : '',
+      turmaId:       turmaId || '',
+      turmaNome:     turmaNome || '',
+      diasSemana,
       dataInicio:    inicio.value,
       valorPago:           g('valor')    ? parseFloat(g('valor').value) || 0 : 0,
       formaPagamento:      g('fp')       ? g('fp').value       : '',
@@ -433,6 +514,21 @@ const MatriculaModule = {
       const nova = Storage.create(this.STORAGE_KEY, data);
       matriculaId = nova ? nova.id : null;
       UI.toast(`Matrícula de "${data.alunoNome}" criada com sucesso!`, 'success');
+    }
+
+    // Auto-inscrever aluno na grade selecionada (turmaAlunos)
+    if (turmaId && alunoId) {
+      const jaInscrito = Storage.getAll('turmaAlunos')
+        .find(ta => ta.turmaId === turmaId && ta.alunoId === alunoId && ta.status === 'ativo');
+      if (!jaInscrito) {
+        Storage.create('turmaAlunos', {
+          turmaId,
+          alunoId,
+          alunoNome,
+          dataInscricao: data.dataInicio,
+          status: 'ativo',
+        });
+      }
     }
 
     // Sincronizar lançamentos financeiros
@@ -459,6 +555,13 @@ const MatriculaModule = {
     Storage.getAll('financeiro')
       .filter(l => l.matriculaId === id)
       .forEach(l => Storage.update('financeiro', l.id, { status: 'cancelado' }));
+
+    // Remover inscrição na grade vinculada
+    if (mat.turmaId && mat.alunoId) {
+      const insc = Storage.getAll('turmaAlunos')
+        .find(ta => ta.turmaId === mat.turmaId && ta.alunoId === mat.alunoId);
+      if (insc) Storage.delete('turmaAlunos', insc.id);
+    }
 
     Storage.delete(this.STORAGE_KEY, id);
     UI.toast(`Matrícula de "${mat.alunoNome}" excluída.`, 'success');
