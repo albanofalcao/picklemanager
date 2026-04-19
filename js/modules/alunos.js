@@ -867,7 +867,6 @@ const AlunoModule = {
           <div><span class="text-muted">Plano:</span> <strong>${UI.escape(matriculaAtiva.planoNome || '—')}</strong></div>
           <div><span class="text-muted">Tipo:</span> ${tipoLabel}</div>
           <div><span class="text-muted">Início:</span> ${fmtD(matriculaAtiva.dataInicio)}</div>
-          <div><span class="text-muted">Vencimento:</span> ${fmtD(matriculaAtiva.dataFim)}</div>
         </div>
         <div class="stats-grid" style="grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px;">
           <div class="stat-card" style="padding:10px 12px;">

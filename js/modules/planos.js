@@ -194,7 +194,6 @@ const PlanoModule = {
           <div class="arena-name">${UI.escape(p.nome)}</div>
           <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;">
             ${p.esporte    ? `<span class="badge badge-blue">${UI.escape(ListasService.label('esporte', p.esporte))}</span>` : ''}
-            ${p.nivel      ? `<span class="badge badge-gray">${UI.escape(ListasService.label('aulas_nivel', p.nivel))}</span>` : ''}
             ${p.tipoplano  ? `<span class="badge badge-success">${UI.escape(ListasService.label('aulas_tipoplano', p.tipoplano))}</span>` : ''}
             ${p.desconto > 0 ? `<span class="badge badge-warning">${p.desconto}% desc.</span>` : ''}
             ${p.arenaNome  ? `<span class="badge badge-gray">${UI.escape(p.arenaNome)}</span>` : ''}
@@ -266,7 +265,6 @@ const PlanoModule = {
       `<option value="${k}" ${plano && plano.status === k ? 'selected' : ''}>${cfg.label}</option>`).join('');
 
     const esporteOpts   = ListasService.opts('esporte',        plano?.esporte   || '');
-    const nivelOpts     = ListasService.opts('aulas_nivel',    plano?.nivel     || '');
     const tipoPlanoOpts = ListasService.opts('aulas_tipoplano', plano?.tipoplano || '');
 
     const arenas = Storage.getAll('arenas').filter(a => a.status === 'ativa');
@@ -293,19 +291,12 @@ const PlanoModule = {
           </div>
         </div>
 
-        <div class="form-grid-3">
+        <div class="form-grid-2">
           <div class="form-group">
             <label class="form-label" for="pl-esporte">Esporte</label>
             <select id="pl-esporte" class="form-select">
               <option value="">— Selecionar —</option>
               ${esporteOpts}
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="pl-nivel">Nível</label>
-            <select id="pl-nivel" class="form-select">
-              <option value="">— Selecionar —</option>
-              ${nivelOpts}
             </select>
           </div>
           <div class="form-group">
@@ -395,7 +386,6 @@ const PlanoModule = {
       nome:          nome.value.trim(),
       tipo:          g('tipo')      ? g('tipo').value                      : 'mensal',
       esporte:       g('esporte')   ? g('esporte').value                   : '',
-      nivel:         g('nivel')     ? g('nivel').value                     : '',
       tipoplano:     g('tipoplano') ? g('tipoplano').value                 : '',
       valor:         parseFloat(valor.value) || 0,
       aulasIncluidas:g('aulas')     ? parseInt(g('aulas').value, 10) || 0  : 0,

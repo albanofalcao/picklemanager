@@ -13,10 +13,10 @@ const MatriculaModule = {
   },
 
   STATUS: {
-    ativa:     { label: 'Ativa',     badge: 'badge-success' },
-    suspensa:  { label: 'Suspensa',  badge: 'badge-warning' },
-    encerrada: { label: 'Encerrada', badge: 'badge-gray'    },
-    vencida:   { label: 'Vencida',   badge: 'badge-danger'  },
+    ativa:        { label: 'Ativa',        badge: 'badge-success' },
+    suspensa:     { label: 'Suspensa',     badge: 'badge-warning' },
+    encerrada:    { label: 'Encerrada',    badge: 'badge-gray'    },
+    inadimplente: { label: 'Inadimplente', badge: 'badge-danger'  },
   },
 
   FORMA_PAGAMENTO: {
@@ -53,25 +53,13 @@ const MatriculaModule = {
   },
 
   getStats() {
-    this._syncVencidas();
     const all = this.getAll();
     return {
-      total:     all.length,
-      ativas:    all.filter(m => m.status === 'ativa').length,
-      vencidas:  all.filter(m => m.status === 'vencida').length,
-      encerradas:all.filter(m => m.status === 'encerrada').length,
+      total:        all.length,
+      ativas:       all.filter(m => m.status === 'ativa').length,
+      inadimplentes:all.filter(m => m.status === 'inadimplente').length,
+      encerradas:   all.filter(m => m.status === 'encerrada').length,
     };
-  },
-
-  /** Auto-marca como "vencida" qualquer matrícula ativa com dataFim no passado */
-  _syncVencidas() {
-    const hoje = new Date().toISOString().slice(0, 10);
-    const all  = this.getAll();
-    all.forEach(m => {
-      if (m.status === 'ativa' && m.dataFim && m.dataFim < hoje) {
-        Storage.update(this.STORAGE_KEY, m.id, { status: 'vencida' });
-      }
-    });
   },
 
   /* ------------------------------------------------------------------ */
@@ -79,7 +67,6 @@ const MatriculaModule = {
   /* ------------------------------------------------------------------ */
 
   render() {
-    this._syncVencidas();
     const stats    = this.getStats();
     const filtered = this.getFiltered();
     const area     = document.getElementById('content-area');
@@ -120,8 +107,8 @@ const MatriculaModule = {
         <div class="stat-card">
           <div class="stat-icon amber">⚠️</div>
           <div class="stat-info">
-            <div class="stat-value">${stats.vencidas}</div>
-            <div class="stat-label">Vencidas</div>
+            <div class="stat-value">${stats.inadimplentes}</div>
+            <div class="stat-label">Inadimplentes</div>
           </div>
         </div>
         <div class="stat-card">
@@ -166,17 +153,9 @@ const MatriculaModule = {
   },
 
   renderTable(matriculas) {
-    const hoje = new Date().toISOString().slice(0, 10);
-
     const rows = matriculas.map(m => {
       const status     = this.STATUS[m.status] || { label: m.status, badge: 'badge-gray' };
       const dataInicio = m.dataInicio ? this._fmtDate(m.dataInicio) : '—';
-      const dataFim    = m.dataFim    ? this._fmtDate(m.dataFim)    : '—';
-      const diasRest   = m.dataFim && m.status === 'ativa'
-        ? this._diasRestantes(m.dataFim, hoje) : null;
-      const alertaVenc = diasRest !== null && diasRest <= 7
-        ? `<span class="badge badge-warning" style="font-size:10px;margin-left:4px;">${diasRest <= 0 ? 'Hoje!' : diasRest + 'd'}</span>`
-        : '';
 
       // Badge de status financeiro
       const lancamentos = Storage.getAll('financeiro').filter(l => l.matriculaId === m.id);
@@ -204,9 +183,6 @@ const MatriculaModule = {
             ${m.valorPago ? `<div class="aluno-sub">${this._fmtMoeda(m.valorPago)}</div>` : ''}
           </td>
           <td>${dataInicio}</td>
-          <td>
-            ${dataFim}${alertaVenc}
-          </td>
           <td><span class="badge ${status.badge}">${status.label}</span></td>
           <td class="text-muted text-sm">${UI.escape(m.formaPagamento ? ListasService.label('matriculas_forma_pagamento', m.formaPagamento) : '—')}</td>
           <td>${financeiroBadge}${SaldoService.badgeSaldo(m.alunoId)}</td>
@@ -226,7 +202,6 @@ const MatriculaModule = {
               <th>Aluno</th>
               <th>Plano</th>
               <th>Início</th>
-              <th>Vencimento</th>
               <th>Status</th>
               <th>Pagamento</th>
               <th>Financeiro</th>
@@ -306,17 +281,11 @@ const MatriculaModule = {
           <select id="mat-plano" class="form-select" onchange="MatriculaModule._onPlanoChange()">${planoOpts}</select>
         </div>
 
-        <div class="form-grid-2">
-          <div class="form-group">
-            <label class="form-label" for="mat-inicio">Data de início <span class="required-star">*</span></label>
-            <input id="mat-inicio" type="date" class="form-input"
-              value="${v('dataInicio', hoje)}"
-              onchange="MatriculaModule._onPlanoChange()" />
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="mat-fim">Data de vencimento</label>
-            <input id="mat-fim" type="date" class="form-input" value="${v('dataFim')}" />
-          </div>
+        <div class="form-group">
+          <label class="form-label" for="mat-inicio">Data de início <span class="required-star">*</span></label>
+          <input id="mat-inicio" type="date" class="form-input"
+            value="${v('dataInicio', hoje)}"
+            onchange="MatriculaModule._onPlanoChange()" />
         </div>
 
         <div class="form-grid-2">
@@ -393,25 +362,12 @@ const MatriculaModule = {
   /*  Plan change handler                                                 */
   /* ------------------------------------------------------------------ */
 
-  /** Ao selecionar plano + início, calcula e preenche data fim automaticamente */
   _onPlanoChange() {
     const planoSel = document.getElementById('mat-plano');
     const inicioEl = document.getElementById('mat-inicio');
-    const fimEl    = document.getElementById('mat-fim');
-    if (!planoSel || !inicioEl || !fimEl) return;
+    if (!planoSel || !inicioEl) return;
 
-    const opt   = planoSel.selectedOptions[0];
-    const tipo  = opt ? opt.dataset.tipo : '';
-    const inicio = inicioEl.value;
-    if (inicio && tipo) {
-      const d = new Date(inicio + 'T00:00:00');
-      const meses = { mensal: 1, trimestral: 3, semestral: 6, anual: 12 };
-      if (meses[tipo]) {
-        d.setMonth(d.getMonth() + meses[tipo]);
-        d.setDate(d.getDate() - 1);
-        fimEl.value = d.toISOString().slice(0, 10);
-      }
-    }
+    const opt = planoSel.selectedOptions[0];
 
     // Preenche valor do plano se campo vazio
     const valorEl = document.getElementById('mat-valor');
@@ -459,7 +415,6 @@ const MatriculaModule = {
       planoId:       planoSel.value,
       planoNome:     planoOpt ? (planoOpt.dataset.nome || planoOpt.textContent) : '',
       dataInicio:    inicio.value,
-      dataFim:       g('fim')    ? g('fim').value    : '',
       valorPago:           g('valor')    ? parseFloat(g('valor').value) || 0 : 0,
       formaPagamento:      g('fp')       ? g('fp').value       : '',
       numeroParcelas:      g('parcelas') ? parseInt(g('parcelas').value) || 1 : 1,
