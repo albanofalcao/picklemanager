@@ -546,7 +546,8 @@ const PortalModule = {
 
     return inscricoes.map(i => {
       const turma = Storage.getById('turmas', i.turmaId);
-      const dias  = (turma?.diasSemana || []).map(d => DIAS[d] || d).join(' · ');
+      const diasNorm549 = (turma?.diasSemana || []).map(d => typeof d === 'object' ? d.dia : d);
+      const dias  = diasNorm549.map(d => DIAS[d] || d).join(' · ');
       const hr    = turma ? [turma.horarioInicio, turma.horarioFim].filter(Boolean).join(' – ') : '';
       return `
         <div class="portal-card">
@@ -586,7 +587,8 @@ const PortalModule = {
     const DIAS = { seg:'Seg', ter:'Ter', qua:'Qua', qui:'Qui', sex:'Sex', sab:'Sáb', dom:'Dom' };
 
     return grades.map(t => {
-      const dias  = (t.diasSemana || []).map(d => DIAS[d] || d).join(' · ');
+      const diasNorm589 = (t.diasSemana || []).map(d => typeof d === 'object' ? d.dia : d);
+      const dias  = diasNorm589.map(d => DIAS[d] || d).join(' · ');
       const hr    = [t.horarioInicio, t.horarioFim].filter(Boolean).join(' – ');
       const ins   = Storage.getAll('turmaAlunos').filter(i => i.turmaId === t.id && i.status === 'ativo').length;
       const vagas = t.vagas > 0 ? Math.max(0, t.vagas - ins) : null;

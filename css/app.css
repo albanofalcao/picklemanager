@@ -3128,6 +3128,58 @@ tr.tarefa-concluida td { opacity: .6; }
   cursor: pointer;
 }
 
+/* ── Grade: grid de dias + horários por dia ── */
+.tm-dia-row {
+  display: grid;
+  grid-template-columns: 160px 110px 14px 110px;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+@media (max-width: 560px) {
+  .tm-dia-row {
+    grid-template-columns: 130px 90px 12px 90px;
+    gap: 5px;
+  }
+}
+
+.tm-dia-check-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.tm-dia-check-label input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--primary);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.tm-dia-nome {
+  min-width: 70px;
+}
+
+.tm-hora-sep {
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1;
+}
+
+.tm-dia-time {
+  padding: 6px 8px !important;
+  font-size: 13px !important;
+  height: 34px !important;
+}
+
 .info-grid {
   display: grid;
   grid-template-columns: auto 1fr;

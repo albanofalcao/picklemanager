@@ -62,6 +62,46 @@ const TurmasModule = {
     }
   },
 
+  /* ------------------------------------------------------------------ */
+  /*  Helpers — diasSemana (novo formato: [{dia,inicio,fim}])             */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * Normaliza diasSemana para o novo formato de objetos.
+   * Compatibilidade com formato antigo (array de strings).
+   */
+  _normalizeDias(turma) {
+    const dias = turma?.diasSemana || [];
+    if (!dias.length) return [];
+    if (typeof dias[0] === 'object' && dias[0] !== null) return dias;
+    // Formato antigo: array de strings — migra com horarioInicio/horarioFim globais
+    return dias.map(d => ({
+      dia:    d,
+      inicio: turma.horarioInicio || '',
+      fim:    turma.horarioFim    || '',
+    }));
+  },
+
+  /**
+   * Formata a exibição dos horários.
+   * Se todos os dias têm o mesmo horário, mostra uma vez.
+   * Se diferentes, mostra "Seg: 08:00–09:00 · Qua: 09:00–10:00".
+   */
+  _formatHorarios(diasNorm) {
+    if (!diasNorm.length) return '—';
+    const temHora = diasNorm.some(d => d.inicio);
+    if (!temHora) return '—';
+    const unicas = [...new Set(diasNorm.map(d => `${d.inicio}–${d.fim}`))];
+    if (unicas.length === 1) {
+      const { inicio, fim } = diasNorm[0];
+      return `${inicio}${fim ? ' – ' + fim : ''}`;
+    }
+    return diasNorm
+      .filter(d => d.inicio)
+      .map(d => `${this.DIAS[d.dia]}: ${d.inicio}${d.fim ? '–' + d.fim : ''}`)
+      .join(' · ');
+  },
+
   /** Usado pelo dashboard (compat com AulaModule.getStats) */
   getAulaStats() {
     const all = Storage.getAll(this.SK_AULA);
@@ -198,10 +238,9 @@ const TurmasModule = {
   _rowTurma(t) {
     const st       = this.STATUS_TURMA[t.status] || { label: t.status, badge: 'badge-gray' };
     const nivel    = this.NIVEL[t.nivel] || t.nivel || '—';
-    const dias     = (t.diasSemana || []).map(d => this.DIAS[d] || d).join(', ') || '—';
-    const hora     = t.horarioInicio
-      ? `${t.horarioInicio}${t.horarioFim ? ' – ' + t.horarioFim : ''}`
-      : '—';
+    const diasNorm = this._normalizeDias(t);
+    const dias     = diasNorm.map(d => this.DIAS[d.dia] || d.dia).join(', ') || '—';
+    const hora     = this._formatHorarios(diasNorm);
     const nAulas     = Storage.getAll(this.SK_AULA).filter(a => a.turmaId === t.id).length;
     const inscritos  = Storage.getAll(this.SK_INSCR).filter(i => i.turmaId === t.id && i.status === 'ativo');
     const nInscritos = inscritos.length;
@@ -297,10 +336,9 @@ const TurmasModule = {
       const inscrito    = !!inscritosMap[t.id];
       const inscricaoId = inscritosMap[t.id] || '';
       const nivel       = this.NIVEL[t.nivel] || t.nivel || '—';
-      const dias        = (t.diasSemana || []).map(d => this.DIAS[d] || d).join(', ') || '—';
-      const hora        = t.horarioInicio
-        ? `${t.horarioInicio}${t.horarioFim ? ' – ' + t.horarioFim : ''}`
-        : '—';
+      const diasNorm    = this._normalizeDias(t);
+      const dias        = diasNorm.map(d => this.DIAS[d.dia] || d.dia).join(', ') || '—';
+      const hora        = this._formatHorarios(diasNorm);
       const inscritos   = Storage.getAll(this.SK_INSCR).filter(i => i.turmaId === t.id && i.status === 'ativo').length;
       const vagas       = t.vagas || 0;
       const vagasLivre  = vagas > 0 ? Math.max(0, vagas - inscritos) : null;
@@ -1436,13 +1474,32 @@ const TurmasModule = {
           ${turma && turma.quadraId === q.id ? 'selected' : ''}>${UI.escape(q.nome)}</option>`
       ).join('');
 
-    const DIAS_ORDER = [['seg','Segunda'],['ter','Terça'],['qua','Quarta'],['qui','Quinta'],['sex','Sexta'],['sab','Sábado'],['dom','Domingo']];
-    const diasChecks = DIAS_ORDER.map(([k, label]) => `
-      <label class="check-inline">
-        <input type="checkbox" name="dia-turma" value="${k}"
-          ${turma && (turma.diasSemana || []).includes(k) ? 'checked' : ''} />
-        ${label}
-      </label>`).join('');
+    const DIAS_ORDER   = [['seg','Segunda'],['ter','Terça'],['qua','Quarta'],['qui','Quinta'],['sex','Sexta'],['sab','Sábado'],['dom','Domingo']];
+    const diasNormEdit = turma ? this._normalizeDias(turma) : [];
+    const diasMapEdit  = {};
+    diasNormEdit.forEach(d => { diasMapEdit[d.dia] = d; });
+
+    const diasRows = DIAS_ORDER.map(([k, label]) => {
+      const sel   = diasMapEdit[k];
+      const isChk = !!sel;
+      const hi    = sel ? (sel.inicio || '') : '';
+      const hf    = sel ? (sel.fim    || '') : '';
+      return `
+        <div class="tm-dia-row" id="tm-dia-row-${k}">
+          <label class="tm-dia-check-label">
+            <input type="checkbox" name="dia-turma" value="${k}" ${isChk ? 'checked' : ''}
+              onchange="TurmasModule._onDiaCheck('${k}', this.checked)" />
+            <span class="tm-dia-nome">${label}</span>
+          </label>
+          <input type="time" id="tm-dia-hi-${k}" class="form-input tm-dia-time"
+            data-dia="${k}" value="${hi}" ${!isChk ? 'disabled' : ''}
+            style="width:110px;${!isChk ? 'opacity:0.35;' : ''}" />
+          <span class="tm-hora-sep" style="color:var(--text-muted);${!isChk ? 'opacity:0.35;' : ''}">–</span>
+          <input type="time" id="tm-dia-hf-${k}" class="form-input tm-dia-time"
+            data-dia="${k}" value="${hf}" ${!isChk ? 'disabled' : ''}
+            style="width:110px;${!isChk ? 'opacity:0.35;' : ''}" />
+        </div>`;
+    }).join('');
 
     const statusOpts = Object.entries(this.STATUS_TURMA).map(([k, cfg]) =>
       `<option value="${k}" ${turma && turma.status === k ? 'selected' : ''}>${cfg.label}</option>`
@@ -1505,18 +1562,16 @@ const TurmasModule = {
         </div>
 
         <div class="form-group">
-          <label class="form-label">Dias da semana</label>
-          <div class="check-group">${diasChecks}</div>
-        </div>
-
-        <div class="form-grid-2">
-          <div class="form-group">
-            <label class="form-label" for="tm-hi">Horário início</label>
-            <input id="tm-hi" type="time" class="form-input" value="${v('horarioInicio')}" />
+          <label class="form-label">Dias da semana e horários</label>
+          <div style="display:flex;flex-direction:column;gap:5px;" id="tm-dias-grid">
+            ${diasRows}
           </div>
-          <div class="form-group">
-            <label class="form-label" for="tm-hf">Horário fim</label>
-            <input id="tm-hf" type="time" class="form-input" value="${v('horarioFim')}" />
+          <div style="margin-top:8px;">
+            <button type="button" class="btn btn-ghost btn-sm"
+              onclick="TurmasModule._aplicarHorarioTodos()"
+              title="Copia o horário do primeiro dia selecionado para todos os outros">
+              ↳ Mesmo horário para todos os dias
+            </button>
           </div>
         </div>
 
@@ -1557,9 +1612,14 @@ const TurmasModule = {
     }
     nomeEl.classList.remove('error');
 
-    const diasSemana = Array.from(
-      document.querySelectorAll('input[name="dia-turma"]:checked')
-    ).map(cb => cb.value);
+    const DIAS_KEYS  = ['seg','ter','qua','qui','sex','sab','dom'];
+    const diasSemana = DIAS_KEYS
+      .filter(k => document.querySelector(`input[name="dia-turma"][value="${k}"]`)?.checked)
+      .map(k => ({
+        dia:    k,
+        inicio: document.getElementById(`tm-dia-hi-${k}`)?.value || '',
+        fim:    document.getElementById(`tm-dia-hf-${k}`)?.value || '',
+      }));
 
     const profSel  = g('prof');
     const professorId   = profSel ? profSel.value : '';
@@ -1584,8 +1644,9 @@ const TurmasModule = {
       tipoplano:     g('tipoplano') ? g('tipoplano').value                : '',
       professorId, professorNome, arenaId, arenaNome, quadraId, quadraNome,
       diasSemana,
-      horarioInicio: g('hi')        ? g('hi').value                       : '',
-      horarioFim:    g('hf')        ? g('hf').value                       : '',
+      // horarioInicio/Fim derivados do primeiro dia (retrocompat com exibições antigas)
+      horarioInicio: diasSemana.length ? (diasSemana[0].inicio || '') : '',
+      horarioFim:    diasSemana.length ? (diasSemana[0].fim    || '') : '',
       vagas:         g('vagas')     ? parseInt(g('vagas').value, 10) || 4 : 4,
       status:        g('status')    ? g('status').value                   : 'ativa',
       observacoes:   g('obs')       ? g('obs').value.trim()               : '',
@@ -1600,6 +1661,47 @@ const TurmasModule = {
     }
     UI.closeModal();
     this.render();
+  },
+
+  /** Habilita/desabilita os inputs de horário ao marcar/desmarcar um dia */
+  _onDiaCheck(dia, checked) {
+    const hi  = document.getElementById(`tm-dia-hi-${dia}`);
+    const hf  = document.getElementById(`tm-dia-hf-${dia}`);
+    const row = document.getElementById(`tm-dia-row-${dia}`);
+    [hi, hf].forEach(el => {
+      if (!el) return;
+      el.disabled     = !checked;
+      el.style.opacity = checked ? '' : '0.35';
+    });
+    const sep = row?.querySelector('.tm-hora-sep');
+    if (sep) sep.style.opacity = checked ? '' : '0.35';
+  },
+
+  /** Copia o horário do primeiro dia selecionado para todos os dias selecionados */
+  _aplicarHorarioTodos() {
+    const DIAS_KEYS = ['seg','ter','qua','qui','sex','sab','dom'];
+    let primeiroHi = '', primeiroHf = '';
+    for (const k of DIAS_KEYS) {
+      const cb = document.querySelector(`input[name="dia-turma"][value="${k}"]`);
+      const hi = document.getElementById(`tm-dia-hi-${k}`);
+      if (cb?.checked && hi?.value) {
+        primeiroHi = hi.value;
+        primeiroHf = document.getElementById(`tm-dia-hf-${k}`)?.value || '';
+        break;
+      }
+    }
+    if (!primeiroHi) { UI.toast('Defina o horário de pelo menos um dia selecionado.', 'warning'); return; }
+    let count = 0;
+    DIAS_KEYS.forEach(k => {
+      const cb = document.querySelector(`input[name="dia-turma"][value="${k}"]`);
+      if (!cb?.checked) return;
+      const hi = document.getElementById(`tm-dia-hi-${k}`);
+      const hf = document.getElementById(`tm-dia-hf-${k}`);
+      if (hi) hi.value = primeiroHi;
+      if (hf) hf.value = primeiroHf;
+      count++;
+    });
+    UI.toast(`Horário ${primeiroHi}–${primeiroHf} aplicado a ${count} dia${count !== 1 ? 's' : ''}!`, 'success');
   },
 
   async deleteTurma(id) {
@@ -1641,22 +1743,22 @@ const TurmasModule = {
     const t = Storage.getById(this.SK, turmaId);
     if (!t) return;
 
-    if (!(t.diasSemana || []).length) {
+    const diasNormGerar = this._normalizeDias(t);
+    if (!diasNormGerar.length) {
       UI.toast('Configure os dias da semana na grade antes de gerar aulas.', 'warning');
       return;
     }
 
     const hoje    = new Date();
     const hojeStr = this._isoDate(hoje);
-    const diasLabel = (t.diasSemana || [])
-      .map(d => this.DIAS_LABEL[d] || d).join(', ');
+    const diasLabel = diasNormGerar.map(d => this.DIAS_LABEL[d.dia] || d.dia).join(', ');
 
     const content = `
       <div class="form-grid">
         <div class="info-box">
           <strong>${UI.escape(t.nome)}</strong><br>
           <span class="text-muted" style="font-size:13px;">
-            ${diasLabel} · ${t.horarioInicio || '—'}${t.horarioFim ? ' – ' + t.horarioFim : ''}
+            ${diasLabel} · ${this._formatHorarios(diasNormGerar)}
             · Prof. ${UI.escape(t.professorNome || '—')}
           </span>
         </div>
@@ -1692,7 +1794,7 @@ const TurmasModule = {
     const box = document.getElementById('ga-preview');
     if (!t || !ini || !fim || !box) return;
 
-    const diasSel = this._diasJS(t.diasSemana || []);
+    const diasSel = this._diasJS(this._normalizeDias(t).map(d => d.dia));
     const count   = this._contarOcorrencias(ini, fim, diasSel);
     box.style.display = 'block';
     box.innerHTML = `Serão geradas aproximadamente <strong>${count} aula${count !== 1 ? 's' : ''}</strong> entre ${this._fmtDataCurta(ini)} e ${this._fmtDataCurta(fim)}.`;
@@ -1722,11 +1824,19 @@ const TurmasModule = {
     if (!ini || !fim) { UI.toast('Informe as datas de início e fim.', 'warning'); return; }
     if (ini > fim)    { UI.toast('Data de início deve ser anterior ao fim.', 'warning'); return; }
 
-    const diasSel = this._diasJS(t.diasSemana || []);
+    const diasNormGer = this._normalizeDias(t);
+    const diasSel     = this._diasJS(diasNormGer.map(d => d.dia));
     if (!diasSel.length) {
       UI.toast('Configure os dias da semana da grade.', 'warning');
       return;
     }
+
+    // Mapa: índice JS do dia (0-6) → {inicio, fim}
+    const diasHorasMap = {};
+    diasNormGer.forEach(d => {
+      const idx = this.DIAS_JS.indexOf(d.dia);
+      if (idx >= 0) diasHorasMap[idx] = { inicio: d.inicio || '', fim: d.fim || '' };
+    });
 
     const existentes = new Set(
       Storage.getAll(this.SK_AULA).filter(a => a.turmaId === turmaId).map(a => a.data)
@@ -1738,12 +1848,14 @@ const TurmasModule = {
     const MAX = 365;
 
     while (cur <= end && count < MAX) {
-      if (diasSel.includes(cur.getDay())) {
+      const diaSemJS = cur.getDay();
+      if (diasSel.includes(diaSemJS)) {
         const dataStr = this._isoDate(cur);
         if (!existentes.has(dataStr)) {
+          const horario = diasHorasMap[diaSemJS] || { inicio: t.horarioInicio || '', fim: t.horarioFim || '' };
           // Verificar conflito de quadra (só avisa, não bloqueia)
           const conflito = this._verificarConflitoQuadra(
-            t.quadraId, dataStr, t.horarioInicio, t.horarioFim
+            t.quadraId, dataStr, horario.inicio, horario.fim
           );
           if (conflito) {
             UI.toast(`⚠️ Quadra ocupada em ${dataStr} por "${conflito.titulo || conflito.turmaNome}".`, 'warning');
@@ -1761,8 +1873,8 @@ const TurmasModule = {
             quadraId:      t.quadraId   || '',
             quadraNome:    t.quadraNome || '',
             data:          dataStr,
-            horarioInicio: t.horarioInicio,
-            horarioFim:    t.horarioFim,
+            horarioInicio: horario.inicio,
+            horarioFim:    horario.fim,
             vagas:         t.vagas,
             status:        'agendada',
             observacoes:   '',

@@ -697,7 +697,8 @@ const AlunoModule = {
         const turma = Storage.getById('turmas', insc.turmaId);
         if (!turma) return '';
 
-        const dias   = (turma.diasSemana || []).map(d => ({ dom:'Dom',seg:'Seg',ter:'Ter',qua:'Qua',qui:'Qui',sex:'Sex',sab:'Sáb' }[d] || d)).join(', ');
+        const diasMap700 = { dom:'Dom',seg:'Seg',ter:'Ter',qua:'Qua',qui:'Qui',sex:'Sex',sab:'Sáb' };
+        const dias   = (turma.diasSemana || []).map(d => typeof d === 'object' ? d.dia : d).map(d => diasMap700[d] || d).join(', ');
         const hora   = [turma.horarioInicio, turma.horarioFim].filter(Boolean).join(' – ') || '—';
         const stBadge = ({ ativa:'badge-success', suspensa:'badge-warning', encerrada:'badge-gray' }[turma.status] || 'badge-gray');
 
@@ -853,7 +854,7 @@ const AlunoModule = {
         const t = Storage.getById('turmas', i.turmaId);
         if (!t) return null;
         const diasSemMap = { dom:'Dom', seg:'Seg', ter:'Ter', qua:'Qua', qui:'Qui', sex:'Sex', sab:'Sáb' };
-        const dias = (t.diasSemana || []).map(d => diasSemMap[d] || d).join(', ');
+        const dias = (t.diasSemana || []).map(d => typeof d === 'object' ? d.dia : d).map(d => diasSemMap[d] || d).join(', ');
         return `<span class="aluno-grade-chip">${UI.escape(t.nome)}</span>${dias ? `<span class="text-muted" style="font-size:11px;">(${dias})</span>` : ''}`;
       }).filter(Boolean);
 
