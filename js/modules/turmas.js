@@ -465,18 +465,26 @@ const TurmasModule = {
         ? `<span class="badge badge-success" style="font-size:0.7rem;">${pStats.presentes}/${pStats.total}</span>`
         : '<span class="text-muted text-sm">—</span>';
 
-      // Alunos inscritos na grade desta aula
-      const inscritos = a.turmaId
-        ? Storage.getAll(this.SK_INSCR).filter(i => i.turmaId === a.turmaId && i.status === 'ativo')
-        : [];
-      const alunosHtml = inscritos.length
-        ? inscritos.slice(0, 4).map(i =>
-            `<span class="turma-aluno-chip" title="${UI.escape(i.alunoNome)}">${UI.escape(i.alunoNome.split(' ')[0])}</span>`
-          ).join('') + (inscritos.length > 4 ? `<span class="turma-aluno-chip">+${inscritos.length - 4}</span>` : '')
-        : '<span class="text-muted text-sm">—</span>';
+      // Alunos alocados nesta aula específica
+      const alocados = Storage.getAll('aulaAlunos').filter(aa => aa.aulaId === a.id && aa.status === 'ativo');
+      const vagasAula = a.vagas || 0;
+      const vagasLivresAula = vagasAula > 0 ? Math.max(0, vagasAula - alocados.length) : null;
+      const vagasBadgeAula = vagasAula > 0
+        ? `<span class="turma-vagas-badge ${vagasLivresAula === 0 ? 'turma-vagas-cheia' : ''}">${alocados.length}/${vagasAula}</span>`
+        : `<span class="turma-vagas-badge">${alocados.length}</span>`;
+      const alunosHtml = alocados.length
+        ? alocados.slice(0, 4).map(aa =>
+            `<span class="turma-aluno-chip" title="${UI.escape(aa.alunoNome)}">${UI.escape(aa.alunoNome.split(' ')[0])}</span>`
+          ).join('') + (alocados.length > 4 ? `<span class="turma-aluno-chip">+${alocados.length - 4}</span>` : '')
+        : '<span class="text-muted text-sm">Nenhum alocado</span>';
 
       // Botões de ação rápida
       let acoes = '';
+      // Botão alocar aluno (só para admin/recepcionista)
+      if (!isProfessor && !isAluno) {
+        acoes += `<button class="btn btn-ghost btn-sm" title="Alocar alunos"
+          onclick="TurmasModule.openModalAlocarAluno('${a.id}')">👥 ${vagasBadgeAula} ＋</button>`;
+      }
       if (a.status === 'agendada' || a.status === 'em_andamento') {
         acoes += `<button class="btn btn-ghost btn-sm" title="Lançar presença"
           onclick="TurmasModule.abrirPresencaRapida('${a.id}')">📋</button>`;
@@ -2134,6 +2142,140 @@ const TurmasModule = {
       confirmLabel: null,
       cancelLabel:  'Fechar',
     });
+  },
+
+  /* ================================================================== */
+  /*  Alocação de alunos por aula                                        */
+  /* ================================================================== */
+
+  openModalAlocarAluno(aulaId) {
+    const aula = Storage.getById(this.SK_AULA, aulaId);
+    if (!aula) return;
+
+    const alocados   = Storage.getAll('aulaAlunos').filter(aa => aa.aulaId === aulaId && aa.status === 'ativo');
+    const alocadosIds = new Set(alocados.map(aa => aa.alunoId));
+    const vagasAula  = aula.vagas || 0;
+    const vagasLivres = vagasAula > 0 ? Math.max(0, vagasAula - alocados.length) : null;
+
+    // Alunos com matrícula ativa, filtrados pelo nível da aula (se definido)
+    const matriculasAtivas = Storage.getAll('matriculas').filter(m => m.status === 'ativa');
+    const alunosComMat = new Set(matriculasAtivas.map(m => m.alunoId));
+    let alunos = Storage.getAll('alunos')
+      .filter(a => a.status === 'ativo' && alunosComMat.has(a.id) && !alocadosIds.has(a.id));
+
+    // Filtra por nível se a aula não for aberta
+    if (aula.nivel && aula.nivel !== 'aberto') {
+      alunos = alunos.filter(a => !a.nivel || a.nivel === aula.nivel);
+    }
+    alunos = alunos.sort((a, b) => a.nome.localeCompare(b.nome));
+
+    const [y,m,d] = (aula.data || '').split('-');
+    const dataFmt = aula.data ? `${d}/${m}/${y}` : '—';
+
+    const alocadosRows = alocados.map(aa => `
+      <tr>
+        <td>${UI.escape(aa.alunoNome)}</td>
+        <td><span class="badge badge-success">Alocado</span></td>
+        <td>
+          <button class="btn btn-ghost btn-sm danger"
+            onclick="TurmasModule._desalocarAlunoNaAula('${aa.id}', '${aulaId}')"
+            title="Remover da aula">✕</button>
+        </td>
+      </tr>`).join('');
+
+    const dispOpts = vagasLivres !== null && vagasLivres === 0
+      ? `<div class="empty-state" style="padding:16px 0;"><div class="empty-icon">🚫</div><div class="empty-title">Aula lotada</div><div class="empty-desc">Todas as ${vagasAula} vagas estão ocupadas.</div></div>`
+      : alunos.length
+        ? `<div class="form-group" style="margin-top:12px;">
+             <label class="form-label">Adicionar aluno${aula.nivel && aula.nivel !== 'aberto' ? ` (nível: ${aula.nivel})` : ''}</label>
+             <div style="display:flex;gap:8px;">
+               <select id="alocar-aluno-sel" class="form-select">
+                 <option value="">— Selecionar aluno —</option>
+                 ${alunos.map(a => `<option value="${a.id}" data-nome="${UI.escape(a.nome)}">${UI.escape(a.nome)}</option>`).join('')}
+               </select>
+               <button class="btn btn-primary btn-sm" onclick="TurmasModule._alocarAlunoNaAula('${aulaId}')">Alocar</button>
+             </div>
+           </div>`
+        : `<div class="text-muted" style="font-size:13px;margin-top:12px;">Nenhum aluno disponível com matrícula ativa${aula.nivel && aula.nivel !== 'aberto' ? ` no nível ${aula.nivel}` : ''}.</div>`;
+
+    const content = `
+      <div style="margin-bottom:12px;font-size:13px;color:var(--text-secondary);">
+        <strong>${UI.escape(aula.titulo)}</strong> · ${dataFmt}
+        ${aula.horarioInicio ? ` · ${aula.horarioInicio}` : ''}
+        ${aula.nivel ? ` · ${aula.nivel}` : ''}
+        · <span class="${vagasLivres === 0 ? 'badge badge-danger' : 'badge badge-success'}">${alocados.length}/${vagasAula} vagas</span>
+      </div>
+
+      ${alocados.length ? `
+        <div class="table-card" style="margin-bottom:12px;max-height:200px;overflow-y:auto;">
+          <table class="data-table">
+            <thead><tr><th>Aluno</th><th>Status</th><th></th></tr></thead>
+            <tbody>${alocadosRows}</tbody>
+          </table>
+        </div>` : `<div class="text-muted" style="font-size:13px;margin-bottom:12px;">Nenhum aluno alocado ainda.</div>`}
+
+      ${dispOpts}`;
+
+    UI.openModal({
+      title: `Alocar Alunos — ${aula.titulo}`,
+      content,
+      confirmLabel: 'Fechar',
+      onConfirm: () => UI.closeModal(),
+    });
+  },
+
+  _alocarAlunoNaAula(aulaId) {
+    const sel = document.getElementById('alocar-aluno-sel');
+    if (!sel || !sel.value) { UI.toast('Selecione um aluno.', 'warning'); return; }
+
+    const aula = Storage.getById(this.SK_AULA, aulaId);
+    if (!aula) return;
+
+    // Verifica vaga
+    const alocados = Storage.getAll('aulaAlunos').filter(aa => aa.aulaId === aulaId && aa.status === 'ativo');
+    if (aula.vagas > 0 && alocados.length >= aula.vagas) {
+      UI.toast('Aula sem vagas disponíveis.', 'warning'); return;
+    }
+
+    // Verifica se já alocado
+    if (alocados.find(aa => aa.alunoId === sel.value)) {
+      UI.toast('Aluno já alocado nesta aula.', 'warning'); return;
+    }
+
+    const opt = sel.selectedOptions[0];
+    const alunoNome = opt ? (opt.dataset.nome || opt.textContent.trim()) : '';
+    const mat = Storage.getAll('matriculas').find(m => m.alunoId === sel.value && m.status === 'ativa');
+
+    Storage.create('aulaAlunos', {
+      aulaId,
+      alunoId:    sel.value,
+      alunoNome,
+      matriculaId: mat ? mat.id : '',
+      dataAlocacao: new Date().toISOString().slice(0, 10),
+      status: 'ativo',
+    });
+
+    UI.toast(`${alunoNome} alocado na aula!`, 'success');
+    // Reabre o modal atualizado
+    this.openModalAlocarAluno(aulaId);
+    // Atualiza a lista de aulas
+    const list = document.getElementById('aulas-list') || document.querySelector('.aulas-table-wrap');
+    if (list) {
+      const filtered = Storage.getAll(this.SK_AULA);
+      // force re-render da aba
+      this.render();
+      // Mantém na aba aulas
+      this._state.tab = 'aulas';
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.textContent.includes('Aulas')));
+    }
+  },
+
+  _desalocarAlunoNaAula(aulaAlunoId, aulaId) {
+    const rec = Storage.getById('aulaAlunos', aulaAlunoId);
+    if (!rec) return;
+    Storage.update('aulaAlunos', aulaAlunoId, { status: 'inativo' });
+    UI.toast(`${rec.alunoNome} removido da aula.`, 'success');
+    this.openModalAlocarAluno(aulaId);
   },
 
   _renderInscricoes(turmaId) {

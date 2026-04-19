@@ -44,15 +44,21 @@ const PresencaModule = {
     const alunos     = Storage.getAll('alunos').filter(a => a.status === 'ativo');
     const matriculas = Storage.getAll('matriculas').filter(m => m.status === 'ativa');
 
-    // Alunos matriculados (aparecem primeiro) + demais alunos ativos
-    const alunosMatriculados = alunos.filter(a => matriculas.some(m => m.alunoId === a.id));
-    const alunosSemMatricula = alunos.filter(a => !alunosMatriculados.some(m => m.id === a.id));
-    const alunosOrdenados    = [...alunosMatriculados, ...alunosSemMatricula];
+    // Alunos alocados especificamente nesta aula (aparecem primeiro)
+    const aulaAlunosRecs = Storage.getAll('aulaAlunos').filter(aa => aa.aulaId === aulaId && aa.status === 'ativo');
+    const alocadosIds    = new Set(aulaAlunosRecs.map(aa => aa.alunoId));
+    const alunosAlocados = alunos.filter(a => alocadosIds.has(a.id));
+    // Demais com matrícula ativa (não alocados)
+    const alunosComMat   = alunos.filter(a => !alocadosIds.has(a.id) && matriculas.some(m => m.alunoId === a.id));
+    // Demais sem matrícula
+    const alunosSemMat   = alunos.filter(a => !alocadosIds.has(a.id) && !matriculas.some(m => m.alunoId === a.id));
+    const alunosOrdenados = [...alunosAlocados, ...alunosComMat, ...alunosSemMat];
 
     const rows = alunosOrdenados.map(aluno => {
       const reg     = registros.find(r => r.alunoId === aluno.id);
       const checked = reg ? reg.presente : false;
-      const temMat  = alunosMatriculados.some(a => a.id === aluno.id);
+      const isAlocado = alocadosIds.has(aluno.id);
+      const temMat    = isAlocado || matriculas.some(m => m.alunoId === aluno.id);
 
       return `
         <tr>
@@ -66,8 +72,8 @@ const PresencaModule = {
             </label>
           </td>
           <td>
-            <span class="badge ${temMat ? 'badge-success' : 'badge-gray'}" style="font-size:10px;">
-              ${temMat ? 'Matriculado' : 'Avulso'}
+            <span class="badge ${isAlocado ? 'badge-success' : temMat ? 'badge-blue' : 'badge-gray'}" style="font-size:10px;">
+              ${isAlocado ? 'Alocado' : temMat ? 'Matriculado' : 'Avulso'}
             </span>
           </td>
           <td class="text-muted text-sm">${UI.escape(aluno.nivel ? (aluno.nivel.charAt(0).toUpperCase() + aluno.nivel.slice(1)) : '—')}</td>

@@ -51,6 +51,7 @@ const DB = {
     quadras:           'app_quadras',
     reposicoes:        'app_reposicoes',
     turmaAlunos:       'app_turma_alunos',
+    aulaAlunos:        'app_aula_alunos',
     turmas:            'app_turmas',
     usuarios:          'app_usuarios',
     orcamento:         'app_orcamento',
