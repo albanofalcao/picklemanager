@@ -397,7 +397,7 @@ const PortalModule = {
 
     const tabs = [
       { key: 'proxima',   label: '📅 Cronograma' },
-      { key: 'grades',    label: '📚 Minhas Grades' },
+      { key: 'grades',    label: '📚 Minhas Turmas' },
       { key: 'descobrir', label: '🔍 Descobrir' },
       { key: 'financeiro',label: '💰 Financeiro' },
     ];
@@ -460,7 +460,7 @@ const PortalModule = {
               </div>
               <div class="portal-hero-stat">
                 <div class="portal-hero-stat-val">${inscricoes.length}</div>
-                <div class="portal-hero-stat-label">Grades inscritas</div>
+                <div class="portal-hero-stat-label">Turmas inscritas</div>
               </div>
               <div class="portal-hero-stat">
                 <div class="portal-hero-stat-val">${proximasAulas.length}</div>
@@ -492,8 +492,8 @@ const PortalModule = {
     if (!aulas.length) {
       return `<div class="portal-empty">
         <div class="portal-empty-icon">📭</div>
-        <p>Nenhuma aula próxima encontrada.<br>Inscreva-se em uma grade ou aguarde a academia agendar uma aula avulsa para você.</p>
-        <button class="btn btn-primary" style="margin-top:16px;" onclick="PortalModule._setTabAluno('descobrir')">Descobrir grades</button>
+        <p>Nenhuma aula próxima encontrada.<br>Inscreva-se em uma turma ou aguarde a academia agendar uma aula avulsa para você.</p>
+        <button class="btn btn-primary" style="margin-top:16px;" onclick="PortalModule._setTabAluno('descobrir')">Descobrir turmas</button>
       </div>`;
     }
 
@@ -551,8 +551,8 @@ const PortalModule = {
     if (!inscricoes.length) {
       return `<div class="portal-empty">
         <div class="portal-empty-icon">📭</div>
-        <p>Você ainda não está inscrito em nenhuma grade.</p>
-        <button class="btn btn-primary" style="margin-top:16px;" onclick="PortalModule._setTabAluno('descobrir')">Descobrir grades</button>
+        <p>Você ainda não está inscrito em nenhuma turma.</p>
+        <button class="btn btn-primary" style="margin-top:16px;" onclick="PortalModule._setTabAluno('descobrir')">Descobrir turmas</button>
       </div>`;
     }
 
@@ -594,7 +594,7 @@ const PortalModule = {
     if (!grades.length) {
       return `<div class="portal-empty">
         <div class="portal-empty-icon">✅</div>
-        <p>Você está inscrito em todas as grades disponíveis!</p>
+        <p>Você está inscrito em todas as turmas disponíveis!</p>
       </div>`;
     }
 
@@ -710,7 +710,7 @@ const PortalModule = {
     const jaInscrito = Storage.getAll('turmaAlunos').find(i =>
       i.turmaId === turmaId && i.alunoId === alunoId && i.status === 'ativo'
     );
-    if (jaInscrito) { UI.toast('Você já está inscrito nesta grade.', 'warning'); return; }
+    if (jaInscrito) { UI.toast('Você já está inscrito nesta turma.', 'warning'); return; }
 
     Storage.create('turmaAlunos', {
       turmaId, turmaNome: turma.nome, alunoId, alunoNome,

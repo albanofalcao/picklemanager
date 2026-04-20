@@ -728,7 +728,7 @@ const AlunoModule = {
     // Monta seção de turmas
     let turmasHtml;
     if (!inscricoes.length) {
-      turmasHtml = `<p class="text-muted" style="font-style:italic;margin:4px 0;">Nenhuma grade.</p>`;
+      turmasHtml = `<p class="text-muted" style="font-style:italic;margin:4px 0;">Nenhuma turma.</p>`;
     } else {
       turmasHtml = inscricoes.map(insc => {
         const turma = Storage.getById('turmas', insc.turmaId);
@@ -1036,7 +1036,7 @@ const AlunoModule = {
       </div>
 
       <div class="detalhe-section">
-        <div class="detalhe-section-title">Grades inscritas (${inscricoes.length})</div>
+        <div class="detalhe-section-title">Turmas inscritas (${inscricoes.length})</div>
         ${turmasHtml}
       </div>
 

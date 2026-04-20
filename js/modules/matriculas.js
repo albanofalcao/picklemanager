@@ -520,11 +520,11 @@ const MatriculaModule = {
 
     const partes = [];
     if (aulasFuturas.length) partes.push(`${aulasFuturas.length} aula${aulasFuturas.length !== 1 ? 's' : ''} avulsa${aulasFuturas.length !== 1 ? 's' : ''} futura${aulasFuturas.length !== 1 ? 's' : ''}`);
-    if (gradesRecs.length)   partes.push(`${gradesRecs.length} grade${gradesRecs.length !== 1 ? 's' : ''} inscrito`);
+    if (gradesRecs.length)   partes.push(`${gradesRecs.length} turma${gradesRecs.length !== 1 ? 's' : ''} inscrita${gradesRecs.length !== 1 ? 's' : ''}`);
 
     const ok = await UI.confirm(
       `"${alunoNome}" ainda está em: ${partes.join(' e ')}.\n\nDeseja removê-lo(a) de todas?`,
-      'Remover das aulas e grades',
+      'Remover das aulas e turmas',
       'Sim, remover'
     );
     if (!ok) return;
@@ -532,7 +532,7 @@ const MatriculaModule = {
     aulasFuturas.forEach(aa => Storage.update('aulaAlunos', aa.id, { status: 'inativo' }));
     gradesRecs.forEach(ta => Storage.update('turmaAlunos', ta.id, { status: 'inativo' }));
 
-    UI.toast(`"${alunoNome}" removido(a) de ${total} aula${total !== 1 ? 's' : ''}/grade${total !== 1 ? 's' : ''}.`, 'success');
+    UI.toast(`"${alunoNome}" removido(a) de ${total} aula${total !== 1 ? 's' : ''}/turma${total !== 1 ? 's' : ''}.`, 'success');
   },
 
   /* ------------------------------------------------------------------ */
@@ -722,7 +722,7 @@ const MatriculaModule = {
         <td>${t.professorNome || '—'}</td>
         <td>${t.arenaNome || '—'}</td>
       </tr>`;
-    }).join('') : `<tr><td colspan="5" style="text-align:center;color:#888;">Aluno não inscrito em nenhuma grade</td></tr>`;
+    }).join('') : `<tr><td colspan="5" style="text-align:center;color:#888;">Aluno não inscrito em nenhuma turma</td></tr>`;
 
     const parcelasHtml = lancamentos.length ? lancamentos.map((l, i) => `
       <tr>
@@ -825,7 +825,7 @@ const MatriculaModule = {
   <section>
     <h2>Cronograma Contratado</h2>
     <table>
-      <thead><tr><th>Grade</th><th>Dias</th><th>Horário</th><th>Professor</th><th>Arena</th></tr></thead>
+      <thead><tr><th>Turma</th><th>Dias</th><th>Horário</th><th>Professor</th><th>Arena</th></tr></thead>
       <tbody>${turmasHtml}</tbody>
     </table>
   </section>

@@ -126,7 +126,7 @@ const TurmasModule = {
     const svgPlus = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
     const btnHeader =
       this._state.tab === 'turmas'
-        ? `<button class="btn btn-primary" onclick="TurmasModule.openModalTurma()">${svgPlus} Nova Grade</button>`
+        ? `<button class="btn btn-primary" onclick="TurmasModule.openModalTurma()">${svgPlus} Nova Turma</button>`
         : (this._state.tab === 'calendario' || this._state.tab === 'aulas')
         ? `<button class="btn btn-primary" onclick="TurmasModule.openModalAula()">${svgPlus} Nova Aula</button>`
         : '';
@@ -134,7 +134,7 @@ const TurmasModule = {
     area.innerHTML = `
       <div class="page-header">
         <div class="page-header-text">
-          <h2>Grade</h2>
+          <h2>Turmas</h2>
           <p>Gestão de grades, calendário de aulas e frequência de alunos</p>
         </div>
         ${btnHeader}
@@ -205,7 +205,7 @@ const TurmasModule = {
       <div class="filters-bar">
         <div class="search-wrapper">
           <span class="search-icon">🔍</span>
-          <input type="text" class="search-input" placeholder="Buscar grade ou professor…"
+          <input type="text" class="search-input" placeholder="Buscar turma ou professor…"
             value="${UI.escape(this._state.search)}" data-search="search"
             oninput="TurmasModule._onSearchInput('search', this)" />
         </div>
@@ -216,14 +216,14 @@ const TurmasModule = {
             `<option value="${k}" ${this._state.filterStatus === k ? 'selected' : ''}>${v.label}</option>`
           ).join('')}
         </select>
-        <span class="results-count">${all.length} grade${all.length !== 1 ? 's' : ''}</span>
+        <span class="results-count">${all.length} turma${all.length !== 1 ? 's' : ''}</span>
       </div>
 
       ${all.length
         ? `<div class="table-card">
              <table class="data-table">
                <thead><tr>
-                 <th>Grade</th>
+                 <th>Turma</th>
                  <th>Professor</th>
                  <th>Horário / Dias</th>
                  <th>Alunos inscritos</th>
@@ -300,9 +300,9 @@ const TurmasModule = {
     return `
       <div class="empty-state">
         <div class="empty-icon">🏸</div>
-        <div class="empty-title">Nenhuma grade cadastrada</div>
-        <div class="empty-desc">Crie a primeira grade para organizar as aulas da academia.</div>
-        <button class="btn btn-primary mt-16" onclick="TurmasModule.openModalTurma()">+ Nova Grade</button>
+        <div class="empty-title">Nenhuma turma cadastrada</div>
+        <div class="empty-desc">Crie a primeira turma para organizar as aulas da academia.</div>
+        <button class="btn btn-primary mt-16" onclick="TurmasModule.openModalTurma()">+ Nova Turma</button>
       </div>`;
   },
 
@@ -337,8 +337,8 @@ const TurmasModule = {
     if (!grades.length) {
       return `<div class="empty-state">
         <div class="empty-icon">🏸</div>
-        <div class="empty-title">Nenhuma grade disponível</div>
-        <div class="empty-desc">Não há grades ativas no momento.</div>
+        <div class="empty-title">Nenhuma turma disponível</div>
+        <div class="empty-desc">Não há turmas ativas no momento.</div>
       </div>`;
     }
 
@@ -383,7 +383,7 @@ const TurmasModule = {
 
     return `
       <div style="margin-bottom:12px;">
-        <span class="badge badge-success">${Object.keys(inscritosMap).length} grade${Object.keys(inscritosMap).length !== 1 ? 's' : ''} inscrito</span>
+        <span class="badge badge-success">${Object.keys(inscritosMap).length} turma${Object.keys(inscritosMap).length !== 1 ? 's' : ''} inscrita${Object.keys(inscritosMap).length !== 1 ? 's' : ''}</span>
       </div>
       <div style="display:flex;flex-direction:column;gap:10px;">${cards}</div>`;
   },
@@ -409,14 +409,14 @@ const TurmasModule = {
       dataInscricao:  new Date().toISOString(),
     });
 
-    UI.toast(`Inscrição na grade "${turma.nome}" realizada!`, 'success');
+    UI.toast(`Inscrição na turma "${turma.nome}" realizada!`, 'success');
     this._reRenderContent();
   },
 
   async cancelarInscricaoAluno(inscricaoId) {
     const inscricao = Storage.getById(this.SK_INSCR, inscricaoId);
     if (!inscricao) return;
-    const ok = await UI.confirm(`Cancelar inscrição na grade "${inscricao.turmaNome}"?`, 'Cancelar inscrição');
+    const ok = await UI.confirm(`Cancelar inscrição na turma "${inscricao.turmaNome}"?`, 'Cancelar inscrição');
     if (!ok) return;
     Storage.delete(this.SK_INSCR, inscricaoId);
     UI.toast('Inscrição cancelada.', 'success');
@@ -492,13 +492,13 @@ const TurmasModule = {
 
     // Opções de turma para o filtro
     const turmas = Storage.getAll(this.SK).sort((a, b) => a.nome.localeCompare(b.nome));
-    const minhaLabel = isProfessor ? 'Minhas grades' : isAluno ? 'Minhas grades' : '';
-    let turmaOpts = `<option value="">Todas as grades</option>`;
+    const minhaLabel = isProfessor ? 'Minhas turmas' : isAluno ? 'Minhas turmas' : '';
+    let turmaOpts = `<option value="">Todas as turmas</option>`;
     if (isProfessor || isAluno) {
       turmaOpts = `<option value="__meu__" ${this._state.aulaFilterTurma === '__meu__' ? 'selected' : ''}>${minhaLabel}</option>
-        <option value="">Todas as grades</option>`;
+        <option value="">Todas as turmas</option>`;
     }
-    turmaOpts += `<option value="__avulsa__" ${this._state.aulaFilterTurma === '__avulsa__' ? 'selected' : ''}>🏸 Avulsas (sem grade)</option>`;
+    turmaOpts += `<option value="__avulsa__" ${this._state.aulaFilterTurma === '__avulsa__' ? 'selected' : ''}>🏸 Avulsas (sem turma)</option>`;
     turmaOpts += turmas.map(t =>
       `<option value="${t.id}" ${this._state.aulaFilterTurma === t.id ? 'selected' : ''}>${UI.escape(t.nome)}</option>`
     ).join('');
@@ -620,7 +620,7 @@ const TurmasModule = {
       <div class="filters-bar">
         <div class="search-wrapper">
           <span class="search-icon">🔍</span>
-          <input type="text" class="search-input" placeholder="Buscar aula, grade, professor…"
+          <input type="text" class="search-input" placeholder="Buscar aula, turma, professor…"
             value="${UI.escape(this._state.aulaSearch)}" data-search="aulaSearch"
             oninput="TurmasModule._onSearchInput('aulaSearch', this)" />
         </div>
@@ -645,7 +645,7 @@ const TurmasModule = {
         <div class="table-card">
           <table class="data-table">
             <thead><tr>
-              <th>Aula</th><th>Grade</th><th>Período</th>
+              <th>Aula</th><th>Turma</th><th>Período</th>
               <th>Alunos</th><th>Professor</th><th>Status</th><th>Presença</th><th></th>
             </tr></thead>
             <tbody>${rows}</tbody>
@@ -668,7 +668,7 @@ const TurmasModule = {
       : [];
 
     if (!inscritos.length) {
-      UI.toast('Nenhum aluno inscrito nesta grade. Adicione alunos antes de lançar presença.', 'warning');
+      UI.toast('Nenhum aluno inscrito nesta turma. Adicione alunos antes de lançar presença.', 'warning');
       return;
     }
 
@@ -906,7 +906,7 @@ const TurmasModule = {
       <div class="info-box" style="margin-bottom:12px;">
         <div><strong>Aluno:</strong> ${UI.escape(alunoNome)}</div>
         <div><strong>Aula:</strong> ${UI.escape(aula.titulo)} — ${dataFmt}</div>
-        <div><strong>Grade:</strong> ${UI.escape(aula.turmaNome || '—')}</div>
+        <div><strong>Turma:</strong> ${UI.escape(aula.turmaNome || '—')}</div>
         <div style="margin-top:8px;">
           <span class="badge ${saldo > 0 ? 'badge-success' : 'badge-danger'}">
             Saldo de reposições neste mês: ${saldo}
@@ -957,7 +957,7 @@ const TurmasModule = {
       .sort((a, b) => a.alunoNome.localeCompare(b.alunoNome));
 
     if (!inscritos.length) {
-      UI.toast('Nenhum aluno inscrito nesta grade.', 'warning');
+      UI.toast('Nenhum aluno inscrito nesta turma.', 'warning');
       return;
     }
 
@@ -1046,8 +1046,8 @@ const TurmasModule = {
 
     const arenaOpts = `<option value="">Todas as arenas</option>` +
       arenas.map(a => `<option value="${a.id}" ${this._state.calFilterArena===a.id?'selected':''}>${UI.escape(a.nome)}</option>`).join('');
-    const turmaOpts = `<option value="">Todas as grades</option>` +
-      `<option value="__avulsa__" ${this._state.calFilterTurma==='__avulsa__'?'selected':''}>🏸 Avulsas (sem grade)</option>` +
+    const turmaOpts = `<option value="">Todas as turmas</option>` +
+      `<option value="__avulsa__" ${this._state.calFilterTurma==='__avulsa__'?'selected':''}>🏸 Avulsas (sem turma)</option>` +
       turmas.map(t => `<option value="${t.id}" ${this._state.calFilterTurma===t.id?'selected':''}>${UI.escape(t.nome)}</option>`).join('');
 
     // Legenda de cores por grade
@@ -1384,7 +1384,7 @@ const TurmasModule = {
     const turmas = Storage.getAll(this.SK).sort((a, b) => a.nome.localeCompare(b.nome));
     const sel    = this._state.turmaSel;
 
-    const opts = `<option value="">— Selecionar grade —</option>` +
+    const opts = `<option value="">— Selecionar turma —</option>` +
       turmas.map(t =>
         `<option value="${t.id}" ${sel === t.id ? 'selected' : ''}>${UI.escape(t.nome)}</option>`
       ).join('');
@@ -1399,8 +1399,8 @@ const TurmasModule = {
       ${sel ? this._tabelaFrequencia(sel) : `
         <div class="empty-state">
           <div class="empty-icon">📊</div>
-          <div class="empty-title">Selecione uma grade</div>
-          <div class="empty-desc">Escolha uma grade para visualizar o relatório de frequência.</div>
+          <div class="empty-title">Selecione uma turma</div>
+          <div class="empty-desc">Escolha uma turma para visualizar o relatório de frequência.</div>
         </div>`}`;
   },
 
@@ -1413,7 +1413,7 @@ const TurmasModule = {
       return `
         <div class="empty-state">
           <div class="empty-icon">📅</div>
-          <div class="empty-title">Nenhuma aula registrada para esta grade</div>
+          <div class="empty-title">Nenhuma aula registrada para esta turma</div>
           <div class="empty-desc">Gere aulas a partir da aba Grade ou agende aulas avulsas.</div>
         </div>`;
     }
@@ -1435,7 +1435,7 @@ const TurmasModule = {
         <div class="empty-state">
           <div class="empty-icon">👥</div>
           <div class="empty-title">Nenhuma frequência registrada</div>
-          <div class="empty-desc">Registre a presença dos alunos nas aulas desta grade pelo Calendário.</div>
+          <div class="empty-desc">Registre a presença dos alunos nas aulas desta turma pelo Calendário.</div>
         </div>`;
     }
 
@@ -1556,9 +1556,9 @@ const TurmasModule = {
     const content = `
       <div class="form-grid">
         <div class="form-group">
-          <label class="form-label" for="tm-nome">Nome da grade <span class="required-star">*</span></label>
+          <label class="form-label" for="tm-nome">Nome da turma <span class="required-star">*</span></label>
           <input id="tm-nome" type="text" class="form-input"
-            placeholder="ex: Grade Iniciante Manhã"
+            placeholder="ex: Turma Iniciante Manhã"
             value="${v('nome')}" required autocomplete="off" />
         </div>
 
@@ -1640,9 +1640,9 @@ const TurmasModule = {
       </div>`;
 
     UI.openModal({
-      title:        id ? `Editar Grade — ${turma.nome}` : 'Nova Grade',
+      title:        id ? `Editar Turma — ${turma.nome}` : 'Nova Turma',
       content,
-      confirmLabel: id ? 'Salvar alterações' : 'Criar Grade',
+      confirmLabel: id ? 'Salvar alterações' : 'Criar Turma',
       onConfirm:    () => this.saveTurma(id),
     });
   },
@@ -1652,7 +1652,7 @@ const TurmasModule = {
     const nomeEl = g('nome');
     if (!nomeEl || !nomeEl.value.trim()) {
       if (nomeEl) nomeEl.classList.add('error');
-      UI.toast('Informe o nome da grade.', 'warning');
+      UI.toast('Informe o nome da turma.', 'warning');
       return;
     }
     nomeEl.classList.remove('error');
@@ -1699,10 +1699,10 @@ const TurmasModule = {
 
     if (id) {
       Storage.update(this.SK, id, record);
-      UI.toast(`Grade "${record.nome}" atualizada!`, 'success');
+      UI.toast(`Turma "${record.nome}" atualizada!`, 'success');
     } else {
       Storage.create(this.SK, record);
-      UI.toast(`Grade "${record.nome}" criada!`, 'success');
+      UI.toast(`Turma "${record.nome}" criada!`, 'success');
     }
     UI.closeModal();
     this.render();
@@ -1753,30 +1753,70 @@ const TurmasModule = {
     const t = Storage.getById(this.SK, id);
     if (!t) return;
 
-    const vinculos =
-      Storage.getAll(this.SK_AULA).filter(r => r.turmaId === id).length +
-      Storage.getAll(this.SK_INSCR).filter(r => r.turmaId === id).length;
+    const aulas      = Storage.getAll(this.SK_AULA).filter(r => r.turmaId === id);
+    const inscricoes = Storage.getAll(this.SK_INSCR).filter(r => r.turmaId === id);
+    const presencas  = Storage.getAll('presencas').filter(p => aulas.some(a => a.id === p.aulaId));
+    const aulaAlunos = Storage.getAll('aulaAlunos').filter(aa => aulas.some(a => a.id === aa.aulaId));
+    const reposicoes = Storage.getAll('reposicoes').filter(r => r.turmaId === id);
 
-    if (vinculos > 0) {
-      const inativar = await UI.confirm(
-        `"${t.nome}" possui ${vinculos} registro(s) vinculado(s) (aulas e inscrições). Não é possível excluir.\n\nDeseja encerrar a grade em vez disso?`,
-        'Não é possível excluir',
+    const partes = [];
+    if (aulas.length)      partes.push(`${aulas.length} aula${aulas.length !== 1 ? 's' : ''}`);
+    if (inscricoes.length) partes.push(`${inscricoes.length} inscrição${inscricoes.length !== 1 ? 'ões' : ''}`);
+    if (presencas.length)  partes.push(`${presencas.length} registro${presencas.length !== 1 ? 's' : ''} de presença`);
+    if (aulaAlunos.length) partes.push(`${aulaAlunos.length} alocação${aulaAlunos.length !== 1 ? 'ões' : ''} de alunos`);
+    if (reposicoes.length) partes.push(`${reposicoes.length} reposição${reposicoes.length !== 1 ? 'ões' : ''}`);
+
+    const total = aulas.length + inscricoes.length;
+
+    if (total > 0) {
+      const detalhe = partes.length ? `\n\n• ${partes.join('\n• ')}` : '';
+      // Passo 1: oferecer excluir tudo
+      const excluirTudo = await UI.confirm(
+        `"${t.nome}" possui registros vinculados:${detalhe}\n\nDeseja EXCLUIR a turma e todos esses registros permanentemente?`,
+        'Excluir tudo?',
+        'Sim, excluir tudo'
+      );
+
+      if (excluirTudo) {
+        // Passo 2: confirmação extra antes de apagar tudo
+        const confirma = await UI.confirm(
+          `⚠️ Isso apagará a turma e todos os ${partes.join(', ')} vinculados. Esta ação não pode ser desfeita.`,
+          'Confirmar exclusão total',
+          'Confirmar'
+        );
+        if (!confirma) return;
+
+        reposicoes.forEach(r  => Storage.delete('reposicoes',  r.id));
+        presencas.forEach(p   => Storage.delete('presencas',   p.id));
+        aulaAlunos.forEach(aa => Storage.delete('aulaAlunos',  aa.id));
+        aulas.forEach(a       => Storage.delete(this.SK_AULA,  a.id));
+        inscricoes.forEach(i  => Storage.delete(this.SK_INSCR, i.id));
+        Storage.delete(this.SK, id);
+        UI.toast(`Turma "${t.nome}" e todos os seus registros foram excluídos.`, 'success');
+        this.render();
+        return;
+      }
+
+      // Passo 1b: se não quis excluir tudo, oferece encerrar
+      const encerrar = await UI.confirm(
+        `Deseja encerrar a turma "${t.nome}" em vez disso? Os registros são mantidos.`,
+        'Encerrar turma',
         'Encerrar'
       );
-      if (!inativar) return;
+      if (!encerrar) return;
       Storage.update(this.SK, id, { status: 'encerrada' });
-      UI.toast(`Grade "${t.nome}" encerrada.`, 'success');
+      UI.toast(`Turma "${t.nome}" encerrada.`, 'success');
       this.render();
       return;
     }
 
     const ok = await UI.confirm(
-      `Excluir a grade "${t.nome}"? Esta ação não pode ser desfeita.`,
-      'Excluir Grade'
+      `Excluir a turma "${t.nome}"? Esta ação não pode ser desfeita.`,
+      'Excluir Turma'
     );
     if (!ok) return;
     Storage.delete(this.SK, id);
-    UI.toast(`Grade "${t.nome}" excluída.`, 'success');
+    UI.toast(`Turma "${t.nome}" excluída.`, 'success');
     this.render();
   },
 
@@ -2126,7 +2166,7 @@ const TurmasModule = {
     const v      = (f, fb = '') => aula ? UI.escape(String(aula[f] ?? fb)) : fb;
 
     const turmas = Storage.getAll(this.SK);
-    const turmaOpts = `<option value="">— Avulsa (sem grade) —</option>` +
+    const turmaOpts = `<option value="">— Avulsa (sem turma) —</option>` +
       turmas.map(t =>
         `<option value="${t.id}" data-nome="${UI.escape(t.nome)}"
           ${aula && aula.turmaId === t.id ? 'selected' : ''}>${UI.escape(t.nome)}</option>`
@@ -2173,7 +2213,7 @@ const TurmasModule = {
                   placeholder="ex: Aula de Saque" value="${v('titulo')}" required autocomplete="off" />
               </div>
               <div class="form-group">
-                <label class="form-label" for="au-turma">Grade</label>
+                <label class="form-label" for="au-turma">Turma</label>
                 <select id="au-turma" class="form-select" onchange="TurmasModule._onTurmaChangeAula()">${turmaOpts}</select>
               </div>
             </div>
@@ -2842,7 +2882,7 @@ const TurmasModule = {
 
     // Bloqueia alunos sem matrícula ativa (validação de segurança)
     if (!AlunoModule.temMatriculaAtiva(sel.value)) {
-      UI.toast('Aluno não possui matrícula ativa. Cadastre uma matrícula antes de inscrever na grade.', 'warning');
+      UI.toast('Aluno não possui matrícula ativa. Cadastre uma matrícula antes de inscrever na turma.', 'warning');
       return;
     }
 
@@ -2850,7 +2890,7 @@ const TurmasModule = {
     const vagas = turma?.vagas || 0;
     const atual = Storage.getAll(this.SK_INSCR).filter(i => i.turmaId === turmaId && i.status === 'ativo').length;
     if (vagas > 0 && atual >= vagas) {
-      UI.toast('Grade sem vagas disponíveis.', 'warning');
+      UI.toast('Turma sem vagas disponíveis.', 'warning');
       return;
     }
 
@@ -2864,7 +2904,7 @@ const TurmasModule = {
       status:       'ativo',
     });
 
-    UI.toast(`${opt.dataset.nome} adicionado à grade!`, 'success');
+    UI.toast(`${opt.dataset.nome} adicionado à turma!`, 'success');
     // Atualiza o conteúdo do modal sem fechá-lo
     const modalBody = document.querySelector('.modal-body');
     if (modalBody) modalBody.innerHTML = this._renderInscricoes(turmaId);
@@ -2873,10 +2913,10 @@ const TurmasModule = {
   async _removerInscricao(inscricaoId, turmaId) {
     const inscr = Storage.getById(this.SK_INSCR, inscricaoId);
     if (!inscr) return;
-    const ok = await UI.confirm(`Remover ${inscr.alunoNome} da grade?`, 'Remover Aluno');
+    const ok = await UI.confirm(`Remover ${inscr.alunoNome} da turma?`, 'Remover Aluno');
     if (!ok) return;
     Storage.update(this.SK_INSCR, inscricaoId, { status: 'inativo' });
-    UI.toast(`${inscr.alunoNome} removido da grade.`, 'success');
+    UI.toast(`${inscr.alunoNome} removido da turma.`, 'success');
     const modalBody = document.querySelector('.modal-body');
     if (modalBody) modalBody.innerHTML = this._renderInscricoes(turmaId);
   },
@@ -3214,13 +3254,13 @@ const TurmasModule = {
     const grades = Storage.getAll(this.SK).filter(t => t.nivel === nivel && t.status !== 'cancelada');
     if (!grades.length) {
       containerEl.innerHTML = `<div class="cadastro-tab-info" style="margin-top:8px;">
-        Nenhuma grade com nível <strong>${nivel}</strong> encontrada.</div>`;
+        Nenhuma turma com nível <strong>${nivel}</strong> encontrada.</div>`;
       return;
     }
     containerEl.innerHTML = `
       <div style="margin-top:12px;">
         <div style="font-size:12px;font-weight:700;color:var(--text-secondary);margin-bottom:6px;text-transform:uppercase;letter-spacing:.4px;">
-          🏸 Grades compatíveis — nível ${nivel}
+          🏸 Turmas compatíveis — nível ${nivel}
         </div>
         ${grades.map(t => `
           <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;
@@ -3234,7 +3274,7 @@ const TurmasModule = {
             </div>
             <a href="#" class="btn btn-sm btn-primary" style="flex-shrink:0;font-size:11px;"
               onclick="event.preventDefault();UI.closeModal();TurmasModule._abrirGradeParaInscricao('${t.id}')">
-              Ver grade →
+              Ver turma →
             </a>
           </div>`).join('')}
       </div>`;
@@ -3245,7 +3285,7 @@ const TurmasModule = {
     this._state.tab = 'turmas';
     this._state.filtroTurma = turmaId;
     this.render();
-    UI.toast('Abra a grade e use a aba Alunos para inscrever o aluno.', 'info');
+    UI.toast('Abra a turma e use a aba Alunos para inscrever o aluno.', 'info');
   },
 
   /* ================================================================== */
