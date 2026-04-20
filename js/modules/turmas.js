@@ -568,6 +568,12 @@ const TurmasModule = {
         acoes += `<button class="btn btn-ghost btn-sm" title="Agendar reposição"
           onclick="TurmasModule.solicitarReposicaoAdmin('${a.id}')">🔄</button>`;
       }
+      // Botão avaliar aula experimental pendente
+      if (!isAluno && a.experimental && a.avaliacaoStatus === 'pendente') {
+        acoes += `<button class="btn btn-sm" title="Avaliar aula experimental"
+          style="background:#f59e0b;color:#fff;font-size:11px;"
+          onclick="TurmasModule.abrirAvaliacaoExperimental('${a.id}')">🧪 Avaliar</button>`;
+      }
       acoes += `<button class="btn btn-ghost btn-sm" title="Detalhe"
         onclick="TurmasModule.openModalAulaDetalhe('${a.id}')">👁</button>`;
       if (!isAluno) {
@@ -2107,127 +2113,190 @@ const TurmasModule = {
     const nivelOpts = ListasService.opts('aulas_nivel', aula?.nivel || '');
 
     const content = `
-      <div class="form-grid">
-        <div class="form-grid-2">
-          <div class="form-group">
-            <label class="form-label" for="au-titulo">Título <span class="required-star">*</span></label>
-            <input id="au-titulo" type="text" class="form-input"
-              placeholder="ex: Aula de Saque" value="${v('titulo')}" required autocomplete="off" />
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="au-turma">Grade</label>
-            <select id="au-turma" class="form-select" onchange="TurmasModule._onTurmaChangeAula()">${turmaOpts}</select>
-          </div>
-        </div>
-
-        <div class="form-grid-2">
-          <div class="form-group">
-            <label class="form-label" for="au-nivel">Nível</label>
-            <select id="au-nivel" class="form-select">${nivelOpts}</select>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="au-prof">Professor</label>
-            <select id="au-prof" class="form-select">${profOpts}</select>
-          </div>
-        </div>
-
-        <div class="form-grid-2">
-          <div class="form-group">
-            <label class="form-label" for="au-esporte">Esporte</label>
-            <select id="au-esporte" class="form-select">
-              <option value="">— Selecionar —</option>
-              ${ListasService.opts('esporte', aula?.esporte || '')}
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="au-tipoplano">Tipo de Aula</label>
-            <select id="au-tipoplano" class="form-select">
-              <option value="">— Selecionar —</option>
-              ${ListasService.opts('aulas_tipoplano', aula?.tipoplano || '')}
-            </select>
-          </div>
-        </div>
-
-        <div class="form-grid-2">
-          <div class="form-group">
-            <label class="form-label" for="au-arena">Arena</label>
-            <select id="au-arena" class="form-select" onchange="TurmasModule._onArenaChangeAula()">${arenaOpts}</select>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="au-quadra">Quadra</label>
-            <select id="au-quadra" class="form-select">${quadraOptsAu}</select>
-          </div>
-        </div>
-
-        <div id="au-data-wrap" class="form-group" ${aula && aula.turmaId ? 'style="display:none"' : ''}>
-          <label class="form-label" for="au-data">Data <span class="required-star">*</span></label>
-          <input id="au-data" type="date" class="form-input" value="${v('data')}" />
-        </div>
-        <div id="au-data-info" ${aula && aula.turmaId ? '' : 'style="display:none"'}>
-          <div class="cadastro-tab-info">
-            📅 Aula vinculada à grade — as datas são geradas automaticamente pelo botão <strong>Gerar Aulas</strong> na aba Grade.
-          </div>
-        </div>
-
-        <div class="form-grid-2">
-          <div class="form-group">
-            <label class="form-label" for="au-hi">Horário início</label>
-            <input id="au-hi" type="time" class="form-input" value="${v('horarioInicio')}" />
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="au-hf">Horário fim</label>
-            <input id="au-hf" type="time" class="form-input" value="${v('horarioFim')}" />
-          </div>
-        </div>
-
-        <div class="form-grid-2">
-          <div class="form-group">
-            <label class="form-label" for="au-vagas">Vagas</label>
-            <input id="au-vagas" type="number" class="form-input" min="1" max="30" value="${v('vagas', '4')}" />
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="au-status">Status</label>
-            <select id="au-status" class="form-select">${statusOpts}</select>
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label" for="au-obs">Observações</label>
-          <textarea id="au-obs" class="form-textarea" rows="2"
-            placeholder="Informações adicionais…">${aula ? UI.escape(aula.observacoes || '') : ''}</textarea>
-        </div>
-
-        ${!isEdit ? (() => {
-          const alunosDisp = Storage.getAll('alunos')
-            .filter(a => a.status === 'ativo' && AlunoModule.temMatriculaAtiva(a.id))
-            .sort((a, b) => a.nome.localeCompare(b.nome));
-          if (!alunosDisp.length) return '';
-          return `
-          <div class="aluno-secao-titulo">👥 Alunos — opcional</div>
-          <div class="form-group">
-            <input type="text" id="au-alunos-search" class="form-input"
-              placeholder="🔍 Buscar aluno…" autocomplete="off"
-              oninput="TurmasModule._filtrarAlunosAulaModal(this.value)"
-              style="margin-bottom:6px;" />
-            <select id="au-alunos-sel" class="form-select" multiple size="5"
-              style="height:auto;min-height:110px;">
-              ${alunosDisp.map(a =>
-                `<option value="${a.id}" data-nome="${UI.escape(a.nome)}">${UI.escape(a.nome)}</option>`
-              ).join('')}
-            </select>
-            <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">
-              Segure Ctrl (ou ⌘) para selecionar mais de um. Só aparecem alunos com matrícula ativa.
+      <input id="au-current-id" type="hidden" value="${id || ''}" />
+      <div class="au-modal-layout">
+        <div class="au-form-col">
+          <div class="form-grid">
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label class="form-label" for="au-titulo">Título <span class="required-star">*</span></label>
+                <input id="au-titulo" type="text" class="form-input"
+                  placeholder="ex: Aula de Saque" value="${v('titulo')}" required autocomplete="off" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="au-turma">Grade</label>
+                <select id="au-turma" class="form-select" onchange="TurmasModule._onTurmaChangeAula()">${turmaOpts}</select>
+              </div>
             </div>
-          </div>`;
-        })() : ''}
 
-      </div>`;
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label class="form-label" for="au-nivel">Nível</label>
+                <select id="au-nivel" class="form-select">${nivelOpts}</select>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="au-prof">Professor</label>
+                <select id="au-prof" class="form-select"
+                  onchange="TurmasModule._updateDayViewModal()">${profOpts}</select>
+              </div>
+            </div>
+
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label class="form-label" for="au-esporte">Esporte</label>
+                <select id="au-esporte" class="form-select">
+                  <option value="">— Selecionar —</option>
+                  ${ListasService.opts('esporte', aula?.esporte || '')}
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="au-tipoplano">Tipo de Aula</label>
+                <select id="au-tipoplano" class="form-select">
+                  <option value="">— Selecionar —</option>
+                  ${ListasService.opts('aulas_tipoplano', aula?.tipoplano || '')}
+                </select>
+              </div>
+            </div>
+
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label class="form-label" for="au-arena">Arena</label>
+                <select id="au-arena" class="form-select" onchange="TurmasModule._onArenaChangeAula()">${arenaOpts}</select>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="au-quadra">Quadra</label>
+                <select id="au-quadra" class="form-select"
+                  onchange="TurmasModule._updateDayViewModal()">${quadraOptsAu}</select>
+              </div>
+            </div>
+
+            <div id="au-data-wrap" class="form-group" ${aula && aula.turmaId ? 'style="display:none"' : ''}>
+              <label class="form-label" for="au-data">Data <span class="required-star">*</span></label>
+              <input id="au-data" type="date" class="form-input" value="${v('data')}"
+                onchange="TurmasModule._updateDayViewModal()" />
+            </div>
+            <div id="au-data-info" ${aula && aula.turmaId ? '' : 'style="display:none"'}>
+              <div class="cadastro-tab-info">
+                📅 Aula vinculada à grade — as datas são geradas automaticamente pelo botão <strong>Gerar Aulas</strong> na aba Grade.
+              </div>
+            </div>
+
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label class="form-label" for="au-hi">Horário início</label>
+                <input id="au-hi" type="time" class="form-input" value="${v('horarioInicio')}"
+                  onchange="TurmasModule._updateDayViewModal()" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="au-hf">Horário fim</label>
+                <input id="au-hf" type="time" class="form-input" value="${v('horarioFim')}"
+                  onchange="TurmasModule._updateDayViewModal()" />
+              </div>
+            </div>
+
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label class="form-label" for="au-vagas">Vagas</label>
+                <input id="au-vagas" type="number" class="form-input" min="1" max="30" value="${v('vagas', '4')}" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="au-status">Status</label>
+                <select id="au-status" class="form-select">${statusOpts}</select>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="au-obs">Observações</label>
+              <textarea id="au-obs" class="form-textarea" rows="2"
+                placeholder="Informações adicionais…">${aula ? UI.escape(aula.observacoes || '') : ''}</textarea>
+            </div>
+
+            <!-- 🧪 Aula Experimental -->
+            <div class="form-group" style="padding-top:12px;border-top:1px solid var(--card-border);margin-top:4px;">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600;">
+                <input type="checkbox" id="au-experimental"
+                  ${aula?.experimental ? 'checked' : ''}
+                  onchange="TurmasModule._onExperimentalChange()"
+                  style="width:16px;height:16px;cursor:pointer;flex-shrink:0;" />
+                🧪 Aula Experimental (avaliação de nível)
+              </label>
+            </div>
+            <div id="au-exp-section" style="${aula?.experimental ? '' : 'display:none'}">
+              ${(() => {
+                const alunosExp = Storage.getAll('alunos')
+                  .filter(a => a.status === 'ativo')
+                  .sort((a, b) => a.nome.localeCompare(b.nome));
+                const expOpts = `<option value="">— Selecionar aluno —</option>` +
+                  alunosExp.map(a =>
+                    `<option value="${a.id}" data-nome="${UI.escape(a.nome)}"
+                      ${aula?.alunoExperimentalId === a.id ? 'selected' : ''}>${UI.escape(a.nome)}</option>`
+                  ).join('');
+                return `
+                <div class="form-group">
+                  <label class="form-label" for="au-exp-aluno">Aluno avaliado <span class="required-star">*</span></label>
+                  <select id="au-exp-aluno" class="form-select">${expOpts}</select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="au-exp-notas">Notas pré-avaliação</label>
+                  <textarea id="au-exp-notas" class="form-textarea" rows="2"
+                    placeholder="Observações iniciais sobre o aluno…">${aula ? UI.escape(aula.notasExperimental || '') : ''}</textarea>
+                </div>
+                <div class="cadastro-tab-info" style="margin-top:0;">
+                  💡 Tem valor financeiro normal. Se o aluno fechar matrícula, pode ser compensada.
+                </div>`;
+              })()}
+            </div>
+
+            ${!isEdit ? (() => {
+              const alunosDisp = Storage.getAll('alunos')
+                .filter(a => a.status === 'ativo' && AlunoModule.temMatriculaAtiva(a.id))
+                .sort((a, b) => a.nome.localeCompare(b.nome));
+              if (!alunosDisp.length) return '';
+              return `
+              <div class="aluno-secao-titulo" style="margin-top:12px;">👥 Alunos — opcional</div>
+              <div class="form-group">
+                <input type="text" id="au-alunos-search" class="form-input"
+                  placeholder="🔍 Buscar aluno…" autocomplete="off"
+                  oninput="TurmasModule._filtrarAlunosAulaModal(this.value)"
+                  style="margin-bottom:6px;" />
+                <select id="au-alunos-sel" class="form-select" multiple size="4"
+                  style="height:auto;min-height:90px;">
+                  ${alunosDisp.map(a =>
+                    `<option value="${a.id}" data-nome="${UI.escape(a.nome)}">${UI.escape(a.nome)}</option>`
+                  ).join('')}
+                </select>
+                <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">
+                  Segure Ctrl (ou ⌘) para selecionar mais de um.
+                </div>
+              </div>`;
+            })() : ''}
+
+          </div><!-- /form-grid -->
+        </div><!-- /au-form-col -->
+
+        <!-- ── Day-view panel ────────────────────────── -->
+        <div class="au-dayview-col">
+          <div class="au-dayview-header">📅 Agenda do dia</div>
+          <div id="au-dayview" class="au-dayview-wrap">
+            <div style="padding:24px 8px;text-align:center;color:var(--text-muted);font-size:12px;line-height:1.6;">
+              Selecione uma data para<br>visualizar a agenda.
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /au-modal-layout -->`;
 
     UI.openModal({
       title:        isEdit ? `Editar Aula — ${aula.titulo}` : 'Nova Aula',
       content,
       confirmLabel: isEdit ? 'Salvar' : 'Agendar',
       onConfirm:    () => this.saveAula(id),
+      wide:         true,
+    });
+    // Expand to xl and render day-view immediately if date already filled
+    requestAnimationFrame(() => {
+      document.getElementById('modal-dialog')?.classList.add('modal-xl');
+      this._updateDayViewModal();
     });
   },
 
@@ -2277,18 +2346,30 @@ const TurmasModule = {
     const horarioFim    = g('hf')  ? g('hf').value  : '';
     const data          = isAvulsa ? (dataEl?.value || '') : '';
 
+    const aulaAtual        = id ? Storage.getById(this.SK_AULA, id) : null;
+    const isExperimental   = !!document.getElementById('au-experimental')?.checked;
+    const expAlunoSel      = document.getElementById('au-exp-aluno');
+    const expAlunoId       = expAlunoSel?.value || '';
+    const expAlunoNome     = expAlunoSel?.selectedOptions[0]?.dataset.nome
+                             || expAlunoSel?.selectedOptions[0]?.textContent.trim() || '';
+
     const record = {
-      titulo:        tituloEl.value.trim(),
-      nivel:         g('nivel')     ? g('nivel').value                    : 'iniciante',
-      esporte:       g('esporte')   ? g('esporte').value                  : '',
-      tipoplano:     g('tipoplano') ? g('tipoplano').value                : '',
+      titulo:               tituloEl.value.trim(),
+      nivel:                g('nivel')     ? g('nivel').value                    : 'iniciante',
+      esporte:              g('esporte')   ? g('esporte').value                  : '',
+      tipoplano:            g('tipoplano') ? g('tipoplano').value                : '',
       turmaId, turmaNome, professorId, professorNome, arenaId, arenaNome, quadraId, quadraNome,
       data,
       horarioInicio,
       horarioFim,
-      vagas:         g('vagas')     ? parseInt(g('vagas').value, 10) || 4 : 4,
-      status:        g('status')    ? g('status').value                   : 'agendada',
-      observacoes:   g('obs')       ? g('obs').value.trim()               : '',
+      vagas:                g('vagas')     ? parseInt(g('vagas').value, 10) || 4 : 4,
+      status:               g('status')    ? g('status').value                   : 'agendada',
+      observacoes:          g('obs')       ? g('obs').value.trim()               : '',
+      experimental:         isExperimental,
+      alunoExperimentalId:  expAlunoId,
+      alunoExperimentalNome: expAlunoNome,
+      notasExperimental:    document.getElementById('au-exp-notas')?.value.trim() || '',
+      avaliacaoStatus:      aulaAtual?.avaliacaoStatus || (isExperimental ? 'pendente' : ''),
     };
 
     // ── Verificar conflito de quadra (bloqueia) ─────────────────────
@@ -2782,11 +2863,13 @@ const TurmasModule = {
     if (!sel) return;
     if (!arenaId) {
       sel.innerHTML = '<option value="">— Selecionar arena primeiro —</option>';
+      this._updateDayViewModal();
       return;
     }
     const quadras = Storage.getAll('quadras').filter(q => q.arenaId === arenaId && q.status === 'disponivel');
     sel.innerHTML = '<option value="">— Selecionar quadra —</option>' +
       quadras.map(q => `<option value="${q.id}" data-nome="${UI.escape(q.nome)}">${UI.escape(q.nome)}</option>`).join('');
+    this._updateDayViewModal();
   },
 
   _onTurmaChangeAula() {
@@ -2837,6 +2920,268 @@ const TurmasModule = {
     const hfEl = document.getElementById('au-hf');
     if (hiEl && turma.horarioInicio) hiEl.value = turma.horarioInicio;
     if (hfEl && turma.horarioFim)    hfEl.value = turma.horarioFim;
+
+    this._updateDayViewModal();
+  },
+
+  /* ================================================================== */
+  /*  Day-view do modal de aula                                          */
+  /* ================================================================== */
+
+  /** Lê os campos do formulário e redesenha o day-view */
+  _updateDayViewModal() {
+    const data     = document.getElementById('au-data')?.value;
+    const profId   = document.getElementById('au-prof')?.value   || '';
+    const quadraId = document.getElementById('au-quadra')?.value || '';
+    const hi       = document.getElementById('au-hi')?.value     || '';
+    const hf       = document.getElementById('au-hf')?.value     || '';
+    const curId    = document.getElementById('au-current-id')?.value || null;
+    this._renderDayView(data, profId, quadraId, hi, hf, curId);
+  },
+
+  /** Renderiza a timeline do dia no painel direito do modal */
+  _renderDayView(data, profId, quadraId, hiNova, hfNova, currentAulaId) {
+    const container = document.getElementById('au-dayview');
+    if (!container) return;
+
+    if (!data) {
+      container.innerHTML = `<div style="padding:24px 8px;text-align:center;color:var(--text-muted);font-size:12px;line-height:1.6;">Selecione uma data para<br>visualizar a agenda.</div>`;
+      return;
+    }
+
+    // Converte HH:MM → minutos desde meia-noite
+    const toMin = hhmm => {
+      if (!hhmm) return null;
+      const [h, m] = hhmm.split(':').map(Number);
+      return h * 60 + m;
+    };
+
+    const START = 6 * 60;   // 06:00
+    const END   = 22 * 60;  // 22:00
+    const TOTAL = END - START;
+
+    const pct = min => ((min - START) / TOTAL * 100).toFixed(2) + '%';
+    const hgt = (s, e) => ((Math.min(e, END) - Math.max(s, START)) / TOTAL * 100).toFixed(2) + '%';
+
+    // Aulas do dia (excluindo a atual ao editar)
+    const aulasNoDia = Storage.getAll('aulas').filter(a =>
+      a.data === data && a.status !== 'cancelada' && a.id !== currentAulaId
+    );
+
+    // Marcadores de hora
+    let hourHtml = '';
+    for (let h = 6; h <= 22; h++) {
+      hourHtml += `
+        <div class="au-dv-hour" style="top:${pct(h * 60)}">
+          <span class="au-dv-hour-lbl">${String(h).padStart(2,'0')}:00</span>
+          <div class="au-dv-hour-line"></div>
+        </div>`;
+    }
+
+    // Blocos de aulas existentes
+    let blocksHtml = '';
+    aulasNoDia.forEach(a => {
+      const s = toMin(a.horarioInicio);
+      const e = toMin(a.horarioFim) || (s + 60);
+      if (s === null || s >= END || e <= START) return;
+
+      const qConflito = quadraId && a.quadraId === quadraId;
+      const pConflito = profId   && a.professorId === profId;
+      let cor = '#6b7280';           // cinza — sem conflito
+      if (qConflito) cor = '#ef4444'; // vermelho — quadra ocupada
+      else if (pConflito) cor = '#f59e0b'; // laranja — prof ocupado
+
+      // Sobreposição com nova aula?
+      const novS = toMin(hiNova);
+      const novE = toMin(hfNova) || (novS !== null ? novS + 60 : null);
+      const overlap = novS !== null && novE !== null && s < novE && e > novS;
+      if (overlap && (qConflito || pConflito)) cor = cor; // já é conflito
+
+      const top = pct(Math.max(s, START));
+      const h2  = hgt(s, e);
+      blocksHtml += `
+        <div class="au-dv-block" style="top:${top};height:${h2};background:${cor}18;border-left:3px solid ${cor};color:${cor};" title="${UI.escape(a.titulo)}">
+          <div class="au-dv-blk-title">${UI.escape(a.titulo)}</div>
+          <div class="au-dv-blk-sub">${a.horarioInicio||''}${a.horarioFim?'–'+a.horarioFim:''} · ${UI.escape(a.professorNome||'—')}</div>
+        </div>`;
+    });
+
+    // Bloco de prévia da nova aula
+    let previewHtml = '';
+    if (hiNova) {
+      const s = toMin(hiNova);
+      const e = toMin(hfNova) || (s + 60);
+      if (s !== null && s < END && e > START) {
+        previewHtml = `
+          <div class="au-dv-block au-dv-preview" style="top:${pct(Math.max(s,START))};height:${hgt(s,e)};" title="Nova aula">
+            <div class="au-dv-blk-title">✏️ Esta aula</div>
+            <div class="au-dv-blk-sub">${hiNova}${hfNova?'–'+hfNova:''}</div>
+          </div>`;
+      }
+    }
+
+    // Label de data
+    const [y, m, d] = data.split('-');
+    const dtFmt = new Date(+y, +m-1, +d)
+      .toLocaleDateString('pt-BR', {weekday:'short', day:'2-digit', month:'short'});
+
+    // Legenda
+    const legenda = `
+      <div class="au-dv-legend">
+        <span style="color:#3b82f6;">■ Esta</span>
+        <span style="color:#f59e0b;">■ Prof.</span>
+        <span style="color:#ef4444;">■ Quadra</span>
+        <span style="color:#6b7280;">■ Outro</span>
+      </div>`;
+
+    container.innerHTML = `
+      <div class="au-dv-datelbl">${dtFmt}</div>
+      ${legenda}
+      <div class="au-dv-timeline">
+        ${hourHtml}
+        ${blocksHtml}
+        ${previewHtml}
+        ${!aulasNoDia.length && !hiNova
+          ? `<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:var(--text-muted);font-size:11px;text-align:center;pointer-events:none;">Sem aulas<br>agendadas</div>`
+          : ''}
+      </div>`;
+  },
+
+  /* ================================================================== */
+  /*  Aula Experimental — avaliação de nível                             */
+  /* ================================================================== */
+
+  _onExperimentalChange() {
+    const cb  = document.getElementById('au-experimental');
+    const sec = document.getElementById('au-exp-section');
+    if (sec) sec.style.display = cb?.checked ? '' : 'none';
+  },
+
+  /** Abre o modal de avaliação de uma aula experimental concluída */
+  abrirAvaliacaoExperimental(aulaId) {
+    const aula = Storage.getById(this.SK_AULA, aulaId);
+    if (!aula || !aula.experimental) { UI.toast('Aula não é experimental.', 'warning'); return; }
+
+    const aluno = Storage.getById('alunos', aula.alunoExperimentalId);
+    const nomeAluno = aluno ? aluno.nome : (aula.alunoExperimentalNome || '—');
+    const nivelAtual = aluno?.nivel || 'não definido';
+    const nivelOpts  = ListasService.opts('aulas_nivel', aluno?.nivel || '');
+
+    const content = `
+      <div class="form-grid">
+        <div style="background:var(--gray-light);border-radius:8px;padding:12px;margin-bottom:4px;">
+          <div style="font-weight:600;font-size:14px;">${UI.escape(nomeAluno)}</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">
+            Nível atual: <strong>${nivelAtual}</strong>
+            ${aula.notasExperimental ? `<br>Notas pré-aula: ${UI.escape(aula.notasExperimental)}` : ''}
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="aval-nivel">Nível avaliado <span class="required-star">*</span></label>
+          <select id="aval-nivel" class="form-select" onchange="TurmasModule._sugerirGradesCompativeis(this.value, document.getElementById('aval-grades'))">
+            ${nivelOpts}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="aval-notas">Laudo / Observações do professor</label>
+          <textarea id="aval-notas" class="form-textarea" rows="3"
+            placeholder="Descreva o desempenho, pontos fortes e a desenvolver…">${UI.escape(aula.notasExperimental || '')}</textarea>
+        </div>
+
+        <div class="form-group">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">
+            <input type="checkbox" id="aval-compensar" style="width:16px;height:16px;"
+              ${aula.compensarSeFechar ? 'checked' : ''} />
+            Compensar aula se aluno fechar matrícula (desconto / abatimento)
+          </label>
+        </div>
+
+        <div id="aval-grades"></div>
+      </div>`;
+
+    UI.openModal({
+      title:        `🧪 Avaliação — ${UI.escape(aula.titulo)}`,
+      content,
+      confirmLabel: 'Confirmar Avaliação',
+      onConfirm:    () => this._salvarAvaliacaoExperimental(aulaId),
+    });
+
+    requestAnimationFrame(() => {
+      const nivelSel = document.getElementById('aval-nivel');
+      if (nivelSel?.value) {
+        this._sugerirGradesCompativeis(nivelSel.value, document.getElementById('aval-grades'));
+      }
+    });
+  },
+
+  _salvarAvaliacaoExperimental(aulaId) {
+    const nivelEl = document.getElementById('aval-nivel');
+    const notasEl = document.getElementById('aval-notas');
+    const compEl  = document.getElementById('aval-compensar');
+    if (!nivelEl?.value) { UI.toast('Selecione o nível avaliado.', 'warning'); return; }
+
+    const aula = Storage.getById(this.SK_AULA, aulaId);
+    if (!aula) return;
+
+    Storage.update(this.SK_AULA, aulaId, {
+      avaliacaoStatus:   'concluida',
+      nivelAvaliado:     nivelEl.value,
+      notasExperimental: notasEl?.value.trim() || '',
+      compensarSeFechar: !!compEl?.checked,
+    });
+
+    if (aula.alunoExperimentalId) {
+      Storage.update('alunos', aula.alunoExperimentalId, { nivel: nivelEl.value });
+    }
+
+    const nomeAluno = aula.alunoExperimentalNome || 'Aluno';
+    UI.toast(`✅ Avaliação concluída! Nível de ${nomeAluno} → ${nivelEl.value}.`, 'success');
+    UI.closeModal();
+    this.render();
+  },
+
+  /** Exibe grades compatíveis com o nível avaliado */
+  _sugerirGradesCompativeis(nivel, containerEl) {
+    if (!containerEl) return;
+    if (!nivel) { containerEl.innerHTML = ''; return; }
+
+    const grades = Storage.getAll(this.SK).filter(t => t.nivel === nivel && t.status !== 'cancelada');
+    if (!grades.length) {
+      containerEl.innerHTML = `<div class="cadastro-tab-info" style="margin-top:8px;">
+        Nenhuma grade com nível <strong>${nivel}</strong> encontrada.</div>`;
+      return;
+    }
+    containerEl.innerHTML = `
+      <div style="margin-top:12px;">
+        <div style="font-size:12px;font-weight:700;color:var(--text-secondary);margin-bottom:6px;text-transform:uppercase;letter-spacing:.4px;">
+          🏸 Grades compatíveis — nível ${nivel}
+        </div>
+        ${grades.map(t => `
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;
+            background:var(--gray-light);border-radius:8px;margin-bottom:4px;gap:8px;">
+            <div style="min-width:0;">
+              <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${UI.escape(t.nome)}</div>
+              <div style="font-size:11px;color:var(--text-muted);">
+                ${Array.isArray(t.diaSemana) ? t.diaSemana.join(', ') : (t.diaSemana||'—')}
+                · ${t.horarioInicio||'?'}–${t.horarioFim||'?'}
+              </div>
+            </div>
+            <a href="#" class="btn btn-sm btn-primary" style="flex-shrink:0;font-size:11px;"
+              onclick="event.preventDefault();UI.closeModal();TurmasModule._abrirGradeParaInscricao('${t.id}')">
+              Ver grade →
+            </a>
+          </div>`).join('')}
+      </div>`;
+  },
+
+  _abrirGradeParaInscricao(turmaId) {
+    // Navega para a aba de turmas destacando a grade em questão
+    this._state.tab = 'turmas';
+    this._state.filtroTurma = turmaId;
+    this.render();
+    UI.toast('Abra a grade e use a aba Alunos para inscrever o aluno.', 'info');
   },
 
   /* ================================================================== */

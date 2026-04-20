@@ -41,6 +41,20 @@ const Notifications = {
         });
       });
 
+    /* -- Aulas experimentais com avaliação pendente -- */
+    Storage.getAll('aulas')
+      .filter(a => a.experimental && a.avaliacaoStatus === 'pendente' && a.status !== 'cancelada')
+      .forEach(a => {
+        lista.push({
+          tipo:   'experimental',
+          nivel:  'warning',
+          icon:   '🧪',
+          titulo: 'Avaliação experimental pendente',
+          desc:   `${a.titulo}${a.alunoExperimentalNome ? ' — ' + a.alunoExperimentalNome : ''}`,
+          rota:   'turmas',
+        });
+      });
+
     /* -- Matrículas: vencidas ou vencendo em ≤ 7 dias -- */
     Storage.getAll('matriculas')
       .filter(m => m.status === 'ativa' || m.status === 'vencida')
