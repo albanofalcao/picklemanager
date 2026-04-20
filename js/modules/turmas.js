@@ -42,6 +42,7 @@ const TurmasModule = {
     calView:        'mes',
     calDia:         new Date().getDate(),
     turmaSel:       '',
+    aulaSearch:     '',
     aulaFilterTurma:'',
     aulaFilterData: '',
     aulaFilterSt:   '',
@@ -205,8 +206,8 @@ const TurmasModule = {
         <div class="search-wrapper">
           <span class="search-icon">🔍</span>
           <input type="text" class="search-input" placeholder="Buscar grade ou professor…"
-            value="${UI.escape(this._state.search)}"
-            oninput="TurmasModule._state.search=this.value;TurmasModule._reRenderContent()" />
+            value="${UI.escape(this._state.search)}" data-search="search"
+            oninput="TurmasModule._onSearchInput('search', this)" />
         </div>
         <select class="filter-select"
           onchange="TurmasModule._state.filterStatus=this.value;TurmasModule._reRenderContent()">
@@ -308,6 +309,15 @@ const TurmasModule = {
   _reRenderContent() {
     const el = document.getElementById('turmas-content');
     if (el) el.innerHTML = this._renderTab();
+  },
+
+  /** Atualiza campo de busca sem perder foco (re-render destrói o DOM) */
+  _onSearchInput(stateKey, input) {
+    const sel = input.selectionStart;
+    this._state[stateKey] = input.value;
+    this._reRenderContent();
+    const novo = document.querySelector(`[data-search="${stateKey}"]`);
+    if (novo) { novo.focus(); try { novo.setSelectionRange(sel, sel); } catch {} }
   },
 
   /* ================================================================== */
@@ -463,6 +473,15 @@ const TurmasModule = {
     if (this._state.aulaFilterArena) {
       aulas = aulas.filter(a => a.arenaId === this._state.aulaFilterArena);
     }
+    if (this._state.aulaSearch) {
+      const q = this._state.aulaSearch.toLowerCase();
+      aulas = aulas.filter(a =>
+        (a.titulo        || '').toLowerCase().includes(q) ||
+        (a.turmaNome     || '').toLowerCase().includes(q) ||
+        (a.professorNome || '').toLowerCase().includes(q) ||
+        (a.arenaNome     || '').toLowerCase().includes(q)
+      );
+    }
 
     aulas = aulas.sort((a, b) => {
       const d = (b.data || '').localeCompare(a.data || '');
@@ -584,7 +603,13 @@ const TurmasModule = {
 
     return `
       <div class="filters-bar">
-        <select class="filter-select" style="min-width:200px;"
+        <div class="search-wrapper">
+          <span class="search-icon">🔍</span>
+          <input type="text" class="search-input" placeholder="Buscar aula, grade, professor…"
+            value="${UI.escape(this._state.aulaSearch)}" data-search="aulaSearch"
+            oninput="TurmasModule._onSearchInput('aulaSearch', this)" />
+        </div>
+        <select class="filter-select" style="min-width:180px;"
           onchange="TurmasModule._state.aulaFilterTurma=this.value;TurmasModule._reRenderContent()">
           ${turmaOpts}
         </select>
