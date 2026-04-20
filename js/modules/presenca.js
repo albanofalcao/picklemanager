@@ -55,10 +55,11 @@ const PresencaModule = {
     const alunosOrdenados = [...alunosAlocados, ...alunosComMat, ...alunosSemMat];
 
     const rows = alunosOrdenados.map(aluno => {
-      const reg     = registros.find(r => r.alunoId === aluno.id);
-      const checked = reg ? reg.presente : false;
+      const reg       = registros.find(r => r.alunoId === aluno.id);
       const isAlocado = alocadosIds.has(aluno.id);
       const temMat    = isAlocado || matriculas.some(m => m.alunoId === aluno.id);
+      // Default: presente para alocados e matriculados; ausente para avulsos sem registro
+      const checked   = reg ? reg.presente : (isAlocado || temMat);
 
       return `
         <tr>
