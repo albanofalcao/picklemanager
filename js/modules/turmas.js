@@ -2527,11 +2527,25 @@ const TurmasModule = {
       checkinHtml = `<span class="text-muted" style="font-size:13px;">Aula cancelada</span>`;
     }
 
+    const session    = Auth.getSession();
+    const isAdmin    = !session || !['professor','aluno'].includes(session.perfil);
+    const isAluno    = session?.perfil === 'aluno';
+
     const content = `
       <div class="form-grid">
-        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;">
           <span class="badge ${st.badge}">${st.label}</span>
           ${aula.turmaNome ? `<span class="badge badge-blue">${UI.escape(aula.turmaNome)}</span>` : '<span class="badge badge-gray">Avulsa</span>'}
+          ${aula.experimental ? `<span class="badge" style="background:#f59e0b20;color:#b45309;">🧪 Experimental</span>` : ''}
+          <span style="flex:1;"></span>
+          ${isAdmin ? `
+            <button class="btn btn-ghost btn-sm" title="Repetir aula"
+              onclick="UI.closeModal();TurmasModule.openModalRepetirAula('${id}')">🔁</button>
+            <button class="btn btn-ghost btn-sm" title="Editar"
+              onclick="UI.closeModal();TurmasModule.openModalAula('${id}')">✏️</button>
+            <button class="btn btn-ghost btn-sm danger" title="Excluir aula"
+              onclick="UI.closeModal();TurmasModule.deleteAula('${id}')">🗑️ Excluir</button>
+          ` : ''}
         </div>
 
         <div class="info-grid">
@@ -2565,11 +2579,12 @@ const TurmasModule = {
       </div>`;
 
     UI.openModal({
-      title:        aula.titulo,
+      title:      aula.titulo,
       content,
-      confirmLabel: 'Editar Aula',
-      cancelLabel:  'Fechar',
-      onConfirm:    () => { UI.closeModal(); this.openModalAula(id); },
+      hideFooter: false,
+      confirmLabel: isAdmin ? 'Editar Aula' : 'Fechar',
+      cancelLabel:  isAdmin ? 'Fechar' : '',
+      onConfirm:    isAdmin ? () => { UI.closeModal(); this.openModalAula(id); } : () => UI.closeModal(),
     });
   },
 
