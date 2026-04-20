@@ -1783,6 +1783,10 @@ const TurmasModule = {
     const dataFmt = aula.data ? `${d}/${m}/${y}` : '—';
     const hora = [aula.horarioInicio, aula.horarioFim].filter(Boolean).join(' – ') || '—';
 
+    // Verifica se a aula original tem alunos alocados
+    const alunosOrigem = Storage.getAll('aulaAlunos').filter(aa => aa.aulaId === aulaId && aa.status === 'ativo');
+    const temAlunos = alunosOrigem.length > 0;
+
     const content = `
       <div class="form-grid">
         <div class="cadastro-tab-info">
@@ -1806,6 +1810,20 @@ const TurmasModule = {
             </select>
           </div>
         </div>
+        ${temAlunos ? `
+        <div class="form-group" style="background:var(--gray-light);border-radius:8px;padding:12px;">
+          <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
+            <input type="checkbox" id="rep-copiar-alunos" checked
+              style="width:16px;height:16px;margin-top:2px;flex-shrink:0;cursor:pointer;" />
+            <div>
+              <div style="font-size:13px;font-weight:600;">Copiar alunos para as novas aulas</div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">
+                ${alunosOrigem.length} aluno${alunosOrigem.length !== 1 ? 's' : ''} vinculado${alunosOrigem.length !== 1 ? 's' : ''}:
+                ${alunosOrigem.slice(0, 3).map(aa => UI.escape(aa.alunoNome || '—')).join(', ')}${alunosOrigem.length > 3 ? ` +${alunosOrigem.length - 3} mais` : ''}
+              </div>
+            </div>
+          </label>
+        </div>` : ''}
         <div id="rep-preview" style="font-size:12px;color:var(--text-muted);padding:8px;background:var(--bg-secondary);border-radius:6px;min-height:28px;"></div>
       </div>`;
 
@@ -1845,8 +1863,14 @@ const TurmasModule = {
       return;
     }
 
-    const qtd  = Math.min(parseInt(document.getElementById('rep-qtd')?.value) || 1, 52);
-    const dias  = parseInt(document.getElementById('rep-intervalo')?.value) || 7;
+    const qtd           = Math.min(parseInt(document.getElementById('rep-qtd')?.value) || 1, 52);
+    const dias          = parseInt(document.getElementById('rep-intervalo')?.value) || 7;
+    const copiarAlunos  = document.getElementById('rep-copiar-alunos')?.checked ?? true;
+
+    // Alunos da aula original (usados se copiarAlunos = true)
+    const alunosOrigem = copiarAlunos
+      ? Storage.getAll('aulaAlunos').filter(aa => aa.aulaId === aulaId && aa.status === 'ativo')
+      : [];
 
     let criadas = 0, conflitos = 0;
     for (let i = 1; i <= qtd; i++) {
@@ -1859,7 +1883,20 @@ const TurmasModule = {
       if (confQ || confP) { conflitos++; continue; }
 
       const { id: _id, createdAt: _c, ...resto } = aula;
-      Storage.create(this.SK_AULA, { ...resto, data: dataStr, status: 'agendada', observacoes: aula.observacoes || '' });
+      const novaAula = Storage.create(this.SK_AULA, { ...resto, data: dataStr, status: 'agendada', observacoes: aula.observacoes || '' });
+
+      // Copia os alunos para a nova aula
+      if (novaAula && alunosOrigem.length) {
+        alunosOrigem.forEach(aa => {
+          Storage.create('aulaAlunos', {
+            aulaId:    novaAula.id,
+            alunoId:   aa.alunoId,
+            alunoNome: aa.alunoNome,
+            status:    'ativo',
+          });
+        });
+      }
+
       criadas++;
     }
 
@@ -1867,8 +1904,11 @@ const TurmasModule = {
     const skipMsg = conflitos > 0
       ? ` (${conflitos} ignorada${conflitos !== 1 ? 's' : ''} por conflito)`
       : '';
+    const alunosMsg = copiarAlunos && alunosOrigem.length > 0
+      ? ` com ${alunosOrigem.length} aluno${alunosOrigem.length !== 1 ? 's' : ''} incluído${alunosOrigem.length !== 1 ? 's' : ''}`
+      : '';
     UI.toast(
-      `${criadas} aula${criadas !== 1 ? 's' : ''} criada${criadas !== 1 ? 's' : ''} com sucesso!${skipMsg}`,
+      `${criadas} aula${criadas !== 1 ? 's' : ''} criada${criadas !== 1 ? 's' : ''}${alunosMsg}!${skipMsg}`,
       criadas > 0 ? 'success' : 'warning'
     );
     this._reRenderContent();
