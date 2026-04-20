@@ -492,14 +492,13 @@ const TurmasModule = {
 
     // Opções de turma para o filtro
     const turmas = Storage.getAll(this.SK).sort((a, b) => a.nome.localeCompare(b.nome));
-    const totalAvulsas = Storage.getAll(this.SK_AULA).filter(a => !a.turmaId).length;
     const minhaLabel = isProfessor ? 'Minhas grades' : isAluno ? 'Minhas grades' : '';
     let turmaOpts = `<option value="">Todas as grades</option>`;
     if (isProfessor || isAluno) {
       turmaOpts = `<option value="__meu__" ${this._state.aulaFilterTurma === '__meu__' ? 'selected' : ''}>${minhaLabel}</option>
         <option value="">Todas as grades</option>`;
     }
-    turmaOpts += `<option value="__avulsa__" ${this._state.aulaFilterTurma === '__avulsa__' ? 'selected' : ''}>🏸 Avulsas (sem grade)${totalAvulsas ? ' · ' + totalAvulsas : ''}</option>`;
+    turmaOpts += `<option value="__avulsa__" ${this._state.aulaFilterTurma === '__avulsa__' ? 'selected' : ''}>🏸 Avulsas (sem grade)</option>`;
     turmaOpts += turmas.map(t =>
       `<option value="${t.id}" ${this._state.aulaFilterTurma === t.id ? 'selected' : ''}>${UI.escape(t.nome)}</option>`
     ).join('');
@@ -1047,9 +1046,8 @@ const TurmasModule = {
 
     const arenaOpts = `<option value="">Todas as arenas</option>` +
       arenas.map(a => `<option value="${a.id}" ${this._state.calFilterArena===a.id?'selected':''}>${UI.escape(a.nome)}</option>`).join('');
-    const totalAvulsasCal = Storage.getAll(this.SK_AULA).filter(a => !a.turmaId).length;
     const turmaOpts = `<option value="">Todas as grades</option>` +
-      `<option value="__avulsa__" ${this._state.calFilterTurma==='__avulsa__'?'selected':''}>🏸 Avulsas (sem grade)${totalAvulsasCal?' · '+totalAvulsasCal:''}</option>` +
+      `<option value="__avulsa__" ${this._state.calFilterTurma==='__avulsa__'?'selected':''}>🏸 Avulsas (sem grade)</option>` +
       turmas.map(t => `<option value="${t.id}" ${this._state.calFilterTurma===t.id?'selected':''}>${UI.escape(t.nome)}</option>`).join('');
 
     // Legenda de cores por grade
