@@ -1868,6 +1868,7 @@ const TurmasModule = {
     );
 
     let count = 0;
+    let skipped = 0;
     const cur = new Date(ini + 'T12:00:00');
     const end = new Date(fim + 'T12:00:00');
     const MAX = 365;
@@ -1878,40 +1879,43 @@ const TurmasModule = {
         const dataStr = this._isoDate(cur);
         if (!existentes.has(dataStr)) {
           const horario = diasHorasMap[diaSemJS] || { inicio: t.horarioInicio || '', fim: t.horarioFim || '' };
-          // Verificar conflito de quadra (só avisa, não bloqueia)
-          const conflito = this._verificarConflitoQuadra(
-            t.quadraId, dataStr, horario.inicio, horario.fim
-          );
-          if (conflito) {
-            UI.toast(`⚠️ Quadra ocupada em ${dataStr} por "${conflito.titulo || conflito.turmaNome}".`, 'warning');
+
+          // Verificar conflito de quadra ou professor (pula se houver)
+          const conflitoQ = this._verificarConflitoQuadra(t.quadraId, dataStr, horario.inicio, horario.fim);
+          const conflitoP = this._verificarConflitoProfessor(t.professorId, dataStr, horario.inicio, horario.fim);
+
+          if (conflitoQ || conflitoP) {
+            skipped++;
+          } else {
+            Storage.create(this.SK_AULA, {
+              titulo:        t.nome,
+              tipo:          t.tipo,
+              nivel:         t.nivel,
+              turmaId:       t.id,
+              turmaNome:     t.nome,
+              professorId:   t.professorId,
+              professorNome: t.professorNome,
+              arenaId:       t.arenaId,
+              arenaNome:     t.arenaNome,
+              quadraId:      t.quadraId   || '',
+              quadraNome:    t.quadraNome || '',
+              data:          dataStr,
+              horarioInicio: horario.inicio,
+              horarioFim:    horario.fim,
+              vagas:         t.vagas,
+              status:        'agendada',
+              observacoes:   '',
+            });
+            count++;
           }
-          Storage.create(this.SK_AULA, {
-            titulo:        t.nome,
-            tipo:          t.tipo,
-            nivel:         t.nivel,
-            turmaId:       t.id,
-            turmaNome:     t.nome,
-            professorId:   t.professorId,
-            professorNome: t.professorNome,
-            arenaId:       t.arenaId,
-            arenaNome:     t.arenaNome,
-            quadraId:      t.quadraId   || '',
-            quadraNome:    t.quadraNome || '',
-            data:          dataStr,
-            horarioInicio: horario.inicio,
-            horarioFim:    horario.fim,
-            vagas:         t.vagas,
-            status:        'agendada',
-            observacoes:   '',
-          });
-          count++;
         }
       }
       cur.setDate(cur.getDate() + 1);
     }
 
     UI.closeModal();
-    UI.toast(`${count} aula${count !== 1 ? 's' : ''} gerada${count !== 1 ? 's' : ''} com sucesso!`, 'success');
+    const skipMsg = skipped > 0 ? ` (${skipped} ignorada${skipped !== 1 ? 's' : ''} por conflito de quadra/professor)` : '';
+    UI.toast(`${count} aula${count !== 1 ? 's' : ''} gerada${count !== 1 ? 's' : ''} com sucesso!${skipMsg}`, count > 0 ? 'success' : 'warning');
     // Vai para o calendário no mês de início
     const dIni = new Date(ini + 'T12:00:00');
     this._state.tab    = 'calendario';
@@ -2125,10 +2129,30 @@ const TurmasModule = {
       observacoes:   g('obs')       ? g('obs').value.trim()               : '',
     };
 
-    // Verificar conflito de quadra
-    const conflito = this._verificarConflitoQuadra(quadraId, data, horarioInicio, horarioFim, id || null);
-    if (conflito) {
-      UI.toast(`⚠️ Quadra já ocupada neste horário por "${conflito.titulo || conflito.turmaNome}".`, 'warning');
+    // ── Verificar conflito de quadra (bloqueia) ─────────────────────
+    if (quadraId && data && horarioInicio) {
+      const conflitoQ = this._verificarConflitoQuadra(quadraId, data, horarioInicio, horarioFim, id || null);
+      if (conflitoQ) {
+        UI.toast(
+          `🚫 Quadra já ocupada neste horário por "${conflitoQ.titulo || conflitoQ.turmaNome}". ` +
+          `Escolha outro horário ou outra quadra.`,
+          'error'
+        );
+        return;
+      }
+    }
+
+    // ── Verificar conflito de professor (bloqueia) ───────────────────
+    if (professorId && data && horarioInicio) {
+      const conflitoP = this._verificarConflitoProfessor(professorId, data, horarioInicio, horarioFim, id || null);
+      if (conflitoP) {
+        UI.toast(
+          `🚫 Professor já está alocado neste horário em "${conflitoP.titulo || conflitoP.turmaNome}". ` +
+          `Escolha outro professor ou horário.`,
+          'error'
+        );
+        return;
+      }
     }
 
     if (id) {
@@ -2641,6 +2665,22 @@ const TurmasModule = {
       a.quadraId === quadraId &&
       a.data     === data &&
       a.status   !== 'cancelada' &&
+      a.horarioInicio < (horarioFim || '23:59') &&
+      (a.horarioFim || '23:59') > horarioInicio
+    ) || null;
+  },
+
+  /**
+   * Verifica se um professor já está alocado em outra aula no mesmo horário.
+   * Retorna a aula conflitante ou null.
+   */
+  _verificarConflitoProfessor(professorId, data, horarioInicio, horarioFim, aulaIdIgnorar = null) {
+    if (!professorId || !data || !horarioInicio) return null;
+    return Storage.getAll('aulas').find(a =>
+      a.id          !== aulaIdIgnorar &&
+      a.professorId === professorId &&
+      a.data        === data &&
+      a.status      !== 'cancelada' &&
       a.horarioInicio < (horarioFim || '23:59') &&
       (a.horarioFim || '23:59') > horarioInicio
     ) || null;

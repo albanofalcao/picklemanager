@@ -402,6 +402,24 @@ const MatriculaModule = {
       return;
     }
 
+    // ── Matrícula ativa duplicada (bloqueia criação) ─────────────────
+    if (!isEdit) {
+      const alunoIdSel = alunoSel ? alunoSel.value : '';
+      if (alunoIdSel) {
+        const matAtiva = Storage.getAll(this.STORAGE_KEY).find(m =>
+          m.alunoId === alunoIdSel && m.status === 'ativa'
+        );
+        if (matAtiva) {
+          UI.toast(
+            `Este aluno já possui matrícula ativa (${matAtiva.planoNome || 'Plano'}). ` +
+            `Encerre ou cancele a atual antes de criar uma nova.`,
+            'error'
+          );
+          return;
+        }
+      }
+    }
+
     const planoOpt = planoSel.selectedOptions[0];
 
     // Em edição preserva aluno original; em criação lê do select
@@ -618,10 +636,12 @@ const MatriculaModule = {
     const aluno = Storage.getAll('alunos').find(a => a.id === mat.alunoId) || {};
     const plano = Storage.getAll('planos').find(p => p.id === mat.planoId) || {};
 
-    // Turmas vinculadas ao plano (via esporte/tipo, ou todas ativas)
-    const turmas = Storage.getAll('turmas').filter(t =>
-      t.status === 'ativa' && (!plano.esporte || !t.esporte || t.esporte === plano.esporte)
+    // Grades onde o aluno está inscrito (turmaAlunos ativos)
+    const inscricoes = Storage.getAll('turmaAlunos').filter(i =>
+      i.alunoId === mat.alunoId && i.status === 'ativo'
     );
+    const turmasIds = new Set(inscricoes.map(i => i.turmaId));
+    const turmas = Storage.getAll('turmas').filter(t => turmasIds.has(t.id));
 
     const lancamentos = Storage.getAll('financeiro')
       .filter(l => l.matriculaId === id)
@@ -636,15 +656,22 @@ const MatriculaModule = {
     const DIAS = { seg:'Segunda', ter:'Terça', qua:'Quarta', qui:'Quinta', sex:'Sexta', sab:'Sábado', dom:'Domingo' };
 
     const turmasHtml = turmas.length ? turmas.map(t => {
-      const dias = (t.dias || []).map(d => DIAS[d] || d).join(', ') || '—';
+      // Normaliza diasSemana para novo formato (objeto ou string)
+      const diasNorm = (t.diasSemana || []).map(d => typeof d === 'object' ? d : { dia: d, inicio: t.horarioInicio || '', fim: t.horarioFim || '' });
+      const diasLabel = diasNorm.map(d => DIAS[d.dia] || d.dia).join(', ') || '—';
+      // Horário: único ou por dia
+      const unicas = [...new Set(diasNorm.map(d => `${d.inicio}–${d.fim}`))];
+      const horario = unicas.length === 1
+        ? `${diasNorm[0].inicio || '—'}${diasNorm[0].fim ? ' – ' + diasNorm[0].fim : ''}`
+        : diasNorm.filter(d => d.inicio).map(d => `${DIAS[d.dia]||d.dia}: ${d.inicio}–${d.fim}`).join(' · ') || '—';
       return `<tr>
         <td>${t.nome || '—'}</td>
-        <td>${dias}</td>
-        <td>${t.horarioInicio || '—'} – ${t.horarioFim || '—'}</td>
-        <td>${t.professorNome || t.professor || '—'}</td>
+        <td>${diasLabel}</td>
+        <td>${horario}</td>
+        <td>${t.professorNome || '—'}</td>
         <td>${t.arenaNome || '—'}</td>
       </tr>`;
-    }).join('') : `<tr><td colspan="5" style="text-align:center;color:#888;">Nenhuma grade disponível no momento</td></tr>`;
+    }).join('') : `<tr><td colspan="5" style="text-align:center;color:#888;">Aluno não inscrito em nenhuma grade</td></tr>`;
 
     const parcelasHtml = lancamentos.length ? lancamentos.map((l, i) => `
       <tr>
@@ -745,7 +772,7 @@ const MatriculaModule = {
   </section>
 
   <section>
-    <h2>Grades Disponíveis</h2>
+    <h2>Cronograma Contratado</h2>
     <table>
       <thead><tr><th>Grade</th><th>Dias</th><th>Horário</th><th>Professor</th><th>Arena</th></tr></thead>
       <tbody>${turmasHtml}</tbody>

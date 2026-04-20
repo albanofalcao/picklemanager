@@ -628,7 +628,7 @@ const ProfessorModule = {
   /*  CRUD operations                                                     */
   /* ------------------------------------------------------------------ */
 
-  saveProfessor(id = null) {
+  async saveProfessor(id = null) {
     const g = n => document.getElementById(`p-${n}`);
     const nome = g('nome');
 
@@ -638,6 +638,66 @@ const ProfessorModule = {
       return;
     }
     nome.classList.remove('error');
+
+    // ── CPF: validação de dígitos e duplicata ────────────────────────
+    const cpfEl  = g('cpf');
+    const cpfRaw = cpfEl ? cpfEl.value.trim() : '';
+    if (cpfRaw) {
+      const cpfDigits = cpfRaw.replace(/\D/g, '');
+      if (cpfDigits.length === 11 && !this._validarCPF(cpfDigits)) {
+        cpfEl.classList.add('error');
+        UI.toast('CPF inválido — verifique os dígitos verificadores.', 'error');
+        return;
+      }
+      if (cpfDigits.length === 11) {
+        const dupCPF = Storage.getAll(this.STORAGE_KEY).find(p =>
+          p.id !== id && p.cpf && p.cpf.replace(/\D/g, '') === cpfDigits
+        );
+        if (dupCPF) {
+          cpfEl.classList.add('error');
+          UI.toast(`CPF já cadastrado para "${dupCPF.nome}".`, 'error');
+          return;
+        }
+      }
+      cpfEl.classList.remove('error');
+    }
+
+    // ── CNPJ: validação de dígitos e duplicata ───────────────────────
+    const cnpjEl  = g('cnpj');
+    const cnpjRaw = cnpjEl ? cnpjEl.value.trim() : '';
+    if (cnpjRaw) {
+      const cnpjDigits = cnpjRaw.replace(/\D/g, '');
+      if (cnpjDigits.length === 14 && !this._validarCNPJ(cnpjDigits)) {
+        cnpjEl.classList.add('error');
+        UI.toast('CNPJ inválido — verifique os dígitos verificadores.', 'error');
+        return;
+      }
+      if (cnpjDigits.length === 14) {
+        const dupCNPJ = Storage.getAll(this.STORAGE_KEY).find(p =>
+          p.id !== id && p.cnpj && p.cnpj.replace(/\D/g, '') === cnpjDigits
+        );
+        if (dupCNPJ) {
+          cnpjEl.classList.add('error');
+          UI.toast(`CNPJ já cadastrado para "${dupCNPJ.nome}".`, 'error');
+          return;
+        }
+      }
+      cnpjEl.classList.remove('error');
+    }
+
+    // ── Nome duplicado ───────────────────────────────────────────────
+    const nomeTrimmed = nome.value.trim();
+    const dupNome = Storage.getAll(this.STORAGE_KEY).find(p =>
+      p.id !== id && p.nome.trim().toLowerCase() === nomeTrimmed.toLowerCase()
+    );
+    if (dupNome) {
+      const cont = await UI.confirm(
+        `Já existe um professor com o nome "${dupNome.nome}". Deseja cadastrar mesmo assim?`,
+        'Nome duplicado',
+        'Cadastrar mesmo assim'
+      );
+      if (!cont) return;
+    }
 
     const arenaSel = document.getElementById('p-arenas');
     const arenas = arenaSel ? Array.from(arenaSel.selectedOptions).map(o => o.value) : [];
@@ -856,5 +916,39 @@ const ProfessorModule = {
     else if (v.length > 6) v = v.replace(/(\d{2})(\d{4})(\d{0,4})/, '($1) $2-$3');
     else if (v.length > 2) v = v.replace(/(\d{2})(\d{0,5})/, '($1) $2');
     el.value = v;
+  },
+
+  /**
+   * Valida dígitos verificadores do CPF (mod 11).
+   * @param {string} digits — 11 dígitos numéricos sem máscara
+   */
+  _validarCPF(digits) {
+    if (/^(\d)\1{10}$/.test(digits)) return false;
+    const calc = (n, len) => {
+      let s = 0;
+      for (let i = 0; i < len; i++) s += parseInt(n[i]) * (len + 1 - i);
+      const r = s % 11;
+      return r < 2 ? 0 : 11 - r;
+    };
+    return calc(digits, 9)  === parseInt(digits[9]) &&
+           calc(digits, 10) === parseInt(digits[10]);
+  },
+
+  /**
+   * Valida dígitos verificadores do CNPJ (mod 11).
+   * @param {string} digits — 14 dígitos numéricos sem máscara
+   */
+  _validarCNPJ(digits) {
+    if (/^(\d)\1{13}$/.test(digits)) return false;
+    const calc = (n, weights) => {
+      let s = 0;
+      for (let i = 0; i < weights.length; i++) s += parseInt(n[i]) * weights[i];
+      const r = s % 11;
+      return r < 2 ? 0 : 11 - r;
+    };
+    const w1 = [5,4,3,2,9,8,7,6,5,4,3,2];
+    const w2 = [6,5,4,3,2,9,8,7,6,5,4,3,2];
+    return calc(digits, w1) === parseInt(digits[12]) &&
+           calc(digits, w2) === parseInt(digits[13]);
   },
 };

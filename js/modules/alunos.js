@@ -515,7 +515,7 @@ const AlunoModule = {
               ${ST[m.status] || `<span class="badge badge-gray" style="font-size:10px;">${m.status}</span>`}
               <span style="flex:1;font-weight:600;">${UI.escape(m.planoNome || '—')}</span>
               <span class="text-muted">${fmtD(m.dataInicio)} → ${fmtD(m.dataFim)}</span>
-              <button class="btn btn-ghost btn-sm" onclick="MatriculaModule.openModal('${m.id}');UI.closeModal();" style="font-size:11px;padding:2px 8px;">✏️ Editar</button>
+              <button class="btn btn-ghost btn-sm" onclick="UI.closeModal();setTimeout(()=>MatriculaModule.openModal('${m.id}'),300);" style="font-size:11px;padding:2px 8px;">✏️ Editar</button>
             </div>`).join('')
         : `<p class="text-muted" style="font-style:italic;font-size:13px;margin:6px 0;">Nenhuma matrícula registrada.</p>`;
       return `
@@ -523,7 +523,7 @@ const AlunoModule = {
         <div style="border:1px solid var(--card-border);border-radius:var(--radius-sm);padding:4px 12px 4px;margin-bottom:8px;">
           ${linhas}
         </div>
-        <button class="btn btn-ghost btn-sm" onclick="MatriculaModule.openModal();UI.closeModal();" style="font-size:12px;margin-bottom:8px;">+ Nova matrícula</button>`;
+        <button class="btn btn-ghost btn-sm" onclick="UI.closeModal();setTimeout(()=>MatriculaModule.openModal(),300);" style="font-size:12px;margin-bottom:8px;">+ Nova matrícula</button>`;
     })() : ''}
 
   </div>`;
@@ -540,7 +540,7 @@ const AlunoModule = {
   /*  CRUD operations                                                     */
   /* ------------------------------------------------------------------ */
 
-  saveAluno(id = null) {
+  async saveAluno(id = null) {
     const g     = n => document.getElementById(`a-${n}`);
     const nome  = g('nome');
 
@@ -555,6 +555,43 @@ const AlunoModule = {
     if (!valid) {
       UI.toast('Preencha os campos obrigatórios.', 'warning');
       return;
+    }
+
+    // ── CPF: validação de dígitos e duplicata ────────────────────────
+    const cpfEl  = g('cpf');
+    const cpfRaw = cpfEl ? cpfEl.value.trim() : '';
+    if (cpfRaw) {
+      const cpfDigits = cpfRaw.replace(/\D/g, '');
+      if (cpfDigits.length === 11 && !this._validarCPF(cpfDigits)) {
+        cpfEl.classList.add('error');
+        UI.toast('CPF inválido — verifique os dígitos verificadores.', 'error');
+        return;
+      }
+      if (cpfDigits.length === 11) {
+        const dupCPF = Storage.getAll(this.STORAGE_KEY).find(a =>
+          a.id !== id && a.cpf && a.cpf.replace(/\D/g, '') === cpfDigits
+        );
+        if (dupCPF) {
+          cpfEl.classList.add('error');
+          UI.toast(`CPF já cadastrado para o aluno "${dupCPF.nome}".`, 'error');
+          return;
+        }
+      }
+      cpfEl.classList.remove('error');
+    }
+
+    // ── Nome duplicado ───────────────────────────────────────────────
+    const nomeTrimmed = nome.value.trim();
+    const dupNome = Storage.getAll(this.STORAGE_KEY).find(a =>
+      a.id !== id && a.nome.trim().toLowerCase() === nomeTrimmed.toLowerCase()
+    );
+    if (dupNome) {
+      const cont = await UI.confirm(
+        `Já existe um aluno com o nome "${dupNome.nome}". Deseja cadastrar mesmo assim?`,
+        'Nome duplicado',
+        'Cadastrar mesmo assim'
+      );
+      if (!cont) return;
     }
 
     const data = {
@@ -844,7 +881,7 @@ const AlunoModule = {
     if (!matriculaAtiva) {
       planoHtml = `<p class="text-muted" style="font-style:italic;margin:4px 0 12px;">
         Sem matrícula ativa.
-        <button class="btn btn-ghost btn-sm" onclick="MatriculaModule.openModal();UI.closeModal();" style="font-size:12px;">+ Nova matrícula</button>
+        <button class="btn btn-ghost btn-sm" onclick="UI.closeModal();setTimeout(()=>MatriculaModule.openModal(),300);" style="font-size:12px;">+ Nova matrícula</button>
       </p>`;
     } else {
       const tipoLabel = plano ? (TIPO_PLANO[plano.tipo] || plano.tipo || '—') : '—';
@@ -862,7 +899,7 @@ const AlunoModule = {
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
           <span class="badge badge-success">✅ Matrícula Ativa</span>
           <button class="btn btn-ghost btn-sm" onclick="MatriculaModule.openModal('${matriculaAtiva.id}');UI.closeModal();" style="font-size:11px;">✏️ Editar</button>
-          <button class="btn btn-ghost btn-sm" onclick="MatriculaModule.openModal();UI.closeModal();" style="font-size:11px;">+ Nova</button>
+          <button class="btn btn-ghost btn-sm" onclick="UI.closeModal();setTimeout(()=>MatriculaModule.openModal(),300);" style="font-size:11px;">+ Nova</button>
         </div>
         <div class="info-grid" style="grid-template-columns:repeat(2,1fr);gap:8px 16px;font-size:0.85rem;margin-bottom:12px;">
           <div><span class="text-muted">Plano:</span> <strong>${UI.escape(matriculaAtiva.planoNome || '—')}</strong></div>
@@ -900,7 +937,7 @@ const AlunoModule = {
               <span class="badge ${st.badge}" style="font-size:10px;">${st.label}</span>
               <span style="flex:1;">${UI.escape(m.planoNome || '—')}</span>
               <span class="text-muted">${fmtD(m.dataInicio)} → ${fmtD(m.dataFim)}</span>
-              <button class="btn btn-ghost btn-sm" onclick="MatriculaModule.openModal('${m.id}');UI.closeModal();" title="Editar" style="font-size:11px;padding:2px 6px;">✏️</button>
+              <button class="btn btn-ghost btn-sm" onclick="UI.closeModal();setTimeout(()=>MatriculaModule.openModal('${m.id}'),300);" title="Editar" style="font-size:11px;padding:2px 6px;">✏️</button>
             </div>`;
           }).join('')}
         </div>`
@@ -1065,5 +1102,21 @@ const AlunoModule = {
     let v = el.value.replace(/\D/g, '').slice(0, 8);
     if (v.length > 5) v = v.replace(/(\d{5})(\d{0,3})/, '$1-$2');
     el.value = v;
+  },
+
+  /**
+   * Valida dígitos verificadores do CPF (mod 11).
+   * @param {string} digits — 11 dígitos numéricos sem máscara
+   */
+  _validarCPF(digits) {
+    if (/^(\d)\1{10}$/.test(digits)) return false; // todos os dígitos iguais
+    const calc = (n, len) => {
+      let s = 0;
+      for (let i = 0; i < len; i++) s += parseInt(n[i]) * (len + 1 - i);
+      const r = s % 11;
+      return r < 2 ? 0 : 11 - r;
+    };
+    return calc(digits, 9)  === parseInt(digits[9]) &&
+           calc(digits, 10) === parseInt(digits[10]);
   },
 };
