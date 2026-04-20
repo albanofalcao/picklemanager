@@ -4422,25 +4422,33 @@ tr.tarefa-concluida td { opacity: .6; }
 /* ============================================================
    Two-column Aula modal layout (form + day-view)
    ============================================================ */
+
+/* No modal-xl, o modal-body não rola — cada coluna rola por conta */
+.modal-dialog.modal-xl .modal-body {
+  overflow: hidden;
+  padding: 0;
+}
+
 .au-modal-layout {
   display: flex;
+  height: 100%;
   gap: 0;
-  align-items: flex-start;
+  overflow: hidden;
 }
 .au-form-col {
   flex: 1 1 0;
   min-width: 0;
-  padding-right: 18px;
+  overflow-y: auto;
+  padding: 20px 18px 20px 24px;
   border-right: 1px solid var(--card-border);
 }
 .au-dayview-col {
   flex: 0 0 230px;
   width: 230px;
-  padding-left: 18px;
+  overflow-y: auto;
+  padding: 20px 20px 20px 18px;
   display: flex;
   flex-direction: column;
-  position: sticky;
-  top: 0;
 }
 .au-dayview-header {
   font-size: 11px;
@@ -4451,10 +4459,11 @@ tr.tarefa-concluida td { opacity: .6; }
   padding-bottom: 8px;
   border-bottom: 1px solid var(--card-border);
   margin-bottom: 8px;
+  flex-shrink: 0;
 }
 .au-dayview-wrap {
-  overflow-y: auto;
-  max-height: calc(90vh - 200px);
+  flex: 1;
+  min-height: 0;
 }
 
 /* Day-view timeline */
@@ -4552,19 +4561,27 @@ tr.tarefa-concluida td { opacity: .6; }
 
 /* Responsive: stack columns on mobile */
 @media (max-width: 700px) {
-  .au-modal-layout { flex-direction: column; }
+  .modal-dialog.modal-xl .modal-body {
+    overflow-y: auto;
+    padding: 20px 16px;
+  }
+  .au-modal-layout {
+    flex-direction: column;
+    height: auto;
+    overflow: visible;
+  }
   .au-form-col {
+    overflow: visible;
+    padding: 0 0 16px 0;
     border-right: none;
-    padding-right: 0;
     border-bottom: 1px solid var(--card-border);
-    padding-bottom: 16px;
   }
   .au-dayview-col {
     width: 100%;
-    padding-left: 0;
-    padding-top: 16px;
-    position: static;
+    padding: 16px 0 0 0;
+    overflow: visible;
+    max-height: 300px;
+    overflow-y: auto;
   }
-  .au-dayview-wrap { max-height: 280px; }
   .modal-dialog.modal-xl { max-width: 100%; }
 }
