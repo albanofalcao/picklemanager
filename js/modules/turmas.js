@@ -460,6 +460,8 @@ const TurmasModule = {
         minhasTurmas = new Set(Storage.getAll(this.SK).map(t => t.id));
       }
       aulas = aulas.filter(a => minhasTurmas.has(a.turmaId));
+    } else if (this._state.aulaFilterTurma === '__avulsa__') {
+      aulas = aulas.filter(a => !a.turmaId);
     } else if (this._state.aulaFilterTurma) {
       aulas = aulas.filter(a => a.turmaId === this._state.aulaFilterTurma);
     }
@@ -490,12 +492,14 @@ const TurmasModule = {
 
     // Opções de turma para o filtro
     const turmas = Storage.getAll(this.SK).sort((a, b) => a.nome.localeCompare(b.nome));
+    const totalAvulsas = Storage.getAll(this.SK_AULA).filter(a => !a.turmaId).length;
     const minhaLabel = isProfessor ? 'Minhas grades' : isAluno ? 'Minhas grades' : '';
     let turmaOpts = `<option value="">Todas as grades</option>`;
     if (isProfessor || isAluno) {
       turmaOpts = `<option value="__meu__" ${this._state.aulaFilterTurma === '__meu__' ? 'selected' : ''}>${minhaLabel}</option>
         <option value="">Todas as grades</option>`;
     }
+    turmaOpts += `<option value="__avulsa__" ${this._state.aulaFilterTurma === '__avulsa__' ? 'selected' : ''}>🏸 Avulsas (sem grade)${totalAvulsas ? ' · ' + totalAvulsas : ''}</option>`;
     turmaOpts += turmas.map(t =>
       `<option value="${t.id}" ${this._state.aulaFilterTurma === t.id ? 'selected' : ''}>${UI.escape(t.nome)}</option>`
     ).join('');
@@ -591,6 +595,8 @@ const TurmasModule = {
             <div class="aluno-nome">${UI.escape(a.titulo)}</div>
             <div class="aluno-sub">${UI.escape(a.nivel ? (this.NIVEL[a.nivel] || a.nivel) : '')}</div>
             <div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:3px;">
+              ${!a.turmaId  ? `<span class="badge badge-gray" style="font-size:0.65rem;">Avulsa</span>` : ''}
+              ${a.experimental ? `<span class="badge" style="font-size:0.65rem;background:#f59e0b20;color:#b45309;">🧪 Exp.</span>` : ''}
               ${a.esporte   ? `<span class="badge badge-blue" style="font-size:0.65rem;">${UI.escape(a.esporte)}</span>` : ''}
               ${a.tipoplano ? `<span class="badge badge-success" style="font-size:0.65rem;">${UI.escape(a.tipoplano)}</span>` : ''}
             </div>
@@ -1041,7 +1047,9 @@ const TurmasModule = {
 
     const arenaOpts = `<option value="">Todas as arenas</option>` +
       arenas.map(a => `<option value="${a.id}" ${this._state.calFilterArena===a.id?'selected':''}>${UI.escape(a.nome)}</option>`).join('');
+    const totalAvulsasCal = Storage.getAll(this.SK_AULA).filter(a => !a.turmaId).length;
     const turmaOpts = `<option value="">Todas as grades</option>` +
+      `<option value="__avulsa__" ${this._state.calFilterTurma==='__avulsa__'?'selected':''}>🏸 Avulsas (sem grade)${totalAvulsasCal?' · '+totalAvulsasCal:''}</option>` +
       turmas.map(t => `<option value="${t.id}" ${this._state.calFilterTurma===t.id?'selected':''}>${UI.escape(t.nome)}</option>`).join('');
 
     // Legenda de cores por grade
@@ -1140,7 +1148,8 @@ const TurmasModule = {
     return Storage.getAll(this.SK_AULA).filter(a => {
       if (!a.data || a.data < ini || a.data > fim) return false;
       if (this._state.calFilterArena && a.arenaId !== this._state.calFilterArena) return false;
-      if (this._state.calFilterTurma && a.turmaId !== this._state.calFilterTurma) return false;
+      if (this._state.calFilterTurma === '__avulsa__') { if (a.turmaId) return false; }
+      else if (this._state.calFilterTurma && a.turmaId !== this._state.calFilterTurma) return false;
       return true;
     }).sort((a,b) => (a.horarioInicio||'').localeCompare(b.horarioInicio||''));
   },
@@ -1329,6 +1338,7 @@ const TurmasModule = {
           <div class="cal-card-body">
             <div class="cal-card-row1">
               <span class="cal-card-hora">${hr}</span>
+              ${!a.turmaId ? `<span class="cal-avulsa-badge">Avulsa</span>` : ''}
               <span class="cal-card-badge" style="background:${st.cor}20;color:${st.cor};">${st.label}</span>
             </div>
             <div class="cal-card-titulo">${UI.escape(a.titulo || a.turmaNome || '—')}</div>
@@ -1353,6 +1363,7 @@ const TurmasModule = {
           </div>
           <div class="cal-card-titulo-lg">${UI.escape(a.titulo || a.turmaNome || '—')}</div>
           <div class="cal-card-meta">
+            ${!a.turmaId      ? `<span class="cal-avulsa-badge">Avulsa</span>`  : ''}
             ${a.turmaNome     ? `<span>🏷️ ${UI.escape(a.turmaNome)}</span>`     : ''}
             ${a.professorNome ? `<span>👤 ${UI.escape(a.professorNome)}</span>` : ''}
             ${local !== '—'   ? `<span>📍 ${UI.escape(local)}</span>`           : ''}
