@@ -380,7 +380,7 @@ const MatriculaModule = {
   /*  CRUD operations                                                     */
   /* ------------------------------------------------------------------ */
 
-  saveMatricula(id = null) {
+  async saveMatricula(id = null) {
     const g        = n => document.getElementById(`mat-${n}`);
     const isEdit   = !!id;
     const matAtual = isEdit ? Storage.getById(this.STORAGE_KEY, id) : null;
@@ -461,6 +461,13 @@ const MatriculaModule = {
     UI.closeModal();
     this.render();
     this._refreshDependentes();
+
+    // ── Se cancelou/suspendeu matrícula ativa, oferece remoção das aulas futuras ──
+    const statusFinal = data.status;
+    const statusAntes = matAtual?.status;
+    if (id && statusAntes === 'ativa' && ['cancelada', 'suspensa'].includes(statusFinal)) {
+      await this._removerAlunoDeAulasFuturas(data.alunoId, data.alunoNome);
+    }
   },
 
   async deleteMatricula(id) {
@@ -482,6 +489,50 @@ const MatriculaModule = {
     UI.toast(`Matrícula de "${mat.alunoNome}" excluída.`, 'success');
     this.render();
     this._refreshDependentes();
+
+    // Oferece remoção das aulas e grades futuras
+    if (mat.alunoId) {
+      await this._removerAlunoDeAulasFuturas(mat.alunoId, mat.alunoNome);
+    }
+  },
+
+  /**
+   * Verifica se o aluno tem aulas avulsas futuras ou grades ativas e oferece remoção.
+   */
+  async _removerAlunoDeAulasFuturas(alunoId, alunoNome) {
+    if (!alunoId) return;
+    const hoje = new Date().toISOString().slice(0, 10);
+
+    // Aulas avulsas futuras com este aluno
+    const aulasRecs = Storage.getAll('aulaAlunos').filter(aa => aa.alunoId === alunoId && aa.status === 'ativo');
+    const aulasFuturas = aulasRecs.filter(aa => {
+      const aula = Storage.getById('aulas', aa.aulaId);
+      return aula && aula.data >= hoje && aula.status !== 'cancelada';
+    });
+
+    // Grades (turmaAlunos)
+    const gradesRecs = Storage.getAll('turmaAlunos').filter(ta =>
+      ta.alunoId === alunoId && ta.status === 'ativo'
+    );
+
+    const total = aulasFuturas.length + gradesRecs.length;
+    if (total === 0) return;
+
+    const partes = [];
+    if (aulasFuturas.length) partes.push(`${aulasFuturas.length} aula${aulasFuturas.length !== 1 ? 's' : ''} avulsa${aulasFuturas.length !== 1 ? 's' : ''} futura${aulasFuturas.length !== 1 ? 's' : ''}`);
+    if (gradesRecs.length)   partes.push(`${gradesRecs.length} grade${gradesRecs.length !== 1 ? 's' : ''} inscrito`);
+
+    const ok = await UI.confirm(
+      `"${alunoNome}" ainda está em: ${partes.join(' e ')}.\n\nDeseja removê-lo(a) de todas?`,
+      'Remover das aulas e grades',
+      'Sim, remover'
+    );
+    if (!ok) return;
+
+    aulasFuturas.forEach(aa => Storage.update('aulaAlunos', aa.id, { status: 'inativo' }));
+    gradesRecs.forEach(ta => Storage.update('turmaAlunos', ta.id, { status: 'inativo' }));
+
+    UI.toast(`"${alunoNome}" removido(a) de ${total} aula${total !== 1 ? 's' : ''}/grade${total !== 1 ? 's' : ''}.`, 'success');
   },
 
   /* ------------------------------------------------------------------ */
