@@ -573,6 +573,8 @@ const TurmasModule = {
       if (!isAluno) {
         acoes += `<button class="btn btn-ghost btn-sm" title="Editar"
           onclick="TurmasModule.openModalAula('${a.id}')">✏️</button>`;
+        acoes += `<button class="btn btn-ghost btn-sm danger" title="Excluir aula"
+          onclick="TurmasModule.deleteAula('${a.id}')">🗑️</button>`;
       }
 
       return `
@@ -1352,6 +1354,7 @@ const TurmasModule = {
         <div class="cal-card-actions">
           <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();TurmasModule.abrirPresencaRapida('${a.id}')" title="Presença">📋</button>
           <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();TurmasModule.openModalAula('${a.id}')" title="Editar">✏️</button>
+          <button class="btn btn-ghost btn-sm danger" onclick="event.stopPropagation();TurmasModule.deleteAula('${a.id}')" title="Excluir">🗑️</button>
         </div>
       </div>`;
   },
@@ -1758,6 +1761,35 @@ const TurmasModule = {
     Storage.delete(this.SK, id);
     UI.toast(`Grade "${t.nome}" excluída.`, 'success');
     this.render();
+  },
+
+  async deleteAula(id) {
+    const aula = Storage.getById(this.SK_AULA, id);
+    if (!aula) return;
+
+    // Verifica se há presenças registradas
+    const presencas = Storage.getAll('presencas').filter(p => p.aulaId === id);
+    if (presencas.length > 0) {
+      const ok = await UI.confirm(
+        `A aula "${aula.titulo}" (${aula.data || '—'}) possui ${presencas.length} registro(s) de presença.\n\nDeseja cancelar a aula em vez de excluir, preservando o histórico?`,
+        'Excluir Aula',
+        'Cancelar aula'
+      );
+      if (!ok) return;
+      Storage.update(this.SK_AULA, id, { status: 'cancelada' });
+      UI.toast(`Aula "${aula.titulo}" cancelada.`, 'success');
+      this._reRenderContent();
+      return;
+    }
+
+    const ok = await UI.confirm(
+      `Excluir a aula "${aula.titulo}"${aula.data ? ' de ' + this._fmtDataLonga(aula.data) : ''}? Esta ação não pode ser desfeita.`,
+      'Excluir Aula'
+    );
+    if (!ok) return;
+    Storage.delete(this.SK_AULA, id);
+    UI.toast(`Aula "${aula.titulo}" excluída.`, 'success');
+    this._reRenderContent();
   },
 
   /* ================================================================== */
