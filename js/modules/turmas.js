@@ -141,7 +141,7 @@ const TurmasModule = {
       </div>
 
       <div class="tabs-bar">
-        ${this._tabBtn('turmas',     '📋 Grade')}
+        ${this._tabBtn('turmas',     '📋 Turmas')}
         ${this._tabBtn('aulas',      '🏸 Aulas')}
         ${this._tabBtn('calendario', '📅 Calendário')}
         ${this._tabBtn('frequencia', '📊 Frequência')}
