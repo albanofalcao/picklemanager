@@ -571,6 +571,8 @@ const TurmasModule = {
       acoes += `<button class="btn btn-ghost btn-sm" title="Detalhe"
         onclick="TurmasModule.openModalAulaDetalhe('${a.id}')">👁</button>`;
       if (!isAluno) {
+        acoes += `<button class="btn btn-ghost btn-sm" title="Repetir aula"
+          onclick="TurmasModule.openModalRepetirAula('${a.id}')">🔁</button>`;
         acoes += `<button class="btn btn-ghost btn-sm" title="Editar"
           onclick="TurmasModule.openModalAula('${a.id}')">✏️</button>`;
         acoes += `<button class="btn btn-ghost btn-sm danger" title="Excluir aula"
@@ -1763,6 +1765,109 @@ const TurmasModule = {
     this.render();
   },
 
+  /* ================================================================== */
+  /*  Repetir aula                                                      */
+  /* ================================================================== */
+
+  openModalRepetirAula(aulaId) {
+    const aula = Storage.getById(this.SK_AULA, aulaId);
+    if (!aula) return;
+
+    const [y, m, d] = (aula.data || '').split('-');
+    const dataFmt = aula.data ? `${d}/${m}/${y}` : '—';
+    const hora = [aula.horarioInicio, aula.horarioFim].filter(Boolean).join(' – ') || '—';
+
+    const content = `
+      <div class="form-grid">
+        <div class="cadastro-tab-info">
+          🔁 Criará cópias de <strong>${UI.escape(aula.titulo)}</strong>
+          (${dataFmt} · ${hora}) com o mesmo professor, arena, quadra e horário.
+          Conflitos de quadra ou professor serão automaticamente ignorados.
+        </div>
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label" for="rep-qtd">Número de repetições</label>
+            <input id="rep-qtd" type="number" class="form-input" min="1" max="52" value="4"
+              oninput="TurmasModule._atualizarPreviewRep('${aulaId}')" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="rep-intervalo">Intervalo</label>
+            <select id="rep-intervalo" class="form-select"
+              onchange="TurmasModule._atualizarPreviewRep('${aulaId}')">
+              <option value="7">Semanal (cada 7 dias)</option>
+              <option value="14">Quinzenal (cada 14 dias)</option>
+              <option value="30">Mensal (cada 30 dias)</option>
+            </select>
+          </div>
+        </div>
+        <div id="rep-preview" style="font-size:12px;color:var(--text-muted);padding:8px;background:var(--bg-secondary);border-radius:6px;min-height:28px;"></div>
+      </div>`;
+
+    UI.openModal({
+      title:        `🔁 Repetir Aula — ${aula.titulo}`,
+      content,
+      confirmLabel: 'Criar repetições',
+      onConfirm:    () => this._repetirAula(aulaId),
+    });
+
+    setTimeout(() => this._atualizarPreviewRep(aulaId), 80);
+  },
+
+  _atualizarPreviewRep(aulaId) {
+    const aula    = Storage.getById(this.SK_AULA, aulaId);
+    const qtdEl   = document.getElementById('rep-qtd');
+    const intEl   = document.getElementById('rep-intervalo');
+    const preview = document.getElementById('rep-preview');
+    if (!aula?.data || !qtdEl || !intEl || !preview) return;
+
+    const qtd  = Math.min(parseInt(qtdEl.value) || 1, 52);
+    const dias  = parseInt(intEl.value) || 7;
+    const dates = [];
+    for (let i = 1; i <= Math.min(qtd, 6); i++) {
+      const dt = new Date(aula.data + 'T12:00:00');
+      dt.setDate(dt.getDate() + dias * i);
+      dates.push(dt.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' }));
+    }
+    const extra = qtd > 6 ? ` +${qtd - 6} mais…` : '';
+    preview.textContent = `📅 ${dates.join(' · ')}${extra}`;
+  },
+
+  _repetirAula(aulaId) {
+    const aula = Storage.getById(this.SK_AULA, aulaId);
+    if (!aula?.data) {
+      UI.toast('Esta aula não tem data definida.', 'warning');
+      return;
+    }
+
+    const qtd  = Math.min(parseInt(document.getElementById('rep-qtd')?.value) || 1, 52);
+    const dias  = parseInt(document.getElementById('rep-intervalo')?.value) || 7;
+
+    let criadas = 0, conflitos = 0;
+    for (let i = 1; i <= qtd; i++) {
+      const dt = new Date(aula.data + 'T12:00:00');
+      dt.setDate(dt.getDate() + dias * i);
+      const dataStr = this._isoDate(dt);
+
+      const confQ = this._verificarConflitoQuadra(aula.quadraId, dataStr, aula.horarioInicio, aula.horarioFim);
+      const confP = this._verificarConflitoProfessor(aula.professorId, dataStr, aula.horarioInicio, aula.horarioFim);
+      if (confQ || confP) { conflitos++; continue; }
+
+      const { id: _id, createdAt: _c, ...resto } = aula;
+      Storage.create(this.SK_AULA, { ...resto, data: dataStr, status: 'agendada', observacoes: aula.observacoes || '' });
+      criadas++;
+    }
+
+    UI.closeModal();
+    const skipMsg = conflitos > 0
+      ? ` (${conflitos} ignorada${conflitos !== 1 ? 's' : ''} por conflito)`
+      : '';
+    UI.toast(
+      `${criadas} aula${criadas !== 1 ? 's' : ''} criada${criadas !== 1 ? 's' : ''} com sucesso!${skipMsg}`,
+      criadas > 0 ? 'success' : 'warning'
+    );
+    this._reRenderContent();
+  },
+
   async deleteAula(id) {
     const aula = Storage.getById(this.SK_AULA, id);
     if (!aula) return;
@@ -2091,6 +2196,31 @@ const TurmasModule = {
           <textarea id="au-obs" class="form-textarea" rows="2"
             placeholder="Informações adicionais…">${aula ? UI.escape(aula.observacoes || '') : ''}</textarea>
         </div>
+
+        ${!isEdit ? (() => {
+          const alunosDisp = Storage.getAll('alunos')
+            .filter(a => a.status === 'ativo' && AlunoModule.temMatriculaAtiva(a.id))
+            .sort((a, b) => a.nome.localeCompare(b.nome));
+          if (!alunosDisp.length) return '';
+          return `
+          <div class="aluno-secao-titulo">👥 Alunos — opcional</div>
+          <div class="form-group">
+            <input type="text" id="au-alunos-search" class="form-input"
+              placeholder="🔍 Buscar aluno…" autocomplete="off"
+              oninput="TurmasModule._filtrarAlunosAulaModal(this.value)"
+              style="margin-bottom:6px;" />
+            <select id="au-alunos-sel" class="form-select" multiple size="5"
+              style="height:auto;min-height:110px;">
+              ${alunosDisp.map(a =>
+                `<option value="${a.id}" data-nome="${UI.escape(a.nome)}">${UI.escape(a.nome)}</option>`
+              ).join('')}
+            </select>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">
+              Segure Ctrl (ou ⌘) para selecionar mais de um. Só aparecem alunos com matrícula ativa.
+            </div>
+          </div>`;
+        })() : ''}
+
       </div>`;
 
     UI.openModal({
@@ -2191,11 +2321,34 @@ const TurmasModule = {
       Storage.update(this.SK_AULA, id, record);
       UI.toast(`Aula "${record.titulo}" atualizada!`, 'success');
     } else {
-      Storage.create(this.SK_AULA, record);
+      const novaAula = Storage.create(this.SK_AULA, record);
+      // Alocar alunos selecionados (somente criação de avulsa)
+      if (novaAula) {
+        const alunosSel = document.getElementById('au-alunos-sel');
+        if (alunosSel) {
+          Array.from(alunosSel.selectedOptions).forEach(opt => {
+            Storage.create('aulaAlunos', {
+              aulaId:    novaAula.id,
+              alunoId:   opt.value,
+              alunoNome: opt.dataset.nome || opt.textContent.trim(),
+              status:    'ativo',
+            });
+          });
+        }
+      }
       UI.toast(`Aula "${record.titulo}" agendada!`, 'success');
     }
     UI.closeModal();
     this.render();
+  },
+
+  _filtrarAlunosAulaModal(query) {
+    const sel = document.getElementById('au-alunos-sel');
+    if (!sel) return;
+    const q = query.toLowerCase();
+    Array.from(sel.options).forEach(opt => {
+      opt.style.display = !q || opt.text.toLowerCase().includes(q) ? '' : 'none';
+    });
   },
 
   /* ================================================================== */

@@ -779,6 +779,41 @@ const MatriculaModule = {
     </table>
   </section>
 
+  ${(() => {
+    const hojeComp = new Date().toISOString().slice(0, 10);
+    const aulaAlunosComp = Storage.getAll('aulaAlunos').filter(aa =>
+      aa.alunoId === mat.alunoId && aa.status === 'ativo'
+    );
+    const aulaIdsComp = new Set(aulaAlunosComp.map(aa => aa.aulaId));
+    const aulasAvComp = Storage.getAll('aulas').filter(a =>
+      aulaIdsComp.has(a.id) && !a.turmaId && a.data >= hojeComp && a.status === 'agendada'
+    ).sort((a, b) => a.data.localeCompare(b.data));
+
+    if (!aulasAvComp.length) return '';
+
+    const rowsAv = aulasAvComp.map(a => {
+      const [ay, am, ad] = (a.data || '').split('-');
+      const dFmt = a.data ? `${ad}/${am}/${ay}` : '—';
+      const hor  = [a.horarioInicio, a.horarioFim].filter(Boolean).join(' – ') || '—';
+      return `<tr>
+        <td>${a.titulo || '—'}</td>
+        <td>${dFmt}</td>
+        <td>${hor}</td>
+        <td>${a.professorNome || '—'}</td>
+        <td>${a.arenaNome || '—'}</td>
+      </tr>`;
+    }).join('');
+
+    return `
+  <section>
+    <h2>Aulas Avulsas Agendadas</h2>
+    <table>
+      <thead><tr><th>Aula</th><th>Data</th><th>Horário</th><th>Professor</th><th>Arena</th></tr></thead>
+      <tbody>${rowsAv}</tbody>
+    </table>
+  </section>`;
+  })()}
+
   <div class="footer">
     <div>Documento gerado em ${hoje} — ${nomeAcademia}</div>
     <div class="assinatura">

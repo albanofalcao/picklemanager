@@ -112,26 +112,48 @@ function renderDashboard() {
         <p>Tudo em dia! Nenhum alerta no momento.</p>
       </div>`;
 
-  // ── Próximas aulas (hoje e amanhã) ─────────────────────
+  // ── Agenda do dia (hoje e amanhã) ──────────────────────
   const hoje   = new Date().toISOString().slice(0, 10);
   const amanha = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
-  const proxAulas = Storage.getAll('aulas')
-    .filter(a => (a.data === hoje || a.data === amanha) && a.status === 'agendada')
-    .sort((a, b) => (a.data + a.horarioInicio).localeCompare(b.data + b.horarioInicio))
-    .slice(0, 5);
 
-  const aulasHtml = proxAulas.length
-    ? proxAulas.map(a => `
-        <div class="dash-aula-item" onclick="Router.navigate('turmas')">
-          <div class="dash-aula-hora">${UI.escape(a.horarioInicio || '--:--')}</div>
-          <div class="dash-aula-info">
-            <div class="dash-aula-titulo">${UI.escape(a.titulo)}</div>
-            <div class="dash-aula-sub">${UI.escape(a.professorNome || '—')} · ${UI.escape(a.arenaNome || '—')}</div>
+  const _buildAulaItem = (a, label, badgeClass) => {
+    // Conta alunos alocados (turmaAlunos ou aulaAlunos)
+    const alocados = a.turmaId
+      ? Storage.getAll('turmaAlunos').filter(i => i.turmaId === a.turmaId && i.status === 'ativo').length
+      : Storage.getAll('aulaAlunos').filter(i => i.aulaId === a.id && i.status === 'ativo').length;
+    const vagas = a.vagas || 0;
+    const alunosLabel = alocados > 0
+      ? `👥 ${alocados}${vagas > 0 ? '/' + vagas : ''}`
+      : vagas > 0 ? `👥 0/${vagas}` : '';
+    return `
+      <div class="dash-aula-item" onclick="Router.navigate('turmas')" style="cursor:pointer;">
+        <div class="dash-aula-hora">${UI.escape(a.horarioInicio || '--:--')}</div>
+        <div class="dash-aula-info">
+          <div class="dash-aula-titulo">${UI.escape(a.titulo)}</div>
+          <div class="dash-aula-sub">
+            ${UI.escape(a.professorNome || '—')} · ${UI.escape(a.arenaNome || '—')}
+            ${alunosLabel ? `<span style="margin-left:6px;color:var(--text-muted);">${alunosLabel}</span>` : ''}
           </div>
-          <span class="badge ${a.data === hoje ? 'badge-warning' : 'badge-blue'}" style="font-size:10px;flex-shrink:0;">
-            ${a.data === hoje ? 'Hoje' : 'Amanhã'}
-          </span>
-        </div>`).join('')
+        </div>
+        <span class="badge ${badgeClass}" style="font-size:10px;flex-shrink:0;">${label}</span>
+      </div>`;
+  };
+
+  const aulasHoje   = Storage.getAll('aulas').filter(a => a.data === hoje  && a.status === 'agendada').sort((a,b) => (a.horarioInicio||'').localeCompare(b.horarioInicio||''));
+  const aulasAmanha = Storage.getAll('aulas').filter(a => a.data === amanha && a.status === 'agendada').sort((a,b) => (a.horarioInicio||'').localeCompare(b.horarioInicio||''));
+
+  const aulasHtml = (aulasHoje.length + aulasAmanha.length) > 0
+    ? `
+      ${aulasHoje.length ? `
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--color-primary,#3b9e8f);padding:6px 0 4px;">
+          🌅 Hoje — ${aulasHoje.length} aula${aulasHoje.length !== 1 ? 's' : ''}
+        </div>
+        ${aulasHoje.map(a => _buildAulaItem(a, 'Hoje', 'badge-warning')).join('')}` : ''}
+      ${aulasAmanha.length ? `
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);padding:8px 0 4px;">
+          ☀️ Amanhã — ${aulasAmanha.length} aula${aulasAmanha.length !== 1 ? 's' : ''}
+        </div>
+        ${aulasAmanha.slice(0, 4).map(a => _buildAulaItem(a, 'Amanhã', 'badge-blue')).join('')}` : ''}`
     : `<div style="padding:16px;text-align:center;color:var(--text-muted);font-size:13px;">Sem aulas agendadas para hoje ou amanhã.</div>`;
 
   area.innerHTML = `

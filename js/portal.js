@@ -367,13 +367,26 @@ const PortalModule = {
     const mesAtual = hoje.slice(0, 7);
     const saldo    = SaldoService.getSaldo(alunoId, mesAtual);
 
-    // Próximas aulas
+    // Próximas aulas (grade)
     const inscricoes = Storage.getAll('turmaAlunos').filter(i =>
       (alunoId ? i.alunoId === alunoId : i.alunoNome === session.nome) && i.status === 'ativo'
     );
     const turmaIds = new Set(inscricoes.map(i => i.turmaId));
-    const proximasAulas = Storage.getAll('aulas')
+    const proximasGrade = Storage.getAll('aulas')
       .filter(a => a.turmaId && turmaIds.has(a.turmaId) && a.data >= hoje && a.status !== 'cancelada')
+      .sort((a, b) => a.data.localeCompare(b.data) || (a.horarioInicio||'').localeCompare(b.horarioInicio||''));
+
+    // Próximas aulas avulsas (via aulaAlunos)
+    const aulaAlunosPortal = Storage.getAll('aulaAlunos').filter(aa =>
+      (alunoId ? aa.alunoId === alunoId : aa.alunoNome === session.nome) && aa.status === 'ativo'
+    );
+    const aulaIdsPortal = new Set(aulaAlunosPortal.map(aa => aa.aulaId));
+    const proximasAvulsas = Storage.getAll('aulas').filter(a =>
+      aulaIdsPortal.has(a.id) && !a.turmaId && a.data >= hoje && a.status !== 'cancelada'
+    ).sort((a, b) => a.data.localeCompare(b.data) || (a.horarioInicio||'').localeCompare(b.horarioInicio||''));
+
+    // Unifica e ordena cronologicamente
+    const proximasAulas = [...proximasGrade, ...proximasAvulsas]
       .sort((a, b) => a.data.localeCompare(b.data) || (a.horarioInicio||'').localeCompare(b.horarioInicio||''));
 
     const proxima = proximasAulas[0];
@@ -451,7 +464,7 @@ const PortalModule = {
               </div>
               <div class="portal-hero-stat">
                 <div class="portal-hero-stat-val">${proximasAulas.length}</div>
-                <div class="portal-hero-stat-label">Aulas próximas</div>
+                <div class="portal-hero-stat-label">Aulas próximas${proximasAvulsas.length > 0 ? ` (${proximasAvulsas.length} avulsa${proximasAvulsas.length !== 1 ? 's' : ''})` : ''}</div>
               </div>
             </div>
           </div>
@@ -479,7 +492,7 @@ const PortalModule = {
     if (!aulas.length) {
       return `<div class="portal-empty">
         <div class="portal-empty-icon">📭</div>
-        <p>Nenhuma aula próxima encontrada.<br>Inscreva-se em uma grade para começar!</p>
+        <p>Nenhuma aula próxima encontrada.<br>Inscreva-se em uma grade ou aguarde a academia agendar uma aula avulsa para você.</p>
         <button class="btn btn-primary" style="margin-top:16px;" onclick="PortalModule._setTabAluno('descobrir')">Descobrir grades</button>
       </div>`;
     }
@@ -519,6 +532,7 @@ const PortalModule = {
                 <span>📅 ${dataFmt}</span>
                 ${a.arenaNome ? `<span>🏟️ ${UI.escape(a.arenaNome)}</span>` : ''}
                 ${a.turmaNome ? `<span>📚 ${UI.escape(a.turmaNome)}</span>` : ''}
+                ${!a.turmaId ? `<span class="portal-badge badge-blue" style="font-size:10px;">Avulsa</span>` : ''}
               </div>
               ${presTag ? `<div class="portal-card-badges">${presTag}</div>` : ''}
             </div>
