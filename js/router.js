@@ -13,7 +13,7 @@ const Router = {
     alunos:      'Alunos',
     planos:      'Planos de Contratação',
     professores: 'Professores',
-    turmas:      'Gestão de Aulas',
+    turmas:      'Aulas',
     relatorios:  'Relatórios',
     eventos:     'Eventos',
     financeiro:  'Financeiro',
