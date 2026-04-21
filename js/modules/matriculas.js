@@ -381,6 +381,9 @@ const MatriculaModule = {
   /* ------------------------------------------------------------------ */
 
   async saveMatricula(id = null) {
+    if (this._saving) return;
+    this._saving = true;
+
     const g        = n => document.getElementById(`mat-${n}`);
     const isEdit   = !!id;
     const matAtual = isEdit ? Storage.getById(this.STORAGE_KEY, id) : null;
@@ -458,6 +461,7 @@ const MatriculaModule = {
       this._sincronizarFinanceiro(matriculaId, data);
     }
 
+    this._saving = false;
     UI.closeModal();
     this.render();
     this._refreshDependentes();
@@ -637,9 +641,10 @@ const MatriculaModule = {
     const dataInicio = matData.dataInicio || new Date().toISOString().slice(0, 10);
     const formaPagamento = matData.formaPagamento || '';
 
-    // 1. Remove lançamentos pendentes vinculados a esta matrícula
+    // 1. Remove TODOS os lançamentos vinculados a esta matrícula (pendentes e pagos)
+    //    Necessário para evitar duplicação ao editar matrícula com pagamento confirmado
     Storage.getAll('financeiro')
-      .filter(l => l.matriculaId === matriculaId && l.status === 'pendente')
+      .filter(l => l.matriculaId === matriculaId)
       .forEach(l => Storage.delete('financeiro', l.id));
 
     // 2. Cria N lançamentos
