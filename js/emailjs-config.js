@@ -25,7 +25,7 @@ const EmailJSConfig = {
 
   TEMPLATES: {
     tarefa:    'template_lv9zkfw',   // notificação de tarefa em evento
-    matricula: 'template_bflquq5',   // confirmação de matrícula
+    matricula: 'template_6uq8x6b',   // confirmação de matrícula
     // Adicione novos templates aqui conforme necessário:
     // cobranca:  '',
     // aniversario: '',
