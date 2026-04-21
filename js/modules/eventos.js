@@ -973,7 +973,7 @@ const EventoModule = {
 
     const evento = Storage.getById(this.STORAGE_KEY, eventoId);
 
-    // EmailJS — envio automático (requer configuração em js/emailjs-config.js)
+    // Envio direto via EmailJS
     if (typeof EmailJSConfig !== 'undefined' && EmailJSConfig.ativo) {
       const enviado = await EmailJSConfig.enviar({
         to_email:    usuario.email,
@@ -981,25 +981,16 @@ const EventoModule = {
         evento_nome: evento?.nome || '',
         tarefa:      tarefa.descricao,
         data_inicio: tarefa.dataInicio ? this._fmtData(tarefa.dataInicio) : '—',
-        prazo:       tarefa.prazo     ? this._fmtData(tarefa.prazo)       : '—',
+        prazo:       tarefa.prazo      ? this._fmtData(tarefa.prazo)      : '—',
+        observacao:  tarefa.observacao || '',
       });
       if (enviado) {
-        UI.toast(`E-mail enviado para ${usuario.nome}.`, 'success');
-        return;
+        UI.toast(`📧 E-mail enviado para ${usuario.nome}.`, 'success');
+      } else {
+        UI.toast(`Falha ao enviar e-mail para ${usuario.nome}.`, 'warning');
       }
     }
-
-    // Fallback: abre cliente de e-mail local
-    const assunto = encodeURIComponent(`[${evento?.nome || 'Evento'}] Nova tarefa atribuída a você`);
-    const corpo   = encodeURIComponent(
-      `Olá, ${tarefa.responsavel}!\n\n` +
-      `Uma nova tarefa foi atribuída a você no evento "${evento?.nome || ''}".\n\n` +
-      `📋 Tarefa: ${tarefa.descricao}\n` +
-      (tarefa.dataInicio ? `📅 Início: ${this._fmtData(tarefa.dataInicio)}\n` : '') +
-      (tarefa.prazo      ? `⏰ Prazo: ${this._fmtData(tarefa.prazo)}\n`       : '') +
-      `\nAcesse o sistema para acompanhar o andamento.\n\nAtenciosamente,\nEquipe PickleManager`
-    );
-    window.open(`mailto:${usuario.email}?subject=${assunto}&body=${corpo}`, '_blank');
+    // Se EmailJS não configurado, não abre cliente de e-mail — apenas silencia
   },
 
   _atualizarExecucao(eventoId, tarefaId, valor) {
