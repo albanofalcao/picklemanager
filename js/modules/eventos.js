@@ -557,9 +557,11 @@ const EventoModule = {
                 <label class="form-label" style="font-size:11px;">Descrição</label>
                 <input id="orc-r-desc" class="form-input" style="height:34px;" placeholder="ex: Inscrições 32 atletas" />
               </div>
-              <div style="flex:1;min-width:120px;">
+              <div style="flex:1;min-width:150px;">
                 <label class="form-label" style="font-size:11px;">Categoria</label>
-                <select id="orc-r-cat" class="form-select" style="height:34px;">${catOptsR}</select>
+                <div class="select-wrap">
+                  <select id="orc-r-cat" class="form-select" style="height:34px;">${catOptsR}</select>
+                </div>
               </div>
               <div style="width:60px;">
                 <label class="form-label" style="font-size:11px;">Qtd</label>
@@ -605,9 +607,11 @@ const EventoModule = {
                 <label class="form-label" style="font-size:11px;">Descrição</label>
                 <input id="orc-d-desc" class="form-input" style="height:34px;" placeholder="ex: Premiação 1º lugar" />
               </div>
-              <div style="flex:1;min-width:120px;">
+              <div style="flex:1;min-width:150px;">
                 <label class="form-label" style="font-size:11px;">Categoria</label>
-                <select id="orc-d-cat" class="form-select" style="height:34px;">${catOptsD}</select>
+                <div class="select-wrap">
+                  <select id="orc-d-cat" class="form-select" style="height:34px;">${catOptsD}</select>
+                </div>
               </div>
               <div style="width:60px;">
                 <label class="form-label" style="font-size:11px;">Qtd</label>
@@ -882,9 +886,11 @@ const EventoModule = {
                 <label class="form-label" style="font-size:11px;">Tarefa <span class="required-star">*</span></label>
                 <input id="tar-desc" class="form-input" style="height:34px;" placeholder="ex: Confirmar reserva da arena" />
               </div>
-              <div style="flex:1;min-width:140px;">
+              <div style="flex:1;min-width:160px;">
                 <label class="form-label" style="font-size:11px;">Responsável</label>
-                <select id="tar-resp" class="form-select" style="height:34px;">${userOpts}</select>
+                <div class="select-wrap">
+                  <select id="tar-resp" class="form-select" style="height:34px;">${userOpts}</select>
+                </div>
               </div>
               <div style="width:136px;">
                 <label class="form-label" style="font-size:11px;">Data início</label>
