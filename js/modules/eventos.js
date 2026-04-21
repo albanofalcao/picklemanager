@@ -806,8 +806,8 @@ const EventoModule = {
       : 0;
     const corBar = pctGeral === 100 ? 'var(--success)' : pctGeral >= 50 ? 'var(--warning)' : 'var(--primary)';
 
-    // Datalist: todos os usuários ativos (digitação livre também é permitida)
-    const adminUsers    = Storage.getAll('usuarios').filter(u => u.status === 'ativo');
+    // Datalist: todos os ativos exceto alunos e professores (digitação livre também é permitida)
+    const adminUsers    = Storage.getAll('usuarios').filter(u => u.status === 'ativo' && u.perfil !== 'aluno' && u.perfil !== 'professor');
     const adminDatalist = adminUsers.map(u => `<option value="${UI.escape(u.nome)}">`).join('');
 
     const barPct = pct => {
