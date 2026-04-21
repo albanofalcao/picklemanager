@@ -1019,7 +1019,7 @@ const EventoModule = {
     const tarefa  = tarefas.find(t => t.id === tarefaId);
     if (!tarefa) return;
 
-    const adminUsers    = Storage.getAll('usuarios').filter(u => u.status === 'ativo');
+    const adminUsers    = Storage.getAll('usuarios').filter(u => u.status === 'ativo' && u.perfil !== 'aluno' && u.perfil !== 'professor');
     const adminDatalist = adminUsers.map(u => `<option value="${UI.escape(u.nome)}">`).join('');
 
     UI.openModal({
