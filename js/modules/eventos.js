@@ -560,7 +560,7 @@ const EventoModule = {
               <div style="flex:1;min-width:150px;">
                 <label class="form-label" style="font-size:11px;">Categoria</label>
                 <div class="select-wrap">
-                  <select id="orc-r-cat" class="form-select" style="height:34px;">${catOptsR}</select>
+                  <select id="orc-r-cat" class="form-select">${catOptsR}</select>
                 </div>
               </div>
               <div style="width:60px;">
@@ -610,7 +610,7 @@ const EventoModule = {
               <div style="flex:1;min-width:150px;">
                 <label class="form-label" style="font-size:11px;">Categoria</label>
                 <div class="select-wrap">
-                  <select id="orc-d-cat" class="form-select" style="height:34px;">${catOptsD}</select>
+                  <select id="orc-d-cat" class="form-select">${catOptsD}</select>
                 </div>
               </div>
               <div style="width:60px;">
@@ -889,7 +889,7 @@ const EventoModule = {
               <div style="flex:1;min-width:160px;">
                 <label class="form-label" style="font-size:11px;">Responsável</label>
                 <div class="select-wrap">
-                  <select id="tar-resp" class="form-select" style="height:34px;">${userOpts}</select>
+                  <select id="tar-resp" class="form-select">${userOpts}</select>
                 </div>
               </div>
               <div style="width:136px;">
