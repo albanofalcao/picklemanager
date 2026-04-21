@@ -405,11 +405,13 @@ const EventoModule = {
     const linhaItem = (tipo, item) => `
       <tr>
         <td>${UI.escape(item.descricao)}</td>
-        <td>${UI.escape(item.categoria || '—')}</td>
+        <td style="white-space:nowrap;"><span class="badge badge-gray" style="font-size:0.7rem;">${UI.escape(item.categoria || '—')}</span></td>
         <td style="text-align:center;">${item.qtd || 1}</td>
         <td style="text-align:right;">${fmt(parseFloat(item.valor) || 0)}</td>
         <td style="text-align:right;font-weight:600;">${fmt((parseFloat(item.valor)||0) * (parseInt(item.qtd,10)||1))}</td>
-        <td style="text-align:center;">
+        <td style="text-align:center;white-space:nowrap;">
+          <button class="btn btn-ghost btn-sm" style="padding:2px 8px;"
+            onclick="EventoModule._editarItemOrc('${e.id}','${tipo}','${item.id}')" title="Editar">✏️</button>
           <button class="btn btn-ghost btn-sm danger" style="padding:2px 8px;"
             onclick="EventoModule._removerItemOrc('${e.id}','${tipo}','${item.id}')" title="Remover">🗑️</button>
         </td>
@@ -617,6 +619,83 @@ const EventoModule = {
     Storage.update(this.STORAGE_KEY, eventoId, { orcamento: orc });
     this._detail.tab = 'orcamento';
     this._renderDetail();
+  },
+
+  _editarItemOrc(eventoId, tipo, itemId) {
+    const evento = Storage.getById(this.STORAGE_KEY, eventoId);
+    if (!evento) return;
+
+    const orc   = evento.orcamento || { receitas: [], despesas: [] };
+    const lista = orc[tipo] || [];
+    const item  = lista.find(i => i.id === itemId);
+    if (!item) return;
+
+    const cats    = tipo === 'receitas' ? this.CAT_RECEITA : this.CAT_DESPESA;
+    const catOpts = cats.map(c =>
+      `<option value="${UI.escape(c)}" ${c === item.categoria ? 'selected' : ''}>${UI.escape(c)}</option>`
+    ).join('');
+    const label = tipo === 'receitas' ? 'Receita' : 'Despesa';
+
+    UI.openModal({
+      title:        `✏️ Editar ${label}`,
+      content: `
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Descrição <span class="required-star">*</span></label>
+            <input id="edit-orc-desc" class="form-input" value="${UI.escape(item.descricao)}" autocomplete="off" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Categoria</label>
+            <select id="edit-orc-cat" class="form-select">${catOpts}</select>
+          </div>
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Qtd</label>
+              <input id="edit-orc-qtd" class="form-input" type="number" min="1" value="${item.qtd || 1}" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Valor unit. (R$)</label>
+              <input id="edit-orc-val" class="form-input" type="number" min="0" step="0.01" value="${item.valor || 0}" />
+            </div>
+          </div>
+        </div>`,
+      confirmLabel: 'Salvar',
+      onConfirm: () => {
+        const desc = document.getElementById('edit-orc-desc');
+        const cat  = document.getElementById('edit-orc-cat');
+        const qtd  = document.getElementById('edit-orc-qtd');
+        const val  = document.getElementById('edit-orc-val');
+
+        if (!desc?.value.trim()) {
+          UI.toast('Informe a descrição.', 'warning');
+          desc?.classList.add('error');
+          return;
+        }
+        if (!val?.value || isNaN(parseFloat(val.value)) || parseFloat(val.value) < 0) {
+          UI.toast('Informe um valor válido.', 'warning');
+          val?.classList.add('error');
+          return;
+        }
+
+        const idx = lista.findIndex(i => i.id === itemId);
+        if (idx < 0) return;
+
+        lista[idx] = {
+          ...lista[idx],
+          descricao: desc.value.trim(),
+          categoria: cat?.value || '',
+          qtd:       parseInt(qtd?.value, 10) || 1,
+          valor:     parseFloat(val.value) || 0,
+        };
+
+        orc[tipo] = lista;
+        Storage.update(this.STORAGE_KEY, eventoId, { orcamento: orc });
+        UI.toast(`${label} atualizada!`, 'success');
+        UI.closeModal();
+        this._detail.tab = 'orcamento';
+        this._renderDetail();
+      },
+    });
   },
 
   _salvarParecer(eventoId) {
