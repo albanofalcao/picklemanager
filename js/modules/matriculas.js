@@ -734,17 +734,6 @@ const MatriculaModule = {
       </tr>`).join('') : `<tr><td colspan="5" style="text-align:center;color:#888;">—</td></tr>`;
 
     const emailAluno = aluno.email || '';
-    const assunto    = encodeURIComponent(`Confirmação de Matrícula — ${nomeAcademia}`);
-    const corpo      = encodeURIComponent(
-      `Olá, ${aluno.nome || 'aluno'}!\n\n` +
-      `Sua matrícula foi confirmada.\n\n` +
-      `Plano: ${mat.planoNome || '—'}\n` +
-      `Início: ${fmtDate(mat.dataInicio)}\n` +
-      `Vencimento: ${fmtDate(mat.dataFim) || 'Indeterminado'}\n\n` +
-      `Em anexo você encontra o comprovante completo.\n\n` +
-      `Atenciosamente,\n${nomeAcademia}`
-    );
-    const mailtoLink = `mailto:${emailAluno}?subject=${assunto}&body=${corpo}`;
 
     const html = `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -784,7 +773,19 @@ const MatriculaModule = {
 
   <div class="no-print">
     <button onclick="window.print()" style="padding:8px 18px;background:#083c2f;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer">🖨️ Imprimir / Salvar PDF</button>
-    ${emailAluno ? `<a href="${mailtoLink}" style="padding:8px 18px;background:#0d6efd;color:#fff;border-radius:6px;font-size:13px;text-decoration:none;display:inline-block">✉️ Enviar por e-mail para ${emailAluno}</a>` : '<span style="font-size:12px;color:#888">⚠️ Aluno sem e-mail cadastrado</span>'}
+    ${emailAluno
+      ? `<button id="btn-email-mat"
+          data-email="${emailAluno.replace(/"/g,'&quot;')}"
+          data-name="${(aluno.nome||'').replace(/"/g,'&quot;')}"
+          data-academia="${nomeAcademia.replace(/"/g,'&quot;')}"
+          data-plano="${(mat.planoNome||'—').replace(/"/g,'&quot;')}"
+          data-inicio="${fmtDate(mat.dataInicio)}"
+          data-fim="${fmtDate(mat.dataFim)||'Indeterminado'}"
+          onclick="_enviarEmailMatricula(this)"
+          style="padding:8px 18px;background:#0d6efd;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer">
+          ✉️ Enviar por e-mail para ${emailAluno}
+        </button>`
+      : '<span style="font-size:12px;color:#888">⚠️ Aluno sem e-mail cadastrado</span>'}
   </div>
 
   <div class="header">
@@ -874,6 +875,28 @@ const MatriculaModule = {
   </div>
 
 </div>
+<script>
+async function _enviarEmailMatricula(btn) {
+  btn.disabled = true;
+  const orig = btn.textContent;
+  btn.textContent = '📧 Enviando...';
+  const cfg = window.opener && window.opener.EmailJSConfig;
+  if (cfg && cfg.templateAtivo && cfg.templateAtivo('matricula')) {
+    const ok = await cfg.enviar('matricula', {
+      to_email:    btn.dataset.email,
+      to_name:     btn.dataset.name,
+      academia:    btn.dataset.academia,
+      plano:       btn.dataset.plano,
+      data_inicio: btn.dataset.inicio,
+      data_fim:    btn.dataset.fim,
+    });
+    btn.textContent = ok ? '✅ E-mail enviado!' : '❌ Falha no envio';
+  } else {
+    btn.textContent = '⚠️ EmailJS não configurado';
+  }
+  setTimeout(() => { btn.disabled = false; btn.textContent = orig; }, 4000);
+}
+</script>
 </body>
 </html>`;
 

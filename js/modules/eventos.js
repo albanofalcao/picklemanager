@@ -974,8 +974,8 @@ const EventoModule = {
     const evento = Storage.getById(this.STORAGE_KEY, eventoId);
 
     // Envio direto via EmailJS
-    if (typeof EmailJSConfig !== 'undefined' && EmailJSConfig.ativo) {
-      const enviado = await EmailJSConfig.enviar({
+    if (typeof EmailJSConfig !== 'undefined' && EmailJSConfig.templateAtivo('tarefa')) {
+      const enviado = await EmailJSConfig.enviar('tarefa', {
         to_email:    usuario.email,
         to_name:     usuario.nome,
         evento_nome: evento?.nome || '',
@@ -990,7 +990,7 @@ const EventoModule = {
         UI.toast(`Falha ao enviar e-mail para ${usuario.nome}.`, 'warning');
       }
     }
-    // Se EmailJS não configurado, não abre cliente de e-mail — apenas silencia
+    // Se EmailJS não configurado, silencia — sem abrir cliente de e-mail
   },
 
   _atualizarExecucao(eventoId, tarefaId, valor) {
