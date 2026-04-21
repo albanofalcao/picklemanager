@@ -535,10 +535,11 @@ const EventoModule = {
           <h3 style="margin:0;font-size:15px;font-weight:700;color:var(--success);">📈 Receitas</h3>
         </div>
         <div class="card-body" style="padding:0 0 8px;">
+          <div style="overflow-x:auto;">
           <table class="data-table">
             <thead><tr>
-              <th>Descrição</th><th>Categoria</th><th style="text-align:center;">Qtd</th>
-              <th style="text-align:right;">Valor Unit.</th><th style="text-align:right;">Total</th><th></th>
+              <th>Descrição</th><th style="white-space:nowrap;min-width:110px;">Categoria</th><th style="text-align:center;">Qtd</th>
+              <th style="text-align:right;white-space:nowrap;">Valor Unit.</th><th style="text-align:right;">Total</th><th></th>
             </tr></thead>
             <tbody>${receitas.length ? receitas.map(i => linhaItem('receitas', i)).join('') : tabelaVazia}</tbody>
             ${receitas.length ? `<tfoot><tr>
@@ -547,6 +548,7 @@ const EventoModule = {
               <td></td>
             </tr></tfoot>` : ''}
           </table>
+          </div>
 
           <!-- Formulário adicionar receita -->
           <div style="padding:12px 20px;border-top:1px solid var(--border-color);background:var(--bg-secondary);border-radius:0 0 12px 12px;">
@@ -581,10 +583,11 @@ const EventoModule = {
           <h3 style="margin:0;font-size:15px;font-weight:700;color:var(--danger);">📉 Despesas</h3>
         </div>
         <div class="card-body" style="padding:0 0 8px;">
+          <div style="overflow-x:auto;">
           <table class="data-table">
             <thead><tr>
-              <th>Descrição</th><th>Categoria</th><th style="text-align:center;">Qtd</th>
-              <th style="text-align:right;">Valor Unit.</th><th style="text-align:right;">Total</th><th></th>
+              <th>Descrição</th><th style="white-space:nowrap;min-width:110px;">Categoria</th><th style="text-align:center;">Qtd</th>
+              <th style="text-align:right;white-space:nowrap;">Valor Unit.</th><th style="text-align:right;">Total</th><th></th>
             </tr></thead>
             <tbody>${despesas.length ? despesas.map(i => linhaItem('despesas', i)).join('') : tabelaVazia}</tbody>
             ${despesas.length ? `<tfoot><tr>
@@ -593,6 +596,7 @@ const EventoModule = {
               <td></td>
             </tr></tfoot>` : ''}
           </table>
+          </div>
 
           <!-- Formulário adicionar despesa -->
           <div style="padding:12px 20px;border-top:1px solid var(--border-color);background:var(--bg-secondary);border-radius:0 0 12px 12px;">
