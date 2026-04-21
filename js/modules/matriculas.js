@@ -704,6 +704,11 @@ const MatriculaModule = {
     const fmtMoeda = v => this._fmtMoeda(v);
     const hoje     = new Date().toLocaleDateString('pt-BR', { day:'2-digit', month:'long', year:'numeric' });
 
+    // Embute config do EmailJS no popup (lido aqui, na janela principal)
+    const ejsCfg = (typeof EmailJSConfig !== 'undefined' && EmailJSConfig.templateAtivo('matricula'))
+      ? JSON.stringify({ s: EmailJSConfig.SERVICE_ID, p: EmailJSConfig.PUBLIC_KEY, t: EmailJSConfig.TEMPLATES.matricula })
+      : 'null';
+
     const DIAS = { seg:'Segunda', ter:'Terça', qua:'Quarta', qui:'Quinta', sex:'Sexta', sab:'Sábado', dom:'Domingo' };
 
     const turmasHtml = turmas.length ? turmas.map(t => {
@@ -875,27 +880,38 @@ const MatriculaModule = {
   </div>
 
 </div>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script>
-async function _enviarEmailMatricula(btn) {
-  btn.disabled = true;
-  const orig = btn.textContent;
-  btn.textContent = '📧 Enviando...';
-  const cfg = window.opener && window.opener.EmailJSConfig;
-  if (cfg && cfg.templateAtivo && cfg.templateAtivo('matricula')) {
-    const ok = await cfg.enviar('matricula', {
-      to_email:    btn.dataset.email,
-      to_name:     btn.dataset.name,
-      academia:    btn.dataset.academia,
-      plano:       btn.dataset.plano,
-      data_inicio: btn.dataset.inicio,
-      data_fim:    btn.dataset.fim,
-    });
-    btn.textContent = ok ? '✅ E-mail enviado!' : '❌ Falha no envio';
-  } else {
-    btn.textContent = '⚠️ EmailJS não configurado';
-  }
-  setTimeout(() => { btn.disabled = false; btn.textContent = orig; }, 4000);
-}
+(function () {
+  const _cfg = ${ejsCfg};
+  if (_cfg) emailjs.init(_cfg.p);
+
+  window._enviarEmailMatricula = async function (btn) {
+    btn.disabled = true;
+    const orig = btn.textContent;
+    btn.textContent = '📧 Enviando...';
+    if (!_cfg) {
+      btn.textContent = '⚠️ EmailJS não configurado';
+      setTimeout(() => { btn.disabled = false; btn.textContent = orig; }, 4000);
+      return;
+    }
+    try {
+      await emailjs.send(_cfg.s, _cfg.t, {
+        to_email:    btn.dataset.email,
+        to_name:     btn.dataset.name,
+        academia:    btn.dataset.academia,
+        plano:       btn.dataset.plano,
+        data_inicio: btn.dataset.inicio,
+        data_fim:    btn.dataset.fim,
+      });
+      btn.textContent = '✅ E-mail enviado!';
+    } catch (err) {
+      console.warn('EmailJS erro:', err);
+      btn.textContent = '❌ Falha no envio';
+    }
+    setTimeout(() => { btn.disabled = false; btn.textContent = orig; }, 4000);
+  };
+})();
 </script>
 </body>
 </html>`;

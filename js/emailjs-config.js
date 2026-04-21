@@ -20,12 +20,12 @@
  *    {{data_inicio}} {{data_fim}}
  */
 const EmailJSConfig = {
-  SERVICE_ID:  '',   // ex: 'service_abc123'  — mesmo para todos os templates
-  PUBLIC_KEY:  '',   // ex: 'AbCdEfGhIjK...'  — chave pública da conta
+  SERVICE_ID:  'service_dil9kl8',
+  PUBLIC_KEY:  'a6B9_YV5dSn2nxRiW',
 
   TEMPLATES: {
-    tarefa:    '',   // ex: 'template_tarefa01'   — notificação de tarefa em evento
-    matricula: '',   // ex: 'template_matricula01' — confirmação de matrícula
+    tarefa:    'template_lv9zkfw',   // notificação de tarefa em evento
+    matricula: 'template_bflquq5',   // confirmação de matrícula
     // Adicione novos templates aqui conforme necessário:
     // cobranca:  '',
     // aniversario: '',
