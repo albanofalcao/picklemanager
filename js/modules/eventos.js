@@ -820,6 +820,17 @@ const EventoModule = {
       </div>`;
     };
 
+    const hoje = new Date(); hoje.setHours(0,0,0,0);
+    const rowStyle = t => {
+      const exec = parseInt(t.execucao, 10) || 0;
+      if (exec === 100 || !t.prazo) return '';
+      const prazo = new Date(t.prazo); prazo.setHours(0,0,0,0);
+      const diff  = Math.floor((prazo - hoje) / 86400000);
+      if (diff < 0)  return 'background:rgba(239,68,68,.10);border-left:3px solid #ef4444;';
+      if (diff <= 5) return 'background:rgba(245,158,11,.10);border-left:3px solid #f59e0b;';
+      return             'background:rgba(16,185,129,.07);border-left:3px solid #10b981;';
+    };
+
     const linhaT = t => {
       const exec = parseInt(t.execucao, 10) || 0;
       const concluida = exec === 100;
@@ -827,7 +838,7 @@ const EventoModule = {
         ? `<div style="font-size:11px;color:var(--text-muted);margin-top:3px;font-style:italic;">${UI.escape(t.observacao)}</div>`
         : '';
       return `
-      <tr class="${concluida ? 'tarefa-concluida' : ''}">
+      <tr class="${concluida ? 'tarefa-concluida' : ''}" style="${rowStyle(t)}">
         <td style="${concluida ? 'text-decoration:line-through;color:var(--text-muted);' : ''}">
           <div>${UI.escape(t.descricao)}</div>${obsHtml}
         </td>
