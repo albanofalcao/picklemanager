@@ -424,6 +424,73 @@ const EventoModule = {
 
     const corResultado = resultado >= 0 ? 'var(--success)' : 'var(--danger)';
 
+    // --- Ponto de Equilíbrio ---
+    // % mínimo das receitas que precisa ser realizado para cobrir todas as despesas
+    const bePct      = totalR > 0 ? (totalD / totalR) * 100 : null;
+    const beViavel   = bePct !== null && bePct <= 100;
+    const beCorBarra = beViavel ? '#22c55e' : '#ef4444';
+    const beCorTexto = beViavel ? 'var(--success)' : 'var(--danger)';
+    const beBarraW   = bePct !== null ? Math.min(100, bePct).toFixed(1) : 0;
+
+    const beStatusLabel = bePct === null
+      ? '— Sem receitas cadastradas'
+      : beViavel
+        ? `✅ Viável — realizando ${bePct.toFixed(1)}% das receitas previstas`
+        : `⚠️ Inviável — mesmo realizando 100% das receitas há déficit de ${fmt(totalD - totalR)}`;
+
+    const beTabelaLinhas = receitas.map(item => {
+      const itemTotal = (parseFloat(item.valor) || 0) * (parseInt(item.qtd, 10) || 1);
+      // valor mínimo que ESTE item precisa gerar (proporcionalmente)
+      const itemMin   = bePct !== null ? itemTotal * Math.min(1, totalD / totalR) : 0;
+      const pctLabel  = bePct !== null ? `${Math.min(bePct, 100).toFixed(1)}%` : '—';
+      const barW      = bePct !== null ? Math.min(100, bePct).toFixed(1) : 0;
+      return `
+        <tr>
+          <td>
+            <div style="font-size:13px;">${UI.escape(item.descricao)}</div>
+            ${item.categoria ? `<span class="badge badge-gray" style="font-size:0.65rem;">${UI.escape(item.categoria)}</span>` : ''}
+          </td>
+          <td style="text-align:right;">${fmt(itemTotal)}</td>
+          <td style="text-align:right;font-weight:600;color:${beCorTexto};">${fmt(itemMin)}</td>
+          <td style="min-width:110px;">
+            <div style="display:flex;align-items:center;gap:6px;">
+              <div style="flex:1;height:7px;background:var(--border-color);border-radius:4px;overflow:hidden;">
+                <div style="height:100%;width:${barW}%;background:${beCorBarra};border-radius:4px;transition:width .4s;"></div>
+              </div>
+              <span style="font-size:12px;font-weight:700;color:${beCorTexto};white-space:nowrap;">${pctLabel}</span>
+            </div>
+          </td>
+        </tr>`;
+    }).join('');
+
+    const beCustoVaga = e.vagas && totalD > 0
+      ? `<div style="margin-top:10px;font-size:12px;color:var(--text-secondary);">
+           🎯 Custo por vaga (${e.vagas} vagas): <strong>${fmt(totalD / parseInt(e.vagas, 10))}</strong>
+           — valor mínimo de inscrição para cobrir as despesas com 100% das vagas preenchidas.
+         </div>`
+      : '';
+
+    const secaoPE = `
+      <div class="card" style="margin-bottom:24px;border:2px solid ${beViavel ? '#bbf7d0' : '#fecaca'};">
+        <div class="card-header" style="padding:14px 20px;background:${beViavel ? '#f0fdf4' : '#fff5f5'};display:flex;flex-direction:column;gap:4px;">
+          <h3 style="margin:0;font-size:15px;font-weight:700;">🎯 Ponto de Equilíbrio</h3>
+          <div style="font-size:13px;margin-top:4px;color:${beCorTexto};font-weight:600;">${beStatusLabel}</div>
+          ${beCustoVaga}
+        </div>
+        ${receitas.length ? `
+        <div class="card-body" style="padding:0 0 8px;">
+          <table class="data-table">
+            <thead><tr>
+              <th>Fonte de Receita</th>
+              <th style="text-align:right;">Previsto</th>
+              <th style="text-align:right;">Mín. necessário</th>
+              <th>% de realização</th>
+            </tr></thead>
+            <tbody>${beTabelaLinhas}</tbody>
+          </table>
+        </div>` : ''}
+      </div>`;
+
     return `
       ${aviso}
       <!-- RESUMO -->
@@ -449,15 +516,18 @@ const EventoModule = {
             <div class="stat-label">Resultado ${resultado >= 0 ? '(Viável)' : '(Déficit)'}</div>
           </div>
         </div>
-        ${e.vagas && totalD > 0 ? `
+        ${bePct !== null ? `
         <div class="stat-card">
-          <div class="stat-icon blue">🎯</div>
+          <div class="stat-icon ${beViavel ? 'green' : 'red'}">🎯</div>
           <div class="stat-info">
-            <div class="stat-value" style="font-size:18px;">${fmt(totalD / parseInt(e.vagas, 10))}</div>
-            <div class="stat-label">Pt. Equilíbrio / vaga</div>
+            <div class="stat-value" style="font-size:18px;color:${beCorTexto};">${bePct.toFixed(1)}%</div>
+            <div class="stat-label">Realização mínima</div>
           </div>
         </div>` : ''}
       </div>
+
+      <!-- PONTO DE EQUILÍBRIO -->
+      ${secaoPE}
 
       <!-- RECEITAS -->
       <div class="card" style="margin-bottom:20px;">
