@@ -807,7 +807,7 @@ const EventoModule = {
     const corBar = pctGeral === 100 ? 'var(--success)' : pctGeral >= 50 ? 'var(--warning)' : 'var(--primary)';
 
     // Datalist: todos os ativos exceto alunos e professores (digitação livre também é permitida)
-    const adminUsers    = Storage.getAll('usuarios').filter(u => u.status === 'ativo' && u.perfil !== 'aluno' && u.perfil !== 'professor');
+    const adminUsers    = Storage.getAll('usuarios').filter(u => { const p = (u.perfil||'').toLowerCase(); return u.status === 'ativo' && p !== 'aluno' && p !== 'professor'; });
     const adminDatalist = adminUsers.map(u => `<option value="${UI.escape(u.nome)}">`).join('');
 
     const barPct = pct => {
@@ -1019,7 +1019,7 @@ const EventoModule = {
     const tarefa  = tarefas.find(t => t.id === tarefaId);
     if (!tarefa) return;
 
-    const adminUsers    = Storage.getAll('usuarios').filter(u => u.status === 'ativo' && u.perfil !== 'aluno' && u.perfil !== 'professor');
+    const adminUsers    = Storage.getAll('usuarios').filter(u => { const p = (u.perfil||'').toLowerCase(); return u.status === 'ativo' && p !== 'aluno' && p !== 'professor'; });
     const adminDatalist = adminUsers.map(u => `<option value="${UI.escape(u.nome)}">`).join('');
 
     UI.openModal({
