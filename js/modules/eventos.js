@@ -806,9 +806,9 @@ const EventoModule = {
       : 0;
     const corBar = pctGeral === 100 ? 'var(--success)' : pctGeral >= 50 ? 'var(--warning)' : 'var(--primary)';
 
-    const usuarios = Storage.getAll('usuarios').filter(u => u.status === 'ativo');
-    const userOpts = `<option value="">— Selecionar —</option>` +
-      usuarios.map(u => `<option value="${UI.escape(u.nome)}">${UI.escape(u.nome)} (${UI.escape(u.perfil || '')})</option>`).join('');
+    // Datalist: apenas admins ativos (digitação livre também é permitida)
+    const adminUsers    = Storage.getAll('usuarios').filter(u => u.status === 'ativo' && u.perfil === 'admin');
+    const adminDatalist = adminUsers.map(u => `<option value="${UI.escape(u.nome)}">`).join('');
 
     const barPct = pct => {
       const c = pct === 100 ? 'var(--success)' : pct >= 50 ? 'var(--warning)' : 'var(--primary)';
@@ -823,9 +823,14 @@ const EventoModule = {
     const linhaT = t => {
       const exec = parseInt(t.execucao, 10) || 0;
       const concluida = exec === 100;
+      const obsHtml = t.observacao
+        ? `<div style="font-size:11px;color:var(--text-muted);margin-top:3px;font-style:italic;">${UI.escape(t.observacao)}</div>`
+        : '';
       return `
       <tr class="${concluida ? 'tarefa-concluida' : ''}">
-        <td style="${concluida ? 'text-decoration:line-through;color:var(--text-muted);' : ''}">${UI.escape(t.descricao)}</td>
+        <td style="${concluida ? 'text-decoration:line-through;color:var(--text-muted);' : ''}">
+          <div>${UI.escape(t.descricao)}</div>${obsHtml}
+        </td>
         <td>${UI.escape(t.responsavel || '—')}</td>
         <td>${t.dataInicio ? this._fmtData(t.dataInicio) : '—'}</td>
         <td>${t.prazo ? this._fmtData(t.prazo) : '—'}</td>
@@ -838,7 +843,9 @@ const EventoModule = {
               title="% de execução" />
           </div>
         </td>
-        <td style="text-align:center;">
+        <td style="text-align:center;white-space:nowrap;">
+          <button class="btn btn-ghost btn-sm" style="padding:2px 8px;"
+            onclick="EventoModule._editarTarefa('${e.id}','${t.id}')" title="Editar">✏️</button>
           <button class="btn btn-ghost btn-sm danger" style="padding:2px 8px;"
             onclick="EventoModule._removerTarefa('${e.id}','${t.id}')" title="Remover">🗑️</button>
         </td>
@@ -884,13 +891,13 @@ const EventoModule = {
             <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
               <div style="flex:3;min-width:180px;">
                 <label class="form-label" style="font-size:11px;">Tarefa <span class="required-star">*</span></label>
-                <input id="tar-desc" class="form-input" style="height:34px;" placeholder="ex: Confirmar reserva da arena" />
+                <input id="tar-desc" class="form-input" style="height:34px;" placeholder="ex: Confirmar reserva da arena" autocomplete="off" />
               </div>
               <div style="flex:1;min-width:160px;">
                 <label class="form-label" style="font-size:11px;">Responsável</label>
-                <div class="select-wrap">
-                  <select id="tar-resp" class="form-select">${userOpts}</select>
-                </div>
+                <input id="tar-resp" class="form-input" style="height:34px;" list="tar-resp-list"
+                  placeholder="Nome ou selecione..." autocomplete="off" />
+                <datalist id="tar-resp-list">${adminDatalist}</datalist>
               </div>
               <div style="width:136px;">
                 <label class="form-label" style="font-size:11px;">Data início</label>
@@ -903,6 +910,11 @@ const EventoModule = {
               <button class="btn btn-primary btn-sm" style="height:34px;"
                 onclick="EventoModule._addTarefa('${e.id}')"
                 ${cancelado ? 'disabled title="Evento cancelado"' : ''}>+ Adicionar</button>
+            </div>
+            <div style="margin-top:8px;">
+              <label class="form-label" style="font-size:11px;">Observação</label>
+              <input id="tar-obs" class="form-input" style="height:34px;"
+                placeholder="Observações sobre a tarefa (opcional)" autocomplete="off" />
             </div>
           </div>
         </div>
@@ -926,9 +938,10 @@ const EventoModule = {
     tarefas.push({
       id:          `${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
       descricao:   desc.value.trim(),
-      responsavel: document.getElementById('tar-resp')?.value || '',
+      responsavel: document.getElementById('tar-resp')?.value.trim() || '',
       dataInicio:  document.getElementById('tar-inicio')?.value || '',
       prazo:       document.getElementById('tar-prazo')?.value || '',
+      observacao:  document.getElementById('tar-obs')?.value.trim() || '',
       execucao:    0,
     });
 
@@ -997,6 +1010,80 @@ const EventoModule = {
     Storage.update(this.STORAGE_KEY, eventoId, { tarefas });
     this._detail.tab = 'tarefas';
     this._renderDetail();
+  },
+
+  _editarTarefa(eventoId, tarefaId) {
+    const evento = Storage.getById(this.STORAGE_KEY, eventoId);
+    if (!evento) return;
+    const tarefas = evento.tarefas || [];
+    const tarefa  = tarefas.find(t => t.id === tarefaId);
+    if (!tarefa) return;
+
+    const adminUsers    = Storage.getAll('usuarios').filter(u => u.status === 'ativo' && u.perfil === 'admin');
+    const adminDatalist = adminUsers.map(u => `<option value="${UI.escape(u.nome)}">`).join('');
+
+    UI.openModal({
+      title: '✏️ Editar Tarefa',
+      content: `
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Tarefa <span class="required-star">*</span></label>
+            <input id="edit-tar-desc" class="form-input" value="${UI.escape(tarefa.descricao)}" autocomplete="off" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Responsável</label>
+            <input id="edit-tar-resp" class="form-input" list="edit-tar-resp-list"
+              value="${UI.escape(tarefa.responsavel || '')}"
+              placeholder="Nome ou selecione..." autocomplete="off" />
+            <datalist id="edit-tar-resp-list">${adminDatalist}</datalist>
+          </div>
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Data início</label>
+              <input id="edit-tar-inicio" class="form-input" type="date" value="${tarefa.dataInicio || ''}" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Prazo</label>
+              <input id="edit-tar-prazo" class="form-input" type="date" value="${tarefa.prazo || ''}" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Observação</label>
+            <textarea id="edit-tar-obs" class="form-textarea" rows="3"
+              placeholder="Observações sobre a tarefa...">${UI.escape(tarefa.observacao || '')}</textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Execução (%)</label>
+            <input id="edit-tar-exec" class="form-input" type="number" min="0" max="100"
+              value="${tarefa.execucao || 0}" />
+          </div>
+        </div>`,
+      confirmLabel: 'Salvar',
+      onConfirm: () => {
+        const desc = document.getElementById('edit-tar-desc');
+        if (!desc?.value.trim()) {
+          UI.toast('Informe a descrição da tarefa.', 'warning');
+          desc?.classList.add('error');
+          return;
+        }
+        const idx = tarefas.findIndex(t => t.id === tarefaId);
+        if (idx < 0) return;
+        tarefas[idx] = {
+          ...tarefas[idx],
+          descricao:   desc.value.trim(),
+          responsavel: document.getElementById('edit-tar-resp')?.value.trim() || '',
+          dataInicio:  document.getElementById('edit-tar-inicio')?.value || '',
+          prazo:       document.getElementById('edit-tar-prazo')?.value || '',
+          observacao:  document.getElementById('edit-tar-obs')?.value.trim() || '',
+          execucao:    Math.min(100, Math.max(0, parseInt(document.getElementById('edit-tar-exec')?.value, 10) || 0)),
+        };
+        Storage.update(this.STORAGE_KEY, eventoId, { tarefas });
+        UI.toast('Tarefa atualizada!', 'success');
+        UI.closeModal();
+        this._detail.tab = 'tarefas';
+        this._renderDetail();
+      },
+    });
   },
 
   /* ------------------------------------------------------------------ */
