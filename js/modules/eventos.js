@@ -826,9 +826,9 @@ const EventoModule = {
       if (exec === 100 || !t.prazo) return '';
       const prazo = new Date(t.prazo); prazo.setHours(0,0,0,0);
       const diff  = Math.floor((prazo - hoje) / 86400000);
-      if (diff < 0)  return 'background:rgba(239,68,68,.10);border-left:3px solid #ef4444;';
-      if (diff <= 5) return 'background:rgba(245,158,11,.10);border-left:3px solid #f59e0b;';
-      return             'background:rgba(16,185,129,.07);border-left:3px solid #10b981;';
+      if (diff < 0)  return 'background:rgba(239,68,68,.18);border-left:4px solid #ef4444;';
+      if (diff <= 5) return 'background:rgba(245,158,11,.18);border-left:4px solid #f59e0b;';
+      return             'background:rgba(16,185,129,.15);border-left:4px solid #10b981;';
     };
 
     const linhaT = t => {
