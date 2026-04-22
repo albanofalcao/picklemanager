@@ -1108,6 +1108,9 @@ document.addEventListener('DOMContentLoaded', () => {
   if (!hash || !hash.includes('access_token') || !hash.includes('type=recovery')) return;
   if (!SupabaseClient) return;
 
+  // Limpa o hash da URL imediatamente para evitar loop no próximo acesso
+  history.replaceState(null, '', window.location.pathname);
+
   // Mostra tela de espera enquanto o Supabase processa o token
   SuperAdmin._showWrap(`
     <div style="min-height:100vh;width:100%;display:flex;align-items:center;justify-content:center;
