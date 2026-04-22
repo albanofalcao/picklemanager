@@ -1105,7 +1105,25 @@ const SuperAdmin = {
 // Detecta automaticamente link de recuperação de senha ao carregar a página
 document.addEventListener('DOMContentLoaded', () => {
   const hash = window.location.hash;
-  if (hash && hash.includes('access_token') && hash.includes('type=recovery')) {
-    SuperAdmin._renderNovaSenha();
-  }
+  if (!hash || !hash.includes('access_token') || !hash.includes('type=recovery')) return;
+  if (!SupabaseClient) return;
+
+  // Mostra tela de espera enquanto o Supabase processa o token
+  SuperAdmin._showWrap(`
+    <div style="min-height:100vh;width:100%;display:flex;align-items:center;justify-content:center;
+      background:linear-gradient(135deg,var(--sidebar-bg) 0%,var(--sidebar-hover) 100%);">
+      <div style="text-align:center;">
+        <img src="img/pickleball-paddle.svg" style="width:48px;opacity:.8;margin-bottom:16px;">
+        <div style="color:var(--sidebar-text-active);font-size:15px;font-weight:600;">Verificando link de recuperação…</div>
+        <div style="color:var(--sidebar-text);font-size:13px;margin-top:6px;">Aguarde um instante</div>
+      </div>
+    </div>`);
+
+  // Aguarda o Supabase processar o token e estabelecer a sessão
+  const { data: { subscription } } = SupabaseClient.auth.onAuthStateChange((event, session) => {
+    if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && session)) {
+      subscription.unsubscribe();
+      SuperAdmin._renderNovaSenha();
+    }
+  });
 });
