@@ -7,10 +7,16 @@ const SUPABASE_KEY = 'sb_publishable_KI5wL-O5QMqkdVKOxJwKGg_yJkXlsrx';
  * TENANTS — mapa dinâmico de bases disponíveis.
  * Atualizado do Supabase no DOMContentLoaded.
  * O fallback estático garante que o app inicia sem esperar o fetch.
+ *
+ * As chaves são os slugs do banco. Aliases antigos ('lauro','espanhol')
+ * mantidos para compatibilidade com localStorage cacheado.
  */
 let TENANTS = {
-  lauro:    { id: 'a2af3c2e-bc7a-4083-b89d-924b9dbe5670', label: '🏫 Escola Lauro de Freitas', tipo: 'arena' },
-  espanhol: { id: 'f4dfd40b-5525-4392-b71e-9a0ed1c9507c', label: '🏫 Demo / Espanhol',          tipo: 'arena' },
+  '001-H':    { id: '2e4f866c-42f2-4616-8560-ca5c0c98cd69', label: '🏛️ Rede Pickleball',         tipo: 'matriz' },
+  'LAU':      { id: 'a2af3c2e-bc7a-4083-b89d-924b9dbe5670', label: '🏫 Escola Lauro de Freitas',  tipo: 'arena'  },
+  // aliases antigos — garantem que pm_tenant='lauro' ainda funcione
+  'lauro':    { id: 'a2af3c2e-bc7a-4083-b89d-924b9dbe5670', label: '🏫 Escola Lauro de Freitas',  tipo: 'arena'  },
+  'espanhol': { id: 'f4dfd40b-5525-4392-b71e-9a0ed1c9507c', label: '🏫 Espanhol',                 tipo: 'arena'  },
 };
 
 /**
@@ -64,21 +70,21 @@ async function _loadTenantsFromDB() {
 
     TENANTS = newTenants;
 
-    // Re-resolve tenant ativo com dados frescos
-    const saved = localStorage.getItem('pm_tenant');
-    if (saved && TENANTS[saved]) {
-      _activeTenantKey = saved;
+    // Localiza o tenant ativo pelo ID atual (não pelo slug, que pode ter mudado)
+    // NÃO sobrescreve TENANT_ID — o DB já foi inicializado com o ID correto.
+    const currentId = TENANT_ID;
+    const foundEntry = Object.entries(TENANTS).find(([, t]) => t.id === currentId);
+    if (foundEntry) {
+      _activeTenantKey = foundEntry[0];
+      TENANT_TIPO      = foundEntry[1].tipo || 'arena';
+      localStorage.setItem('pm_tenant', foundEntry[0]);
     } else {
-      _activeTenantKey = Object.keys(TENANTS)[0] || null;
-      if (_activeTenantKey) localStorage.setItem('pm_tenant', _activeTenantKey);
-    }
-
-    if (_activeTenantKey) {
-      TENANT_ID   = TENANTS[_activeTenantKey].id;
-      TENANT_TIPO = TENANTS[_activeTenantKey].tipo || 'arena';
+      // Tenant atual não está no banco — mantém sem trocar TENANT_ID
+      _activeTenantKey = Object.keys(TENANTS)[0] || _activeTenantKey;
     }
 
     _populateSelect();
+    _updateTenantIcon();
   } catch (e) {
     console.warn('[Tenants] Erro ao carregar lista:', e.message);
   }
