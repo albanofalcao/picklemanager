@@ -1101,3 +1101,11 @@ const SuperAdmin = {
     return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   },
 };
+
+// Detecta automaticamente link de recuperação de senha ao carregar a página
+document.addEventListener('DOMContentLoaded', () => {
+  const hash = window.location.hash;
+  if (hash && hash.includes('access_token') && hash.includes('type=recovery')) {
+    SuperAdmin._renderNovaSenha();
+  }
+});
