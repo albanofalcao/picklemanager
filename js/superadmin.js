@@ -944,6 +944,14 @@ const SuperAdmin = {
         if (s1.length < 4) { alert('Senha muito curta (mínimo 4 caracteres).'); return false; }
         if (s1 !== s2)      { alert('As senhas não coincidem.'); return false; }
 
+        // 0. Garante sessão ativa (renova token se necessário)
+        const { data: { session }, error: sessErr } = await SupabaseClient.auth.getSession();
+        if (sessErr || !session) {
+          alert('Sua sessão expirou. Faça login novamente no painel.');
+          this.logout();
+          return false;
+        }
+
         // 1. Busca os dados atuais do usuário
         const { data: row, error: errFetch } = await SupabaseClient
           .from('app_usuarios').select('data').eq('id', id).single();
@@ -955,7 +963,7 @@ const SuperAdmin = {
           .from('app_usuarios').update({ data: dadosAtualizados }).eq('id', id);
         if (error) { alert('Erro ao salvar: ' + error.message); return false; }
 
-        alert(`✅ Senha de "${login}" redefinida!\nNova senha: ${s1}\n\nFaça Ctrl+Shift+R no app para carregar a senha nova.`);
+        alert(`✅ Senha de "${login}" redefinida!\nNova senha: ${s1}`);
         return true;
       }
     );
