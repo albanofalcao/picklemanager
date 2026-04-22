@@ -315,18 +315,24 @@ const SuperAdmin = {
   },
 
   async _carregarLista() {
-    const { data: tenants, error } = await SupabaseClient
-      .from('tenants')
-      .select('*, grupos_economicos(nome)')
-      .order('nome');
-
     const wrap = document.getElementById('sa-lista-wrap');
     if (!wrap) return;
 
-    if (error) {
-      wrap.innerHTML = `<div style="color:var(--red);padding:16px;">Erro: ${error.message}</div>`;
-      return;
-    }
+    try {
+      const { data: tenants, error } = await SupabaseClient
+        .from('tenants')
+        .select('id, nome, slug, tipo, cidade, estado, plano, status, contrato_inicio')
+        .order('nome');
+
+      if (error) {
+        wrap.innerHTML = `<div style="color:var(--red);padding:16px;">Erro: ${this._esc(error.message)}</div>`;
+        return;
+      }
+
+      if (!tenants) {
+        wrap.innerHTML = `<div style="padding:16px;color:var(--text-muted);">Nenhum resultado.</div>`;
+        return;
+      }
 
     const STATUS_STYLE = {
       ativa:    'background:var(--success-light);color:var(--success-text);',
@@ -416,8 +422,11 @@ const SuperAdmin = {
         <div style="font-size:40px;margin-bottom:12px;">🏟️</div>
         <div style="font-size:18px;font-weight:700;margin-bottom:8px;color:var(--text-primary);">Nenhuma arena cadastrada</div>
         <div style="margin-bottom:20px;color:var(--text-muted);">Cadastre a primeira arena cliente.</div>
-        <button class="btn btn-primary" onclick="SuperAdmin._novoTenant()">+ Cadastrar Arena</button>
+        <button class="btn btn-primary" onclick="SuperAdmin._novoTenant()">+ Cadastrar Base</button>
       </div>`;
+    } catch(e) {
+      wrap.innerHTML = `<div style="color:var(--red);padding:16px;">Erro inesperado: ${this._esc(e.message)}</div>`;
+    }
   },
 
   /* ------------------------------------------------------------------ */
