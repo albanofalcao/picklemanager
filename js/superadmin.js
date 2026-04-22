@@ -1126,4 +1126,12 @@ document.addEventListener('DOMContentLoaded', () => {
       SuperAdmin._renderNovaSenha();
     }
   });
+
+  // Fallback: evento pode ter disparado antes do listener — checa sessão imediatamente
+  SupabaseClient.auth.getSession().then(({ data: { session } }) => {
+    if (session) {
+      subscription.unsubscribe();
+      SuperAdmin._renderNovaSenha();
+    }
+  });
 });
