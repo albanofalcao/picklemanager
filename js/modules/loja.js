@@ -478,6 +478,7 @@ const LojaModule = {
 
     UI.openModal({
       title: '🔄 Transferência Central → Loja',
+      wide: true,
       content: `
         <div class="form-grid">
           <div class="form-grid-2">
@@ -497,11 +498,11 @@ const LojaModule = {
           <div class="card" style="border:1px solid var(--border-color);border-radius:10px;padding:14px;">
             <div style="font-weight:700;font-size:13px;margin-bottom:10px;">Produtos a transferir</div>
             <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px;">
-              <div style="flex:3;min-width:160px;">
+              <div style="flex:1 1 280px;min-width:200px;">
                 <label class="form-label" style="font-size:11px;">Produto</label>
                 <select id="tf-prod" class="form-select">${prodOpts}</select>
               </div>
-              <div style="width:90px;">
+              <div style="width:100px;">
                 <label class="form-label" style="font-size:11px;">Quantidade</label>
                 <input id="tf-qtd" class="form-input" type="number" min="1" value="1" />
               </div>
@@ -664,6 +665,7 @@ const LojaModule = {
     window._lojaCompraItens = [];
     UI.openModal({
       title: '📥 Registrar Compra → Estoque Central',
+      wide: true,
       content: `
         <div class="form-grid">
           <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 14px;font-size:12px;color:#166534;">
@@ -692,15 +694,15 @@ const LojaModule = {
           <div class="card" style="border:1px solid var(--border-color);border-radius:10px;padding:14px;">
             <div style="font-weight:700;font-size:13px;margin-bottom:10px;">Itens da compra</div>
             <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px;">
-              <div style="flex:3;min-width:160px;">
+              <div style="flex:1 1 280px;min-width:200px;">
                 <label class="form-label" style="font-size:11px;">Produto</label>
                 <select id="cp-prod" class="form-select" onchange="LojaModule._onProdCompraSelect()">${prodOpts}</select>
               </div>
-              <div style="width:70px;">
+              <div style="width:80px;">
                 <label class="form-label" style="font-size:11px;">Qtd</label>
                 <input id="cp-qtd" class="form-input" type="number" min="1" value="1" />
               </div>
-              <div style="width:120px;">
+              <div style="width:130px;">
                 <label class="form-label" style="font-size:11px;">Custo unit. (R$)</label>
                 <input id="cp-custo" class="form-input" type="number" min="0" step="0.01" placeholder="0,00" />
               </div>
@@ -838,6 +840,7 @@ const LojaModule = {
 
     UI.openModal({
       title: '🛍️ Registrar Venda',
+      wide: true,
       content: `
         <div class="form-grid">
           <div class="form-grid-2">
@@ -860,18 +863,18 @@ const LojaModule = {
           <div class="card" style="border:1px solid var(--border-color);border-radius:10px;padding:14px;">
             <div style="font-weight:700;font-size:13px;margin-bottom:10px;">Itens da venda</div>
             <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px;">
-              <div style="flex:3;min-width:160px;">
+              <div style="flex:1 1 280px;min-width:200px;">
                 <label class="form-label" style="font-size:11px;">Produto</label>
                 <select id="vd-prod" class="form-select" onchange="LojaModule._onProdSelect()">
                   <option value="">— Selecione a loja primeiro —</option>
                 </select>
               </div>
-              <div style="width:70px;">
+              <div style="width:80px;">
                 <label class="form-label" style="font-size:11px;">Qtd</label>
                 <input id="vd-qtd" class="form-input" type="number" min="1" value="1" />
               </div>
-              <div style="width:110px;">
-                <label class="form-label" style="font-size:11px;">Preço unit.</label>
+              <div style="width:130px;">
+                <label class="form-label" style="font-size:11px;">Preço unit. (R$)</label>
                 <input id="vd-preco" class="form-input" type="number" min="0" step="0.01" />
               </div>
               <button class="btn btn-secondary btn-sm" onclick="LojaModule._addItemVenda()">+ Item</button>
