@@ -446,7 +446,7 @@ const SuperAdmin = {
     };
     const ABAS = {
       dados: '📋 Dados', responsaveis: '👤 Responsáveis', quadras: '🏟️ Quadras',
-      contrato: '📄 Contrato', financeiro: '💰 Financeiro'
+      contrato: '📄 Contrato', financeiro: '💰 Financeiro', usuarios: '🔑 Usuários'
     };
 
     return `
@@ -489,6 +489,10 @@ const SuperAdmin = {
     if (tab === 'responsaveis') {
       const {data} = await SupabaseClient.from('tenant_responsaveis').select('*').eq('tenant_id',t.id).order('principal',{ascending:false});
       el.innerHTML = this._tabResponsaveis(data||[]);
+    }
+    if (tab === 'usuarios') {
+      const {data} = await SupabaseClient.from('app_usuarios').select('id, data').eq('tenant_id',t.id);
+      el.innerHTML = this._tabUsuarios(data||[]);
     }
     if (tab === 'quadras') {
       const {data} = await SupabaseClient.from('quadras').select('*').eq('tenant_id',t.id).order('nome');
@@ -789,6 +793,125 @@ const SuperAdmin = {
     this._tab = 'lista';
     this._tenantEditId = null;
     this._renderPanel();
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Aba Usuários                                                        */
+  /* ------------------------------------------------------------------ */
+
+  _tabUsuarios(rows) {
+    const usuarios = rows.map(r => ({ id: r.id, ...r.data }))
+      .sort((a,b) => (a.login||'').localeCompare(b.login||''));
+
+    const PERFIL_STYLE = {
+      admin:     'background:#fef3c7;color:#92400e;',
+      professor: 'background:#dbeafe;color:#1e40af;',
+      aluno:     'background:#d1fae5;color:#065f46;',
+    };
+
+    return `
+      <div style="background:var(--card-bg);border-radius:var(--card-radius);padding:24px;
+        box-shadow:var(--card-shadow);border:1px solid var(--card-border);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <div style="font-size:13px;color:var(--text-muted);">${usuarios.length} usuário(s) cadastrado(s)</div>
+          <button class="btn btn-primary btn-sm" onclick="SuperAdmin._criarUsuarioAdmin()">+ Criar usuário admin</button>
+        </div>
+        ${usuarios.length ? `
+          <table style="width:100%;border-collapse:collapse;font-size:14px;">
+            <thead>
+              <tr style="background:var(--gray-light);border-bottom:2px solid var(--card-border);">
+                <th style="padding:10px 14px;text-align:left;">Login</th>
+                <th style="padding:10px 14px;text-align:left;">Nome</th>
+                <th style="padding:10px 14px;text-align:left;">Perfil</th>
+                <th style="padding:10px 14px;text-align:left;">Status</th>
+                <th style="padding:10px 14px;text-align:center;">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${usuarios.map(u => `
+                <tr style="border-bottom:1px solid var(--card-border);">
+                  <td style="padding:10px 14px;font-weight:700;font-family:monospace;">${this._esc(u.login||'—')}</td>
+                  <td style="padding:10px 14px;">${this._esc(u.nome||'—')}</td>
+                  <td style="padding:10px 14px;">
+                    <span style="${PERFIL_STYLE[u.perfil]||''}padding:2px 10px;border-radius:var(--radius-full);font-size:12px;font-weight:700;">
+                      ${u.perfil||'—'}
+                    </span>
+                  </td>
+                  <td style="padding:10px 14px;">
+                    <span style="color:${u.status==='ativo'?'var(--success)':'var(--red)'};">${u.status||'—'}</span>
+                  </td>
+                  <td style="padding:10px 14px;text-align:center;">
+                    <button onclick="SuperAdmin._resetSenhaUsuario('${u.id}','${this._esc(u.login||'')}','${this._esc(u.nome||'')}')"
+                      class="btn btn-sm" style="background:#fef3c7;color:#92400e;border:none;">
+                      🔑 Redefinir senha
+                    </button>
+                  </td>
+                </tr>`).join('')}
+            </tbody>
+          </table>`
+        : `<div style="text-align:center;padding:32px;color:var(--text-muted);">
+            Nenhum usuário encontrado neste tenant.<br>
+            <button class="btn btn-primary btn-sm" style="margin-top:12px;" onclick="SuperAdmin._criarUsuarioAdmin()">+ Criar usuário admin</button>
+          </div>`}
+      </div>`;
+  },
+
+  _resetSenhaUsuario(id, login, nome) {
+    this._modal(`🔑 Redefinir senha — ${login}`, `
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">
+        Usuário: <strong>${this._esc(nome)}</strong> (${this._esc(login)})
+      </p>
+      <div style="display:grid;gap:12px;">
+        ${this._campo('Nova senha *', 'rs-senha', 'password', 'mínimo 4 caracteres')}
+        ${this._campo('Confirmar senha *', 'rs-confirma', 'password', '')}
+      </div>`,
+      async () => {
+        const s1 = document.getElementById('rs-senha')?.value || '';
+        const s2 = document.getElementById('rs-confirma')?.value || '';
+        if (s1.length < 4)  { alert('Senha muito curta (mínimo 4 caracteres).'); return false; }
+        if (s1 !== s2)       { alert('As senhas não coincidem.'); return false; }
+        const hash = btoa(unescape(encodeURIComponent(s1)));
+        const { error } = await SupabaseClient.from('app_usuarios')
+          .update({ data: { ...((await SupabaseClient.from('app_usuarios').select('data').eq('id',id).single()).data?.data || {}), senha: hash } })
+          .eq('id', id);
+        if (error) { alert('Erro: ' + error.message); return false; }
+        alert(`✅ Senha de "${login}" redefinida com sucesso!\nNova senha: ${s1}`);
+        return true;
+      }
+    );
+  },
+
+  async _criarUsuarioAdmin() {
+    const t = this._tenant;
+    if (!t) return;
+    this._modal('+ Criar usuário admin', `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        ${this._campo('Nome *', 'nu-nome', 'text', 'ex: Administrador')}
+        ${this._campo('Login *', 'nu-login', 'text', 'ex: admin')}
+        ${this._campo('Senha *', 'nu-senha', 'password', 'mínimo 4 caracteres')}
+        ${this._campo('Confirmar senha *', 'nu-confirma', 'password', '')}
+      </div>`,
+      async () => {
+        const nome   = document.getElementById('nu-nome')?.value.trim() || '';
+        const login  = document.getElementById('nu-login')?.value.trim() || '';
+        const senha  = document.getElementById('nu-senha')?.value || '';
+        const conf   = document.getElementById('nu-confirma')?.value || '';
+        if (!nome || !login)    { alert('Nome e login são obrigatórios.'); return false; }
+        if (senha.length < 4)   { alert('Senha muito curta.'); return false; }
+        if (senha !== conf)      { alert('As senhas não coincidem.'); return false; }
+        const hash = btoa(unescape(encodeURIComponent(senha)));
+        const id   = Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+        const now  = new Date().toISOString();
+        const { error } = await SupabaseClient.from('app_usuarios').insert({
+          id, tenant_id: t.id,
+          data: { nome, login, senha: hash, perfil: 'admin', status: 'ativo' },
+          created_at: now, updated_at: now,
+        });
+        if (error) { alert('Erro: ' + error.message); return false; }
+        alert(`✅ Usuário "${login}" criado!\nSenha: ${senha}`);
+        return true;
+      }
+    );
   },
 
   /* ------------------------------------------------------------------ */
