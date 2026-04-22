@@ -376,8 +376,12 @@ const SuperAdmin = {
                   ${t.contrato_inicio ? new Date(t.contrato_inicio).toLocaleDateString('pt-BR') : '—'}
                 </td>
                 <td style="padding:14px 18px;text-align:center;">
-                  <button onclick="SuperAdmin._abrirDetalhe('${t.id}')" class="btn btn-primary btn-sm" style="margin-right:6px;">
+                  <button onclick="SuperAdmin._abrirDetalhe('${t.id}')" class="btn btn-primary btn-sm" style="margin-right:4px;">
                     📂 Detalhe
+                  </button>
+                  <button onclick="SuperAdmin._copiarId('${t.id}','${this._esc(t.nome)}')"
+                    class="btn btn-sm" style="background:#dbeafe;color:#1e40af;border:none;margin-right:4px;" title="Copiar ID do tenant">
+                    📋 ID
                   </button>
                   <button onclick="SuperAdmin._deletarTenant('${t.id}','${this._esc(t.nome)}')"
                     class="btn btn-sm" style="background:var(--red-light);color:var(--red-text);border:none;">
@@ -404,11 +408,30 @@ const SuperAdmin = {
   _detailTab: 'dados',
 
   async _abrirDetalhe(id) {
-    const { data } = await SupabaseClient.from('tenants').select('*, grupos_economicos(id,nome)').eq('id', id).single();
-    this._tenant = data;
-    this._tab = 'detalhe';
-    this._detailTab = 'dados';
-    this._renderPanel();
+    try {
+      // Tenta primeiro com join; se falhar, carrega sem join
+      let { data, error } = await SupabaseClient
+        .from('tenants').select('*, grupos_economicos(id,nome)').eq('id', id).single();
+      if (error || !data) {
+        ({ data, error } = await SupabaseClient.from('tenants').select('*').eq('id', id).single());
+      }
+      if (error || !data) { alert('Erro ao carregar tenant: ' + (error?.message || 'não encontrado')); return; }
+      this._tenant = data;
+      this._tab = 'detalhe';
+      this._detailTab = 'dados';
+      this._renderPanel();
+    } catch(e) {
+      alert('Erro inesperado: ' + e.message);
+    }
+  },
+
+  _copiarId(id, nome) {
+    navigator.clipboard.writeText(id).then(() => {
+      alert(`ID copiado!\n\n${nome}\n${id}\n\nCole em supabase-config.js → TENANT_ID`);
+    }).catch(() => {
+      // Fallback para browsers sem clipboard API
+      prompt(`Copie o ID abaixo (Ctrl+C):`, id);
+    });
   },
 
   _renderDetalhe() {
