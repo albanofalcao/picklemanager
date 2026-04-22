@@ -60,3 +60,13 @@ const SupabaseClient = window.supabase
 if (!SupabaseClient) {
   console.warn('Supabase SDK não carregado — operando em modo localStorage.');
 }
+
+/** Popula o select de tenant assim que o DOM estiver pronto. */
+document.addEventListener('DOMContentLoaded', () => {
+  const sel = document.getElementById('li-tenant');
+  if (!sel) return;
+  sel.innerHTML = Object.entries(TENANTS)
+    .map(([k, t]) =>
+      `<option value="${k}"${k === _activeTenantKey ? ' selected' : ''}>${t.label}</option>`)
+    .join('');
+});
