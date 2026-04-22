@@ -35,8 +35,8 @@ const SuperAdmin = {
 
     SupabaseClient.auth.onAuthStateChange(async (event, session) => {
       if (event === 'PASSWORD_RECOVERY') { this._renderNovaSenha(); return; }
-      if (event === 'SIGNED_IN')         await this._onLogin(session.user);
-      if (event === 'SIGNED_OUT')        this._renderLogin();
+      if (event === 'SIGNED_IN' && !this._user) await this._onLogin(session.user); // só se ainda não logado
+      if (event === 'SIGNED_OUT') { this._user = null; this._renderLogin(); }
     });
   },
 
@@ -324,6 +324,9 @@ const SuperAdmin = {
         .select('id, nome, slug, tipo, cidade, estado, plano, status, contrato_inicio')
         .order('nome');
 
+      // Se o elemento foi substituído durante o await (duplo login), aborta silenciosamente
+      if (!document.contains(wrap)) return;
+
       if (error) {
         wrap.innerHTML = `<div style="color:var(--red);padding:16px;">Erro: ${this._esc(error.message)}</div>`;
         return;
@@ -425,7 +428,9 @@ const SuperAdmin = {
         <button class="btn btn-primary" onclick="SuperAdmin._novoTenant()">+ Cadastrar Base</button>
       </div>`;
     } catch(e) {
-      wrap.innerHTML = `<div style="color:var(--red);padding:16px;">Erro inesperado: ${this._esc(e.message)}</div>`;
+      if (document.contains(wrap)) {
+        wrap.innerHTML = `<div style="color:var(--red);padding:16px;">Erro inesperado: ${this._esc(e.message)}</div>`;
+      }
     }
   },
 
