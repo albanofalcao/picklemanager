@@ -21,6 +21,10 @@
       <h2 class="login-title">Entrar no sistema</h2>
       <form id="login-form" autocomplete="off" novalidate>
         <div class="form-group" style="margin-bottom:16px;">
+          <label class="form-label" for="li-tenant">🏫 Arena / Escola</label>
+          <select id="li-tenant" class="form-input" onchange="setTenant(this.value)"></select>
+        </div>
+        <div class="form-group" style="margin-bottom:16px;">
           <label class="form-label" for="li-login">Login</label>
           <input id="li-login" type="text" class="form-input" placeholder="seu login" required />
         </div>

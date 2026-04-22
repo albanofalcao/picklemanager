@@ -135,7 +135,20 @@ const Auth = {
     });
   },
 
+  populateTenantSelect() {
+    const sel = document.getElementById('li-tenant');
+    if (!sel || typeof TENANTS === 'undefined') return;
+    sel.innerHTML = Object.entries(TENANTS)
+      .map(([k, t]) =>
+        `<option value="${k}"${k === getActiveTenantKey() ? ' selected' : ''}>${t.label}</option>`)
+      .join('');
+  },
+
   showLogin() {
+    this.populateTenantSelect();
+    // Mostra nome da base ativa no brand
+    const sub = document.getElementById('brand-sub');
+    if (sub && typeof getActiveTenantLabel === 'function') sub.textContent = getActiveTenantLabel();
     const el = document.getElementById('login-overlay');
     if (el) { el.classList.add('open'); el.removeAttribute('aria-hidden'); }
   },
@@ -143,6 +156,9 @@ const Auth = {
   hideLogin() {
     const el = document.getElementById('login-overlay');
     if (el) { el.classList.remove('open'); el.setAttribute('aria-hidden', 'true'); }
+    // Atualiza brand name após login
+    const sub = document.getElementById('brand-sub');
+    if (sub && typeof getActiveTenantLabel === 'function') sub.textContent = getActiveTenantLabel();
   },
 
   bindLockForm() {
