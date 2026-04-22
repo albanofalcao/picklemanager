@@ -89,6 +89,17 @@ const App = {
     { route: 'admin',       icon: '⚙️', label: 'Administração'       },
   ],
 
+  // Nav específico para o tenant Matriz (visão consolidada)
+  NAV_ITEMS_MATRIZ: [
+    { route: 'dashboard',   icon: '📊', label: 'Dashboard'            },
+    { route: 'arenas',      icon: '🏫', label: 'Arenas'               },
+    { route: 'alunos',      icon: '👥', label: 'Alunos (rede)'        },
+    { route: 'financeiro',  icon: '💰', label: 'Financeiro'           },
+    { route: 'loja',        icon: '🛒', label: 'Loja Central'         },
+    { route: 'relatorios',  icon: '📈', label: 'Relatórios'           },
+    { route: 'admin',       icon: '⚙️', label: 'Administração'        },
+  ],
+
   SEED_PERFIS: [
     { key: 'admin',         label: 'Administrador',    descricao: 'Acesso total ao sistema, incluindo gestão de usuários',    cor: 'badge-danger',  modulos: ['dashboard','arenas','alunos','matriculas','planos','professores','turmas','eventos','loja','dayuse','financeiro','manutencao','relatorios','cadastros','admin'] },
     { key: 'gerente',       label: 'Gerente',          descricao: 'Acesso a todos os módulos operacionais',                   cor: 'badge-warning', modulos: ['dashboard','arenas','alunos','matriculas','planos','professores','turmas','eventos','loja','dayuse','financeiro','manutencao','relatorios','cadastros'] },
@@ -721,7 +732,12 @@ const App = {
     const nav = document.getElementById('sidebar-nav');
     if (!nav) return;
 
-    nav.innerHTML = this.NAV_ITEMS
+    // Matriz usa nav próprio, arenas usam o nav completo
+    const items = (typeof isMatriz === 'function' && isMatriz())
+      ? this.NAV_ITEMS_MATRIZ
+      : this.NAV_ITEMS;
+
+    nav.innerHTML = items
       .filter(item => Auth.hasPermission(item.route))
       .map(item => `
         <button
