@@ -69,14 +69,15 @@ const Auth = {
   },
 
   setSession(user) {
+    const nome = user.nome || user.login || '?';
     localStorage.setItem(this.SESSION_KEY, JSON.stringify({
       id:          user.id,
-      nome:        user.nome,
+      nome,
       login:       user.login,
       perfil:      user.perfil,
       professorId: user.professorId || null,
       alunoId:     user.alunoId     || null,
-      avatar:      user.nome.trim().charAt(0).toUpperCase(),
+      avatar:      nome.trim().charAt(0).toUpperCase(),
     }));
   },
 
@@ -122,19 +123,32 @@ const Auth = {
   },
 
   showEsqueciSenha() {
-    UI.openModal({
-      title: '🔑 Esqueci minha senha',
-      content: `
-        <div style="text-align:center;padding:8px 0;">
-          <p style="margin-bottom:12px;">As senhas são gerenciadas pelo administrador do sistema.</p>
-          <p style="margin-bottom:16px;">Entre em contato com o administrador para solicitar a redefinição da sua senha.</p>
-          <div class="info-box" style="background:var(--bg-secondary,#f4f4f4);border-radius:8px;padding:12px;text-align:left;">
-            <div style="margin-bottom:6px;"><strong>O administrador pode redefinir sua senha em:</strong></div>
-            <div>⚙️ Administração → Usuários → botão 🔑</div>
+    // Mostra mensagem inline no próprio box de login (evita z-index do overlay)
+    let box = document.getElementById('li-esqueci-box');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'li-esqueci-box';
+      box.style.cssText = `
+        background:var(--bg-secondary,#f0ede6);border:1.5px solid var(--card-border);
+        border-radius:12px;padding:16px;margin-top:12px;font-size:13px;
+        color:var(--text-secondary);line-height:1.6;`;
+      document.getElementById('login-form')?.after(box);
+    }
+    box.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div>
+          <div style="font-weight:700;margin-bottom:6px;">🔑 Esqueci minha senha</div>
+          <div>As senhas são gerenciadas pelo administrador.</div>
+          <div style="margin-top:6px;"><strong>Para redefinir:</strong></div>
+          <div>⚙️ Administração → Usuários → 🔑 Redefinir senha</div>
+          <div style="margin-top:6px;color:var(--text-muted);font-size:11px;">
+            Ou acesse a <strong>Área Administrativa</strong> (botão abaixo) para criar um novo usuário.
           </div>
-        </div>`,
-      hideFooter: true,
-    });
+        </div>
+        <button onclick="document.getElementById('li-esqueci-box').remove()"
+          style="background:none;border:none;cursor:pointer;font-size:16px;padding:0 0 0 8px;color:var(--text-muted);">✕</button>
+      </div>`;
+    box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   },
 
   populateTenantSelect() {
@@ -183,21 +197,49 @@ const Auth = {
   bindLoginForm() {
     const form = document.getElementById('login-form');
     if (!form) return;
-    form.addEventListener('submit', e => {
+    form.addEventListener('submit', async e => {
       e.preventDefault();
       const loginVal = document.getElementById('li-login')?.value || '';
       const senhaVal = document.getElementById('li-senha')?.value || '';
       const errEl    = document.getElementById('login-error');
+      const btnEl    = form.querySelector('button[type="submit"]');
 
+      // ── 1. Tenta login local (app_usuarios do tenant) ──────────────
       if (this.tryLogin(loginVal, senhaVal)) {
-        this.hideLogin();
-        App.initUI();
-        Notifications.init();
-      } else {
-        if (errEl) { errEl.textContent = '✕ Login ou senha incorretos.'; errEl.style.display = 'flex'; }
-        const senhaEl = document.getElementById('li-senha');
-        if (senhaEl) { senhaEl.value = ''; senhaEl.focus(); }
+        this.hideLogin(); App.initUI(); Notifications.init(); return;
       }
+
+      // ── 2. Fallback Supabase Auth (para superadmin sem usuário local) ──
+      if (SupabaseClient) {
+        if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Verificando…'; }
+        try {
+          const { data, error } = await SupabaseClient.auth.signInWithPassword({
+            email: loginVal.trim(), password: senhaVal,
+          });
+          if (!error && data?.user) {
+            // Cria sessão sintética de admin para esse usuário Supabase
+            const u = data.user;
+            const nomeDisplay = (u.user_metadata?.nome || u.email.split('@')[0]);
+            this.setSession({
+              id:     'sa_' + u.id.slice(0, 8),
+              nome:   nomeDisplay,
+              login:  u.email,
+              email:  u.email,
+              perfil: 'admin',
+              status: 'ativo',
+              senha:  '',
+            });
+            this.hideLogin(); App.initUI(); Notifications.init(); return;
+          }
+        } catch (_) { /* silencioso */ } finally {
+          if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Entrar →'; }
+        }
+      }
+
+      // ── 3. Falhou em tudo ──────────────────────────────────────────
+      if (errEl) { errEl.textContent = '✕ Login ou senha incorretos.'; errEl.style.display = 'flex'; }
+      const senhaEl = document.getElementById('li-senha');
+      if (senhaEl) { senhaEl.value = ''; senhaEl.focus(); }
     });
   },
 };
