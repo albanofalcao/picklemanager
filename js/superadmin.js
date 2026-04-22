@@ -339,13 +339,25 @@ const SuperAdmin = {
       premium: 'background:var(--amber-light);color:var(--amber-text);',
     };
 
-    wrap.innerHTML = tenants.length ? `
+    const TIPO_STYLE = {
+      matriz: 'background:#ede9fe;color:#6d28d9;',
+      arena:  'background:#d1fae5;color:#065f46;',
+    };
+    const TIPO_ICON = { matriz: '🏛️', arena: '🏫' };
+
+    // Separa matrizes e arenas para exibição agrupada
+    const matrizes = tenants.filter(t => t.tipo === 'matriz');
+    const arenas   = tenants.filter(t => t.tipo !== 'matriz');
+    const ordenados = [...matrizes, ...arenas];
+
+    wrap.innerHTML = ordenados.length ? `
       <div style="background:var(--card-bg);border-radius:var(--card-radius);overflow:hidden;
         box-shadow:var(--card-shadow);border:1px solid var(--card-border);">
         <table style="width:100%;border-collapse:collapse;font-size:14px;">
           <thead>
             <tr style="background:var(--gray-light);border-bottom:2px solid var(--card-border);">
-              <th style="padding:14px 18px;text-align:left;font-weight:700;color:var(--text-primary);">Arena</th>
+              <th style="padding:14px 18px;text-align:left;font-weight:700;color:var(--text-primary);">Base</th>
+              <th style="padding:14px 18px;text-align:left;font-weight:700;color:var(--text-primary);">Tipo</th>
               <th style="padding:14px 18px;text-align:left;font-weight:700;color:var(--text-primary);">Cidade</th>
               <th style="padding:14px 18px;text-align:left;font-weight:700;color:var(--text-primary);">Plano</th>
               <th style="padding:14px 18px;text-align:left;font-weight:700;color:var(--text-primary);">Status</th>
@@ -354,12 +366,19 @@ const SuperAdmin = {
             </tr>
           </thead>
           <tbody>
-            ${tenants.map(t => `
-              <tr style="border-bottom:1px solid var(--card-border);transition:background .15s;"
-                onmouseover="this.style.background='var(--gray-light)'" onmouseout="this.style.background=''">
+            ${ordenados.map(t => `
+              <tr style="border-bottom:1px solid var(--card-border);transition:background .15s;
+                ${t.tipo==='matriz'?'background:rgba(109,40,217,.04);':''}"
+                onmouseover="this.style.background='var(--gray-light)'" onmouseout="this.style.background='${t.tipo==='matriz'?'rgba(109,40,217,.04)':''}'">
                 <td style="padding:14px 18px;">
-                  <div style="font-weight:700;color:var(--text-primary);">${this._esc(t.nome)}</div>
+                  <div style="font-weight:700;color:var(--text-primary);">${TIPO_ICON[t.tipo]||'🏫'} ${this._esc(t.nome)}</div>
+                  <div style="font-size:11px;color:var(--text-muted);font-family:monospace;">${this._esc(t.slug||'')}</div>
                   ${t.grupos_economicos ? `<div style="font-size:11px;color:var(--text-muted);">${this._esc(t.grupos_economicos.nome)}</div>` : ''}
+                </td>
+                <td style="padding:14px 18px;">
+                  <span style="${TIPO_STYLE[t.tipo]||TIPO_STYLE.arena}padding:3px 10px;border-radius:var(--radius-full);font-size:12px;font-weight:700;">
+                    ${t.tipo||'arena'}
+                  </span>
                 </td>
                 <td style="padding:14px 18px;color:var(--text-secondary);">${this._esc(t.cidade||'—')}${t.estado?' / '+this._esc(t.estado):''}</td>
                 <td style="padding:14px 18px;">
@@ -692,7 +711,7 @@ const SuperAdmin = {
     const { data: t } = await SupabaseClient.from('tenants').select('*').eq('id', id).single();
     if (!t) return;
     const s = (n, v) => { const el = document.getElementById(`sa-${n}`); if (el) el.value = v || ''; };
-    s('nome', t.nome); s('slug', t.slug); s('status', t.status); s('plano', t.plano);
+    s('nome', t.nome); s('slug', t.slug); s('tipo', t.tipo || 'arena'); s('status', t.status); s('plano', t.plano);
     s('endereco', t.endereco); s('bairro', t.bairro); s('cidade', t.cidade);
     s('estado', t.estado); s('cep', t.cep); s('area', t.area_total_m2);
     s('canal', t.canal_aquisicao); s('obs', t.observacoes_internas);
@@ -718,8 +737,9 @@ const SuperAdmin = {
           <h3 style="margin:0 0 16px;font-size:14px;font-weight:700;color:var(--text-primary);
             border-bottom:1px solid var(--card-border);padding-bottom:10px;">Dados Básicos</h3>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-            ${this._campo('Nome da Arena *', 'sa-nome', 'text', 'ex: Arena Pickle Centro')}
+            ${this._campo('Nome da Base *', 'sa-nome', 'text', 'ex: Arena Pickle Centro')}
             ${this._campo('Slug (URL) *', 'sa-slug', 'text', 'ex: arena-pickle-centro')}
+            ${this._select('Tipo', 'sa-tipo', ['arena','matriz'])}
             ${this._select('Status', 'sa-status', ['ativa','inativa','suspensa'])}
             ${this._select('Plano', 'sa-plano', ['basico','pro','premium'])}
             ${this._campo('Área total (m²)', 'sa-area', 'number', '0')}
@@ -772,7 +792,7 @@ const SuperAdmin = {
     if (!nome || !slug) { alert('Nome e slug são obrigatórios.'); return; }
 
     const record = {
-      nome, slug, status: g('status') || 'ativa', plano: g('plano') || 'basico',
+      nome, slug, tipo: g('tipo') || 'arena', status: g('status') || 'ativa', plano: g('plano') || 'basico',
       endereco: g('endereco'), bairro: g('bairro'), cidade: g('cidade'),
       estado: g('estado'), cep: g('cep'),
       area_total_m2: parseFloat(document.getElementById('sa-area')?.value) || null,
@@ -906,7 +926,7 @@ const SuperAdmin = {
         if (!nome || !login)    { alert('Nome e login são obrigatórios.'); return false; }
         if (senha.length < 4)   { alert('Senha muito curta.'); return false; }
         if (senha !== conf)      { alert('As senhas não coincidem.'); return false; }
-        const hash = btoa(unescape(encodeURIComponent(senha)));
+        const hash = btoa(senha); // mesmo algoritmo usado em Auth.tryLogin
         const id   = Date.now().toString(36) + Math.random().toString(36).slice(2,7);
         const now  = new Date().toISOString();
         const { error } = await SupabaseClient.from('app_usuarios').insert({

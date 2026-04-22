@@ -11,30 +11,62 @@
   <!-- ========== LOGIN OVERLAY ========== -->
   <div class="login-overlay" id="login-overlay" aria-hidden="true">
     <div class="login-box">
+
+      <!-- Brand -->
       <div class="login-brand">
         <span class="login-brand-icon"><img src="img/pickleball-paddle.svg" alt="Pickleball" style="width:40px;height:40px;vertical-align:middle;"></span>
         <div>
           <div class="login-brand-name">PickleManager</div>
-          <div class="login-brand-sub">Academia de Pickleball</div>
+          <div class="login-brand-sub">Gestão de Pickleball</div>
         </div>
       </div>
-      <h2 class="login-title">Entrar no sistema</h2>
+
+      <h2 class="login-title" style="margin-bottom:20px;">Entrar no sistema</h2>
+
       <form id="login-form" autocomplete="off" novalidate>
-        <div class="form-group" style="margin-bottom:16px;">
-          <label class="form-label" for="li-tenant">🏫 Arena / Escola</label>
-          <select id="li-tenant" class="form-input" onchange="setTenant(this.value)"></select>
+
+        <!-- Seletor de Base -->
+        <div class="form-group" style="margin-bottom:8px;">
+          <label class="form-label" style="font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--text-muted);">Base / Arena</label>
+          <div style="position:relative;">
+            <select id="li-tenant" class="form-input"
+              onchange="setTenant(this.value)"
+              style="padding-left:36px;font-weight:600;cursor:pointer;appearance:none;
+                background:var(--bg-secondary,#f0ede6);border:2px solid var(--card-border);
+                border-radius:10px;height:44px;font-size:14px;color:var(--text-primary);">
+            </select>
+            <span style="position:absolute;left:11px;top:50%;transform:translateY(-50%);font-size:16px;pointer-events:none;"
+              id="li-tenant-icon">🏫</span>
+          </div>
         </div>
-        <div class="form-group" style="margin-bottom:16px;">
+        <div style="margin-bottom:18px;font-size:11px;color:var(--text-muted);padding-left:2px;">
+          Troque a base pelo seletor acima — a página recarrega automaticamente.
+        </div>
+
+        <!-- Separador -->
+        <div style="border-top:1px solid var(--card-border);margin-bottom:16px;"></div>
+
+        <!-- Login -->
+        <div class="form-group" style="margin-bottom:12px;">
           <label class="form-label" for="li-login">Login</label>
-          <input id="li-login" type="text" class="form-input" placeholder="seu login" required />
+          <input id="li-login" type="text" class="form-input" placeholder="seu login" required
+            style="height:44px;border-radius:10px;" />
         </div>
+
+        <!-- Senha -->
         <div class="form-group" style="margin-bottom:16px;">
           <label class="form-label" for="li-senha">Senha</label>
-          <input id="li-senha" type="password" class="form-input" placeholder="••••••••" required />
+          <input id="li-senha" type="password" class="form-input" placeholder="••••••••" required
+            style="height:44px;border-radius:10px;" />
         </div>
+
         <div id="login-error" class="login-error" style="display:none;"></div>
-        <button type="submit" class="btn btn-primary" style="width:100%;margin-top:4px;">Entrar</button>
+        <button type="submit" class="btn btn-primary"
+          style="width:100%;height:46px;font-size:15px;font-weight:700;border-radius:10px;margin-top:4px;">
+          Entrar →
+        </button>
       </form>
+
       <div style="text-align:center;margin-top:12px;">
         <button type="button" class="btn btn-ghost btn-sm" style="color:var(--color-primary,#3b9e8f);font-size:13px;"
           onclick="Auth.showEsqueciSenha()">Esqueci minha senha</button>
@@ -45,20 +77,6 @@
           onclick="SuperAdmin.init()">🔧 Área Administrativa</button>
       </div>
 
-      <div class="login-hint" style="margin-bottom:0;">
-        <div style="margin-bottom:6px;font-weight:600;color:var(--text-secondary);">Logins de demonstração:</div>
-        <div style="display:flex;flex-direction:column;gap:4px;">
-          <div onclick="document.getElementById('li-login').value='admin';document.getElementById('li-senha').value='admin123';" style="cursor:pointer;padding:5px 8px;border-radius:6px;background:var(--gray-light);font-size:12px;" title="Clique para preencher">
-            👑 <strong>admin</strong> / admin123 <span style="color:var(--text-muted);font-size:11px;">— Administrador</span>
-          </div>
-          <div onclick="document.getElementById('li-login').value='prof.ricardo';document.getElementById('li-senha').value='prof123';" style="cursor:pointer;padding:5px 8px;border-radius:6px;background:var(--gray-light);font-size:12px;" title="Clique para preencher">
-            🎓 <strong>prof.ricardo</strong> / prof123 <span style="color:var(--text-muted);font-size:11px;">— Professor</span>
-          </div>
-          <div onclick="document.getElementById('li-login').value='ana.paula';document.getElementById('li-senha').value='aluno123';" style="cursor:pointer;padding:5px 8px;border-radius:6px;background:var(--gray-light);font-size:12px;" title="Clique para preencher">
-            🧑‍🎓 <strong>ana.paula</strong> / aluno123 <span style="color:var(--text-muted);font-size:11px;">— Aluno</span>
-          </div>
-        </div>
-      </div>
     </div>
   </div>
 

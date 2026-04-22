@@ -79,7 +79,13 @@ const DB = {
     }
 
     this._tenantId = tenantId;
-    console.log('[DB] Carregando dados do tenant…', tenantId);
+    this._isMatriz = (typeof isMatriz === 'function') ? isMatriz() : false;
+
+    if (this._isMatriz) {
+      console.log('[DB] Modo MATRIZ — carregando dados de todos os tenants.');
+    } else {
+      console.log('[DB] Carregando dados do tenant…', tenantId);
+    }
 
     await this._loadAll();
     this._patchStorage();
@@ -92,7 +98,11 @@ const DB = {
    * ─────────────────────────────────────────────────────────────────── */
 
   async _loadAll() {
-    const tid = this._tenantId;
+    const tid       = this._tenantId;
+    const isMatrizMode = this._isMatriz;
+
+    // Helper: aplica filtro de tenant (ou não, no modo Matriz)
+    const withTenant = (q) => isMatrizMode ? q : q.eq('tenant_id', tid);
 
     // Tabelas regulares (não-catálogo) — carrega TODAS em paralelo
     const regularTables = [...new Set(
@@ -104,23 +114,24 @@ const DB = {
     const [tableResults, catResult] = await Promise.all([
       // Todas as tabelas regulares em paralelo
       Promise.all(regularTables.map(table =>
-        SupabaseClient
-          .from(table)
-          .select('id, data, created_at, updated_at')
-          .eq('tenant_id', tid)
-          .then(({ data, error }) => ({ table, data, error }))
+        withTenant(
+          SupabaseClient
+            .from(table)
+            .select('id, tenant_id, data, created_at, updated_at')
+        ).then(({ data, error }) => ({ table, data, error }))
       )),
       // Catálogos em paralelo com as demais
-      SupabaseClient
-        .from('app_catalogos')
-        .select('id, tipo, data, created_at, updated_at')
-        .eq('tenant_id', tid),
+      withTenant(
+        SupabaseClient
+          .from('app_catalogos')
+          .select('id, tenant_id, tipo, data, created_at, updated_at')
+      ),
     ]);
 
     // Processa tabelas regulares
     for (const { table, data, error } of tableResults) {
       if (error) { console.warn('[DB] Erro ao carregar', table, ':', error.message); continue; }
-      const rows = (data || []).map(r => this._fromRow(r));
+      const rows = (data || []).map(r => this._fromRow(r, isMatrizMode));
       for (const [sk, tbl] of Object.entries(this.TABLE_MAP)) {
         if (tbl === table && !this.CATALOG_KEYS.has(sk)) this._cache[sk] = rows;
       }
@@ -135,7 +146,7 @@ const DB = {
       for (const sk of this.CATALOG_KEYS) {
         this._cache[sk] = (catRows || [])
           .filter(r => r.tipo === sk)
-          .map(r => this._fromRow(r));
+          .map(r => this._fromRow(r, isMatrizMode));
       }
     }
   },
@@ -323,14 +334,23 @@ const DB = {
    *  Utilitários
    * ─────────────────────────────────────────────────────────────────── */
 
-  /** Converte uma row do Supabase em registro do app */
-  _fromRow(r) {
-    return {
+  /** Converte uma row do Supabase em registro do app.
+   *  Em modo Matriz, adiciona _tenantId e _tenantLabel para identificar a origem. */
+  _fromRow(r, addTenantInfo = false) {
+    const record = {
       ...(r.data || {}),
       id:        r.id,
       createdAt: r.created_at,
       updatedAt: r.updated_at,
     };
+    if (addTenantInfo && r.tenant_id) {
+      record._tenantId = r.tenant_id;
+      if (typeof TENANTS !== 'undefined') {
+        const t = Object.values(TENANTS).find(t => t.id === r.tenant_id);
+        if (t) record._tenantLabel = (t.label || '').replace(/^[\u{1F3DB}\u{1F3EB}️\s]+/u, '');
+      }
+    }
+    return record;
   },
 
   /** Gera ID compatível com o padrão atual do Storage */
