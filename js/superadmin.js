@@ -929,23 +929,27 @@ const SuperAdmin = {
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
         ${this._campo('Nome *', 'nu-nome', 'text', 'ex: Administrador')}
         ${this._campo('Login *', 'nu-login', 'text', 'ex: admin')}
+        ${this._campo('E-mail', 'nu-email', 'email', 'ex: admin@arena.com')}
+        ${this._campo('Perfil', 'nu-perfil', 'text', 'admin')}
         ${this._campo('Senha *', 'nu-senha', 'password', 'mínimo 4 caracteres')}
         ${this._campo('Confirmar senha *', 'nu-confirma', 'password', '')}
       </div>`,
       async () => {
-        const nome   = document.getElementById('nu-nome')?.value.trim() || '';
-        const login  = document.getElementById('nu-login')?.value.trim() || '';
-        const senha  = document.getElementById('nu-senha')?.value || '';
-        const conf   = document.getElementById('nu-confirma')?.value || '';
-        if (!nome || !login)    { alert('Nome e login são obrigatórios.'); return false; }
-        if (senha.length < 4)   { alert('Senha muito curta.'); return false; }
-        if (senha !== conf)      { alert('As senhas não coincidem.'); return false; }
-        const hash = btoa(senha); // mesmo algoritmo usado em Auth.tryLogin
+        const nome   = document.getElementById('nu-nome')?.value.trim()   || '';
+        const login  = document.getElementById('nu-login')?.value.trim()  || '';
+        const email  = document.getElementById('nu-email')?.value.trim()  || '';
+        const perfil = document.getElementById('nu-perfil')?.value.trim() || 'admin';
+        const senha  = document.getElementById('nu-senha')?.value         || '';
+        const conf   = document.getElementById('nu-confirma')?.value      || '';
+        if (!nome || !login)  { alert('Nome e login são obrigatórios.'); return false; }
+        if (senha.length < 4) { alert('Senha muito curta.'); return false; }
+        if (senha !== conf)   { alert('As senhas não coincidem.'); return false; }
+        const hash = btoa(senha);
         const id   = Date.now().toString(36) + Math.random().toString(36).slice(2,7);
         const now  = new Date().toISOString();
         const { error } = await SupabaseClient.from('app_usuarios').insert({
           id, tenant_id: t.id,
-          data: { nome, login, senha: hash, perfil: 'admin', status: 'ativo' },
+          data: { nome, login, email, senha: hash, perfil, status: 'ativo' },
           created_at: now, updated_at: now,
         });
         if (error) { alert('Erro: ' + error.message); return false; }

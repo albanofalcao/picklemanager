@@ -98,8 +98,10 @@ const Auth = {
   tryLogin(loginStr, senha) {
     const users = Storage.getAll('usuarios');
     const hash  = btoa(senha);
+    const lc    = loginStr.trim().toLowerCase();
+    // Aceita login OU e-mail (case-insensitive)
     const user  = users.find(u =>
-      u.login  === loginStr.trim() &&
+      (u.login?.toLowerCase() === lc || u.email?.toLowerCase() === lc) &&
       u.senha  === hash &&
       u.status === 'ativo'
     );
