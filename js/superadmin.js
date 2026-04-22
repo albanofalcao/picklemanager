@@ -14,8 +14,17 @@ const SuperAdmin = {
   /*  Auth                                                                */
   /* ------------------------------------------------------------------ */
 
+  REDIRECT_URL: 'https://albanofalcao.github.io/picklemanager/',
+
   async init() {
     if (!SupabaseClient) { console.error('Supabase não configurado.'); return; }
+
+    // Detecta chegada via link de recuperação de senha (hash com access_token)
+    const hash = window.location.hash;
+    if (hash && hash.includes('access_token') && hash.includes('type=recovery')) {
+      this._renderNovaSenha();
+      return;
+    }
 
     const { data: { session } } = await SupabaseClient.auth.getSession();
     if (session) {
@@ -25,8 +34,9 @@ const SuperAdmin = {
     }
 
     SupabaseClient.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN')  await this._onLogin(session.user);
-      if (event === 'SIGNED_OUT') this._renderLogin();
+      if (event === 'PASSWORD_RECOVERY') { this._renderNovaSenha(); return; }
+      if (event === 'SIGNED_IN')         await this._onLogin(session.user);
+      if (event === 'SIGNED_OUT')        this._renderLogin();
     });
   },
 
@@ -57,6 +67,41 @@ const SuperAdmin = {
     }
   },
 
+  async enviarRecuperacao() {
+    const emailEl = document.getElementById('sa-rec-email');
+    const email   = emailEl?.value.trim();
+    if (!email) { emailEl?.classList.add('error'); return; }
+    const btn = document.getElementById('sa-rec-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Enviando…'; }
+    const { error } = await SupabaseClient.auth.resetPasswordForEmail(email, {
+      redirectTo: this.REDIRECT_URL,
+    });
+    if (error) {
+      if (btn) { btn.disabled = false; btn.textContent = 'Enviar link'; }
+      this._renderRecuperacao('Erro ao enviar: ' + error.message);
+    } else {
+      this._renderRecuperacao('', true);
+    }
+  },
+
+  async definirNovaSenha() {
+    const s1  = document.getElementById('sa-ns-senha')?.value;
+    const s2  = document.getElementById('sa-ns-confirma')?.value;
+    const btn = document.getElementById('sa-ns-btn');
+    if (!s1 || s1.length < 6) { UI?.toast?.('Mínimo 6 caracteres.', 'warning'); return; }
+    if (s1 !== s2)             { UI?.toast?.('As senhas não coincidem.', 'warning'); return; }
+    if (btn) { btn.disabled = true; btn.textContent = 'Salvando…'; }
+    const { error } = await SupabaseClient.auth.updateUser({ password: s1 });
+    if (error) {
+      if (btn) { btn.disabled = false; btn.textContent = 'Salvar nova senha'; }
+      alert('Erro: ' + error.message);
+    } else {
+      // Limpa hash da URL
+      history.replaceState(null, '', window.location.pathname);
+      this._renderLogin('✅ Senha redefinida com sucesso! Faça login com a nova senha.');
+    }
+  },
+
   async logout() {
     await SupabaseClient.auth.signOut();
     this._user = null;
@@ -68,19 +113,24 @@ const SuperAdmin = {
   /*  Login UI                                                            */
   /* ------------------------------------------------------------------ */
 
-  _renderLogin(erro = '') {
+  _showWrap(html, flex = true) {
     document.getElementById('app-layout')?.style.setProperty('display', 'none');
     document.getElementById('portal-wrap')?.style.setProperty('display', 'none');
     document.getElementById('login-overlay')?.style.setProperty('display', 'none');
-
     let wrap = document.getElementById('sa-wrap');
-    if (!wrap) {
-      wrap = document.createElement('div');
-      wrap.id = 'sa-wrap';
-      document.body.appendChild(wrap);
-    }
-    wrap.style.display = 'flex';
-    wrap.innerHTML = `
+    if (!wrap) { wrap = document.createElement('div'); wrap.id = 'sa-wrap'; document.body.appendChild(wrap); }
+    wrap.style.display = flex ? 'flex' : 'block';
+    wrap.innerHTML = html;
+  },
+
+  _renderLogin(msg = '') {
+    const isSuccess = msg.startsWith('✅');
+    const msgHtml = msg ? `
+      <div style="background:${isSuccess ? 'var(--success-light)' : 'var(--red-light)'};
+        color:${isSuccess ? 'var(--success-text)' : 'var(--red-text)'};
+        border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:14px;">${msg}</div>` : '';
+
+    this._showWrap(`
       <div style="min-height:100vh;width:100%;display:flex;align-items:center;justify-content:center;
         background:linear-gradient(135deg,var(--sidebar-bg) 0%,var(--sidebar-hover) 100%);">
         <div class="login-box" style="max-width:380px;">
@@ -92,7 +142,7 @@ const SuperAdmin = {
             </div>
           </div>
           <h2 class="login-title" style="font-size:16px;">Área do Administrador</h2>
-          ${erro ? `<div style="background:var(--red-light);color:var(--red-text);border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:14px;">${erro}</div>` : ''}
+          ${msgHtml}
           <div class="form-group" style="margin-bottom:14px;">
             <label class="form-label" for="sa-email">E-mail</label>
             <input id="sa-email" type="email" class="form-input" placeholder="seu@email.com"
@@ -107,11 +157,89 @@ const SuperAdmin = {
             onclick="SuperAdmin.login(document.getElementById('sa-email').value, document.getElementById('sa-senha').value)">
             Entrar
           </button>
-          <div style="text-align:center;margin-top:16px;">
+          <div style="text-align:center;margin-top:12px;">
+            <button class="btn btn-ghost btn-sm" style="color:var(--text-muted);font-size:12px;"
+              onclick="SuperAdmin._renderRecuperacao()">Esqueci minha senha</button>
+          </div>
+          <div style="text-align:center;margin-top:8px;padding-top:10px;border-top:1px solid var(--card-border);">
             <button class="btn btn-ghost btn-sm" onclick="SuperAdmin.voltarApp()">← Voltar ao sistema</button>
           </div>
         </div>
-      </div>`;
+      </div>`);
+  },
+
+  _renderRecuperacao(msg = '', enviado = false) {
+    const msgHtml = msg ? `<div style="background:var(--red-light);color:var(--red-text);border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:14px;">${msg}</div>` : '';
+    this._showWrap(`
+      <div style="min-height:100vh;width:100%;display:flex;align-items:center;justify-content:center;
+        background:linear-gradient(135deg,var(--sidebar-bg) 0%,var(--sidebar-hover) 100%);">
+        <div class="login-box" style="max-width:380px;">
+          <div class="login-brand">
+            <span class="login-brand-icon"><img src="img/pickleball-paddle.svg" alt="" style="width:40px;height:40px;vertical-align:middle;"></span>
+            <div>
+              <div class="login-brand-name">PickleManager</div>
+              <div class="login-brand-sub">Recuperar acesso</div>
+            </div>
+          </div>
+          <h2 class="login-title" style="font-size:16px;">Esqueci minha senha</h2>
+          ${msgHtml}
+          ${enviado ? `
+            <div style="background:var(--success-light);color:var(--success-text);border-radius:8px;
+              padding:14px;font-size:13px;text-align:center;line-height:1.6;">
+              ✅ <strong>Link enviado!</strong><br>
+              Verifique seu e-mail e clique no link de recuperação.<br>
+              <small style="opacity:.8;">O link redireciona para o sistema publicado.</small>
+            </div>
+            <div style="text-align:center;margin-top:16px;">
+              <button class="btn btn-ghost btn-sm" onclick="SuperAdmin._renderLogin()">← Voltar ao login</button>
+            </div>` : `
+            <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">
+              Informe seu e-mail de administrador. Enviaremos um link para redefinir a senha.
+            </p>
+            <div class="form-group" style="margin-bottom:20px;">
+              <label class="form-label" for="sa-rec-email">E-mail</label>
+              <input id="sa-rec-email" type="email" class="form-input" placeholder="seu@email.com"
+                onkeydown="if(event.key==='Enter') SuperAdmin.enviarRecuperacao()" />
+            </div>
+            <button id="sa-rec-btn" class="btn btn-primary" style="width:100%;"
+              onclick="SuperAdmin.enviarRecuperacao()">Enviar link de recuperação</button>
+            <div style="text-align:center;margin-top:12px;">
+              <button class="btn btn-ghost btn-sm" onclick="SuperAdmin._renderLogin()">← Voltar ao login</button>
+            </div>`}
+        </div>
+      </div>`);
+  },
+
+  _renderNovaSenha() {
+    this._showWrap(`
+      <div style="min-height:100vh;width:100%;display:flex;align-items:center;justify-content:center;
+        background:linear-gradient(135deg,var(--sidebar-bg) 0%,var(--sidebar-hover) 100%);">
+        <div class="login-box" style="max-width:380px;">
+          <div class="login-brand">
+            <span class="login-brand-icon"><img src="img/pickleball-paddle.svg" alt="" style="width:40px;height:40px;vertical-align:middle;"></span>
+            <div>
+              <div class="login-brand-name">PickleManager</div>
+              <div class="login-brand-sub">Redefinir senha</div>
+            </div>
+          </div>
+          <h2 class="login-title" style="font-size:16px;">🔐 Nova senha</h2>
+          <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">
+            Defina uma nova senha para sua conta de administrador.
+          </p>
+          <div class="form-group" style="margin-bottom:14px;">
+            <label class="form-label">Nova senha <span style="color:var(--text-muted);font-size:11px;">(mín. 6 caracteres)</span></label>
+            <input id="sa-ns-senha" type="password" class="form-input" placeholder="••••••••"
+              onkeydown="if(event.key==='Enter') document.getElementById('sa-ns-confirma').focus()" />
+          </div>
+          <div class="form-group" style="margin-bottom:20px;">
+            <label class="form-label">Confirmar nova senha</label>
+            <input id="sa-ns-confirma" type="password" class="form-input" placeholder="••••••••"
+              onkeydown="if(event.key==='Enter') SuperAdmin.definirNovaSenha()" />
+          </div>
+          <button id="sa-ns-btn" class="btn btn-primary" style="width:100%;"
+            onclick="SuperAdmin.definirNovaSenha()">🔐 Salvar nova senha</button>
+        </div>
+      </div>`);
   },
 
   voltarApp() {
@@ -125,19 +253,14 @@ const SuperAdmin = {
   /* ------------------------------------------------------------------ */
 
   _showPanel() {
-    document.getElementById('app-layout')?.style.setProperty('display','none');
-    document.getElementById('portal-wrap')?.style.setProperty('display','none');
-    document.getElementById('login-overlay')?.style.setProperty('display','none');
-
-    let wrap = document.getElementById('sa-wrap');
-    if (!wrap) { wrap = document.createElement('div'); wrap.id = 'sa-wrap'; document.body.appendChild(wrap); }
-    wrap.style.display = 'block';
+    this._showWrap('', false);
     this._renderPanel();
   },
 
   _renderPanel() {
-    const wrap = document.getElementById('sa-wrap');
-    if (!wrap) return;
+    let wrap = document.getElementById('sa-wrap');
+    if (!wrap) { wrap = document.createElement('div'); wrap.id = 'sa-wrap'; document.body.appendChild(wrap); }
+    wrap.style.display = 'block';
 
     wrap.innerHTML = `
       <div style="min-height:100vh;background:var(--page-bg);">
