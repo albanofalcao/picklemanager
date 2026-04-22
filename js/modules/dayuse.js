@@ -7,8 +7,21 @@ const DayUseModule = {
   STORAGE_KEY_ENTRADAS: 'dayuse_entradas',
   STORAGE_KEY_PLANOS:   'dayuse_planos',
 
+  STORAGE_KEY_RECORRENTES: 'dayuse_recorrentes',
+
+  _CAL_DIAS:  ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'],
+  _CAL_MESES: ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
+               'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'],
+
+  _calAno:         null,
+  _calMes:         null,
+  _calDia:         null,
+  _calView:        'mes',  // 'dia' | 'semana' | 'mes' | 'agenda'
+  _calFilterArena: '',
+  _calSubView:     'cal',  // 'cal' | 'recorrentes'
+
   _state: {
-    aba:          'entradas',  // 'entradas' | 'planos'
+    aba:          'entradas',  // 'entradas' | 'planos' | 'cronograma'
     searchEnt:    '',
     filterData:   '',
     filterPlano:  '',
@@ -97,24 +110,23 @@ const DayUseModule = {
     const area = document.getElementById('content-area');
     if (!area) return;
 
+    this._calInitDate();
     const stats = this.getStatsEntradas();
-    const abaEnt  = this._state.aba === 'entradas';
+    const aba   = this._state.aba;
+    const svgPlus = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
+
+    const btnHeader =
+      aba === 'planos'
+        ? `<button class="btn btn-primary" onclick="DayUseModule.openModalPlano()">${svgPlus} Novo Plano</button>`
+        : `<button class="btn btn-primary" onclick="DayUseModule.openModalEntrada()">${svgPlus} Nova Entrada</button>`;
 
     area.innerHTML = `
       <div class="page-header">
         <div class="page-header-text">
           <h2>Day Use</h2>
-          <p>Entradas avulsas e planos de day use</p>
+          <p>Entradas avulsas, grupos recorrentes e planos</p>
         </div>
-        ${abaEnt ? `
-        <button class="btn btn-primary" onclick="DayUseModule.openModalEntrada()">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          Nova Entrada
-        </button>` : `
-        <button class="btn btn-primary" onclick="DayUseModule.openModalPlano()">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          Novo Plano
-        </button>`}
+        ${btnHeader}
       </div>
 
       <div class="stats-grid">
@@ -149,12 +161,15 @@ const DayUseModule = {
       </div>
 
       <div class="tabs-bar">
-        <button class="tab-btn ${abaEnt ? 'active' : ''}" onclick="DayUseModule._trocarAba('entradas')">Entradas</button>
-        <button class="tab-btn ${!abaEnt ? 'active' : ''}" onclick="DayUseModule._trocarAba('planos')">Planos Day Use</button>
+        <button class="tab-btn ${aba==='entradas'   ? 'active' : ''}" onclick="DayUseModule._trocarAba('entradas')">🚪 Entradas</button>
+        <button class="tab-btn ${aba==='planos'     ? 'active' : ''}" onclick="DayUseModule._trocarAba('planos')">📋 Planos</button>
+        <button class="tab-btn ${aba==='cronograma' ? 'active' : ''}" onclick="DayUseModule._trocarAba('cronograma')">📅 Calendário</button>
       </div>
 
       <div id="dayuse-content">
-        ${abaEnt ? this._renderEntradas() : this._renderPlanos()}
+        ${aba === 'entradas'   ? this._renderEntradas()   : ''}
+        ${aba === 'planos'     ? this._renderPlanos()     : ''}
+        ${aba === 'cronograma' ? this._renderCronograma() : ''}
       </div>`;
   },
 
@@ -346,11 +361,605 @@ const DayUseModule = {
   },
 
   /* ------------------------------------------------------------------ */
+  /*  Cronograma — Calendário                                             */
+  /* ------------------------------------------------------------------ */
+
+  _calInitDate() {
+    if (!this._calAno) {
+      const now = new Date();
+      this._calAno = now.getFullYear();
+      this._calMes = now.getMonth();
+      this._calDia = now.getDate();
+    }
+  },
+
+  _getAllRecorrentes() {
+    return Storage.getAll(this.STORAGE_KEY_RECORRENTES);
+  },
+
+  _renderCronograma() {
+    const view    = this._calView;
+    const titulo  = this._calGetTitulo();
+    const arenas  = Storage.getAll('arenas').sort((a,b) => a.nome.localeCompare(b.nome));
+    const arenaOpts = `<option value="">Todas as arenas</option>` +
+      arenas.map(a => `<option value="${a.id}" ${this._calFilterArena===a.id?'selected':''}>${UI.escape(a.nome)}</option>`).join('');
+
+    const subBtns = [
+      { k:'cal',         l:'📅 Calendário'  },
+      { k:'recorrentes', l:'🔁 Recorrentes' },
+    ].map(({k,l}) =>
+      `<button class="tab-btn tab-btn-sm ${this._calSubView===k?'active':''}"
+        onclick="DayUseModule._calSetSubView('${k}')">${l}</button>`
+    ).join('');
+
+    if (this._calSubView === 'recorrentes') {
+      return `
+        <div class="cal-toolbar" style="flex-wrap:wrap;gap:8px;">
+          <div style="display:flex;gap:4px;">${subBtns}</div>
+          <div style="display:flex;gap:8px;margin-left:auto;align-items:center;">
+            <select class="filter-select filter-select-sm"
+              onchange="DayUseModule._calFilterArena=this.value;DayUseModule._reRenderContent()">${arenaOpts}</select>
+            <button class="btn btn-primary btn-sm" onclick="DayUseModule.openModalRecorrente()">+ Recorrente</button>
+          </div>
+        </div>
+        <div id="dayuse-cal-body">${this._renderRecorrentes()}</div>`;
+    }
+
+    return `
+      <div class="cal-toolbar">
+        <div class="cal-toolbar-nav">
+          <button class="btn btn-ghost btn-sm cal-nav" onclick="DayUseModule._calNavegar(-1)">&#8249;</button>
+          <span class="cal-title">${titulo}</span>
+          <button class="btn btn-ghost btn-sm cal-nav" onclick="DayUseModule._calNavegar(1)">&#8250;</button>
+          <button class="btn btn-secondary btn-sm cal-hoje-btn" onclick="DayUseModule._calIrHoje()">Hoje</button>
+        </div>
+        <div class="cal-view-switcher">
+          ${['dia','semana','mes','agenda'].map(v =>
+            `<button class="cal-view-btn${view===v?' active':''}" onclick="DayUseModule._calSetView('${v}')">
+              ${{dia:'Dia',semana:'Semana',mes:'Mês',agenda:'Agenda'}[v]}
+            </button>`
+          ).join('')}
+        </div>
+        <div class="cal-toolbar-filters">
+          <select class="filter-select filter-select-sm"
+            onchange="DayUseModule._calFilterArena=this.value;DayUseModule._reRenderContent()">${arenaOpts}</select>
+          <div style="display:flex;gap:4px;">${subBtns}</div>
+        </div>
+      </div>
+      <div class="cal-legenda">
+        <span class="cal-leg-item"><span class="cal-leg-dot" style="background:#10b981"></span>Entrada avulsa</span>
+        <span class="cal-leg-item"><span class="cal-leg-dot" style="background:#8b5cf6"></span>Grupo recorrente</span>
+      </div>
+      <div class="cal-body" id="dayuse-cal-body">
+        ${view === 'dia'    ? this._calViewDia()    : ''}
+        ${view === 'semana' ? this._calViewSemana() : ''}
+        ${view === 'mes'    ? this._calViewMes()    : ''}
+        ${view === 'agenda' ? this._calViewAgenda() : ''}
+      </div>`;
+  },
+
+  _calSetSubView(sv) {
+    this._calSubView = sv;
+    this._reRenderContent();
+  },
+
+  _calSetView(v) {
+    this._calView = v;
+    this._reRenderContent();
+  },
+
+  _calGetTitulo() {
+    const { _calAno: ano, _calMes: mes, _calDia: dia, _calView: view } = this;
+    if (view === 'dia') {
+      const d = new Date(ano, mes, dia);
+      const t = d.toLocaleDateString('pt-BR', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+      return t.charAt(0).toUpperCase() + t.slice(1);
+    }
+    if (view === 'semana') {
+      const { ini, fim } = this._calGetSemana();
+      const di = ini.toLocaleDateString('pt-BR', { day:'numeric', month:'short' });
+      const df = fim.toLocaleDateString('pt-BR', { day:'numeric', month:'short', year:'numeric' });
+      return `${di} – ${df}`;
+    }
+    if (view === 'mes') {
+      const t = new Date(ano, mes, 1).toLocaleDateString('pt-BR', { month:'long', year:'numeric' });
+      return t.charAt(0).toUpperCase() + t.slice(1);
+    }
+    return 'Próximas Entradas';
+  },
+
+  _calGetSemana() {
+    const ref = new Date(this._calAno, this._calMes, this._calDia);
+    const dow = ref.getDay();
+    const ini = new Date(ref); ini.setDate(ref.getDate() - dow);
+    const fim = new Date(ini); fim.setDate(ini.getDate() + 6);
+    return { ini, fim };
+  },
+
+  _calNavegar(delta) {
+    const view = this._calView;
+    if (view === 'mes') {
+      let m = this._calMes + delta, a = this._calAno;
+      if (m < 0)  { m = 11; a--; }
+      if (m > 11) { m = 0;  a++; }
+      this._calAno = a; this._calMes = m;
+    } else if (view === 'semana') {
+      const d = new Date(this._calAno, this._calMes, this._calDia);
+      d.setDate(d.getDate() + delta * 7);
+      this._calAno = d.getFullYear(); this._calMes = d.getMonth(); this._calDia = d.getDate();
+    } else if (view === 'dia') {
+      const d = new Date(this._calAno, this._calMes, this._calDia);
+      d.setDate(d.getDate() + delta);
+      this._calAno = d.getFullYear(); this._calMes = d.getMonth(); this._calDia = d.getDate();
+    } else {
+      const d = new Date(this._calAno, this._calMes, this._calDia);
+      d.setDate(d.getDate() + delta * 14);
+      this._calAno = d.getFullYear(); this._calMes = d.getMonth(); this._calDia = d.getDate();
+    }
+    this._reRenderContent();
+  },
+
+  _calIrHoje() {
+    const now = new Date();
+    this._calAno = now.getFullYear(); this._calMes = now.getMonth(); this._calDia = now.getDate();
+    this._reRenderContent();
+  },
+
+  _calGetEntradas(dataIni, dataFim) {
+    const ini = dataIni.toISOString().slice(0,10);
+    const fim = dataFim.toISOString().slice(0,10);
+    return this.getAllEntradas().filter(e => {
+      if (!e.data || e.data < ini || e.data > fim) return false;
+      if (this._calFilterArena && e.arenaId !== this._calFilterArena) return false;
+      return true;
+    }).sort((a,b) => (a.hora||'').localeCompare(b.hora||''));
+  },
+
+  _calGetRecorrentesParaDia(dow) {
+    return this._getAllRecorrentes().filter(r => {
+      if (parseInt(r.diaSemana, 10) !== dow) return false;
+      if (this._calFilterArena && r.arenaId !== this._calFilterArena) return false;
+      return true;
+    }).sort((a,b) => (a.horarioInicio||'').localeCompare(b.horarioInicio||''));
+  },
+
+  _calViewDia() {
+    const { _calAno: ano, _calMes: mes, _calDia: dia } = this;
+    const d       = new Date(ano, mes, dia);
+    const dataStr = d.toISOString().slice(0,10);
+    const entradas = this._calGetEntradas(d, d);
+    const recorr   = this._calGetRecorrentesParaDia(d.getDay());
+
+    if (!entradas.length && !recorr.length) {
+      return `
+        <div class="cal-dia-vazio">
+          <span>🚪</span>
+          <p>Nenhuma entrada neste dia.</p>
+          <button class="btn btn-primary btn-sm" style="margin-top:12px;"
+            onclick="DayUseModule.openModalEntrada('${dataStr}')">+ Nova Entrada</button>
+        </div>`;
+    }
+
+    return `
+      <div class="cal-dia-lista">
+        ${recorr.map(r => this._calCardRecorrente(r, 'lg')).join('')}
+        ${entradas.map(e => this._calCardEntrada(e, 'lg')).join('')}
+        <div style="margin-top:12px;text-align:center;">
+          <button class="btn btn-secondary btn-sm" onclick="DayUseModule.openModalEntrada('${dataStr}')">+ Nova Entrada</button>
+        </div>
+      </div>`;
+  },
+
+  _calViewSemana() {
+    const { ini, fim } = this._calGetSemana();
+    const entradas = this._calGetEntradas(ini, fim);
+    const hojeStr  = new Date().toISOString().slice(0,10);
+    const DIAS     = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+
+    const cols = [];
+    for (let i = 0; i < 7; i++) {
+      const d  = new Date(ini); d.setDate(ini.getDate() + i);
+      const ds = d.toISOString().slice(0,10);
+      const isHoje  = ds === hojeStr;
+      const entrDia = entradas.filter(e => e.data === ds);
+      const recDia  = this._calGetRecorrentesParaDia(d.getDay());
+      const content = (recDia.length || entrDia.length)
+        ? [
+            ...recDia.map(r  => this._calCardRecorrente(r, 'sm')),
+            ...entrDia.map(e => this._calCardEntrada(e, 'sm')),
+          ].join('')
+        : `<div class="cal-sem-vazio">—</div>`;
+
+      cols.push(`
+        <div class="cal-sem-col${isHoje?' cal-sem-hoje':''}">
+          <div class="cal-sem-header" onclick="DayUseModule.openModalEntrada('${ds}')"
+            style="cursor:pointer;" title="Nova entrada neste dia">
+            <span class="cal-sem-diaNome">${DIAS[i]}</span>
+            <span class="cal-sem-diaNum${isHoje?' hoje':''}">${d.getDate()}</span>
+          </div>
+          <div class="cal-sem-aulas">${content}</div>
+        </div>`);
+    }
+    return `<div class="cal-semana-grid">${cols.join('')}</div>`;
+  },
+
+  _calViewMes() {
+    const { _calAno: ano, _calMes: mes } = this;
+    const primeiroDia = new Date(ano, mes, 1);
+    const ultimoDia   = new Date(ano, mes + 1, 0);
+    const diasDoMes   = ultimoDia.getDate();
+    const inicioSem   = primeiroDia.getDay();
+    const mesStr      = String(mes + 1).padStart(2, '0');
+    const hojeStr     = new Date().toISOString().slice(0, 10);
+    const HEADER      = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+    const WKEND       = [0, 6];
+    const entradasMes = this._calGetEntradas(primeiroDia, ultimoDia);
+
+    const headerCols = HEADER.map(h => `<div class="cal-mes-th">${h}</div>`).join('');
+    let cells = '';
+    for (let i = 0; i < inicioSem; i++) {
+      cells += `<div class="cal-cell cal-cell-outside${WKEND.includes(i)?' cal-cell-fds':''}"></div>`;
+    }
+
+    for (let d = 1; d <= diasDoMes; d++) {
+      const dataStr  = `${ano}-${mesStr}-${String(d).padStart(2,'0')}`;
+      const diaDt    = new Date(ano, mes, d);
+      const dow      = diaDt.getDay();
+      const isHoje   = dataStr === hojeStr;
+      const isPast   = dataStr < hojeStr;
+      const isFds    = WKEND.includes(dow);
+      const entrDia  = entradasMes.filter(e => e.data === dataStr);
+      const recDia   = this._calGetRecorrentesParaDia(dow);
+      const MAX      = 3;
+      const todos    = [...recDia.map(r => ({_t:'r',r})), ...entrDia.map(e => ({_t:'e',e}))];
+      const visiveis = todos.slice(0, MAX);
+      const extras   = todos.length - MAX;
+
+      const eventos = visiveis.map(item => {
+        if (item._t === 'r') {
+          const r = item.r;
+          return `<div class="cal-event" style="--ev-cor:#8b5cf6;"
+            onclick="event.stopPropagation();DayUseModule.openModalRecorrente('${r.id}')">
+            <span class="cal-ev-dot" style="background:#8b5cf6;"></span>
+            <span class="cal-event-hora">${(r.horarioInicio||'').slice(0,5)}</span>
+            <span class="cal-event-nome">🔁 ${UI.escape(r.nome)}</span>
+          </div>`;
+        }
+        const e = item.e;
+        return `<div class="cal-event" style="--ev-cor:#10b981;">
+          <span class="cal-ev-dot" style="background:#10b981;"></span>
+          <span class="cal-event-hora">${(e.hora||'').slice(0,5)}</span>
+          <span class="cal-event-nome">${UI.escape(e.clienteNome)}</span>
+        </div>`;
+      }).join('');
+
+      const mais = extras > 0
+        ? `<div class="cal-event-mais" onclick="event.stopPropagation();DayUseModule._calSetView('dia');DayUseModule._calDia=${d};DayUseModule._reRenderContent()">+${extras} mais</div>`
+        : '';
+
+      cells += `
+        <div class="cal-cell${isHoje?' cal-cell-hoje':''}${isPast?' cal-cell-passado':''}${isFds?' cal-cell-fds':''}"
+          onclick="DayUseModule.openModalEntrada('${dataStr}')" style="cursor:pointer;">
+          <div class="cal-cell-num${isHoje?' hoje':''}">${d}</div>
+          ${eventos}${mais}
+        </div>`;
+    }
+
+    return `
+      <div class="cal-mes-wrap">
+        <div class="cal-mes-header">${headerCols}</div>
+        <div class="cal-mes-grid">${cells}</div>
+      </div>`;
+  },
+
+  _calViewAgenda() {
+    const ref = new Date(this._calAno, this._calMes, this._calDia);
+    const fim = new Date(ref); fim.setDate(ref.getDate() + 30);
+    const entradas = this._calGetEntradas(ref, fim);
+    const hojeStr  = new Date().toISOString().slice(0,10);
+
+    if (!entradas.length) {
+      return `<div class="cal-dia-vazio"><span>📭</span><p>Nenhuma entrada nos próximos 30 dias.</p></div>`;
+    }
+
+    const grupos = {};
+    entradas.forEach(e => { (grupos[e.data] = grupos[e.data] || []).push(e); });
+
+    return `<div class="cal-agenda-wrap">` +
+      Object.entries(grupos).sort(([a],[b]) => a.localeCompare(b)).map(([data, ents]) => {
+        const [ano, mes, dia] = data.split('-');
+        const dateObj = new Date(+ano, +mes-1, +dia);
+        const label   = dateObj.toLocaleDateString('pt-BR', { weekday:'long', day:'numeric', month:'long' });
+        const isHoje  = data === hojeStr;
+        const recDia  = this._calGetRecorrentesParaDia(dateObj.getDay());
+        const cards   = [
+          ...recDia.map(r  => this._calCardRecorrente(r, 'md')),
+          ...ents.map(e    => this._calCardEntrada(e, 'md')),
+        ].join('');
+        return `
+          <div class="cal-agenda-grupo">
+            <div class="cal-agenda-data${isHoje?' hoje':''}">
+              ${label.charAt(0).toUpperCase() + label.slice(1)}
+              ${isHoje ? '<span class="cal-agenda-hoje-badge">Hoje</span>' : ''}
+            </div>
+            <div class="cal-agenda-aulas">${cards}</div>
+          </div>`;
+      }).join('') + `</div>`;
+  },
+
+  _calCardEntrada(e, size = 'md') {
+    const cor   = '#10b981';
+    const plano = Storage.getById(this.STORAGE_KEY_PLANOS, e.planoId);
+    const hr    = (e.hora || '').slice(0, 5);
+
+    if (size === 'sm') {
+      return `
+        <div class="cal-card cal-card-sm" style="--ev-cor:${cor};">
+          <div class="cal-card-hora">${hr}</div>
+          <div class="cal-card-titulo">${UI.escape(e.clienteNome)}</div>
+        </div>`;
+    }
+    if (size === 'md') {
+      return `
+        <div class="cal-card cal-card-md" style="--ev-cor:${cor};">
+          <div class="cal-card-left-bar" style="background:${cor};"></div>
+          <div class="cal-card-body">
+            <div class="cal-card-row1">
+              <span class="cal-card-hora">${hr || '—'}</span>
+              <span class="cal-card-badge" style="background:#10b98120;color:${cor};">Day Use</span>
+            </div>
+            <div class="cal-card-titulo">${UI.escape(e.clienteNome)}</div>
+            <div class="cal-card-sub">
+              ${plano     ? `📋 ${UI.escape(plano.nome)}`     : ''}
+              ${e.arenaNome ? `· 📍 ${UI.escape(e.arenaNome)}` : ''}
+              · 💰 ${this._fmt(e.valor)}
+            </div>
+          </div>
+        </div>`;
+    }
+    // lg
+    return `
+      <div class="cal-card cal-card-lg" style="--ev-cor:${cor};">
+        <div class="cal-card-left-bar" style="background:${cor};"></div>
+        <div class="cal-card-body">
+          <div class="cal-card-row1">
+            <span class="cal-card-hora-lg">${hr || '—'}</span>
+            <span class="cal-card-badge" style="background:#10b98120;color:${cor};">Day Use</span>
+          </div>
+          <div class="cal-card-titulo-lg">${UI.escape(e.clienteNome)}</div>
+          <div class="cal-card-meta">
+            ${e.clienteTel ? `<span>📱 ${UI.escape(e.clienteTel)}</span>` : ''}
+            ${plano        ? `<span>📋 ${UI.escape(plano.nome)}</span>`   : ''}
+            ${e.arenaNome  ? `<span>📍 ${UI.escape(e.arenaNome)}</span>`  : ''}
+            <span>💰 ${this._fmt(e.valor)}</span>
+          </div>
+        </div>
+        <div class="cal-card-actions">
+          <button class="btn btn-ghost btn-sm danger" onclick="event.stopPropagation();DayUseModule.deleteEntrada('${e.id}')" title="Excluir">🗑️</button>
+        </div>
+      </div>`;
+  },
+
+  _calCardRecorrente(r, size = 'md') {
+    const cor = '#8b5cf6';
+    const hr  = r.horarioInicio
+      ? `${r.horarioInicio}${r.horarioFim ? '–' + r.horarioFim : ''}`
+      : '—';
+
+    if (size === 'sm') {
+      return `
+        <div class="cal-card cal-card-sm" style="--ev-cor:${cor};">
+          <div class="cal-card-hora">${(r.horarioInicio||'').slice(0,5)}</div>
+          <div class="cal-card-titulo">🔁 ${UI.escape(r.nome)}</div>
+        </div>`;
+    }
+    if (size === 'md') {
+      return `
+        <div class="cal-card cal-card-md" style="--ev-cor:${cor};">
+          <div class="cal-card-left-bar" style="background:${cor};"></div>
+          <div class="cal-card-body">
+            <div class="cal-card-row1">
+              <span class="cal-card-hora">${hr}</span>
+              <span class="cal-card-badge" style="background:#8b5cf620;color:${cor};">Recorrente</span>
+            </div>
+            <div class="cal-card-titulo">🔁 ${UI.escape(r.nome)}</div>
+            <div class="cal-card-sub">
+              ${r.arenaNome ? `📍 ${UI.escape(r.arenaNome)}` : ''}
+              ${r.descricao ? `· ${UI.escape(r.descricao)}` : ''}
+            </div>
+          </div>
+        </div>`;
+    }
+    // lg
+    return `
+      <div class="cal-card cal-card-lg" style="--ev-cor:${cor};">
+        <div class="cal-card-left-bar" style="background:${cor};"></div>
+        <div class="cal-card-body">
+          <div class="cal-card-row1">
+            <span class="cal-card-hora-lg">${hr}</span>
+            <span class="cal-card-badge" style="background:#8b5cf620;color:${cor};">Recorrente</span>
+          </div>
+          <div class="cal-card-titulo-lg">🔁 ${UI.escape(r.nome)}</div>
+          <div class="cal-card-meta">
+            ${r.arenaNome ? `<span>📍 ${UI.escape(r.arenaNome)}</span>` : ''}
+            ${r.descricao ? `<span>📝 ${UI.escape(r.descricao)}</span>` : ''}
+          </div>
+        </div>
+        <div class="cal-card-actions">
+          <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();DayUseModule.openModalRecorrente('${r.id}')" title="Editar">✏️</button>
+          <button class="btn btn-ghost btn-sm danger" onclick="event.stopPropagation();DayUseModule.deleteRecorrente('${r.id}')" title="Excluir">🗑️</button>
+        </div>
+      </div>`;
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Recorrentes — CRUD                                                  */
+  /* ------------------------------------------------------------------ */
+
+  _renderRecorrentes() {
+    const DIAS_LABEL = ['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado'];
+    const todos = this._getAllRecorrentes()
+      .filter(r => !this._calFilterArena || r.arenaId === this._calFilterArena)
+      .sort((a,b) => {
+        const da = parseInt(a.diaSemana,10), db = parseInt(b.diaSemana,10);
+        return da - db || (a.horarioInicio||'').localeCompare(b.horarioInicio||'');
+      });
+
+    if (!todos.length) {
+      return `
+        <div class="empty-state" style="margin-top:32px;">
+          <div class="empty-icon">🔁</div>
+          <div class="empty-title">Nenhum grupo recorrente cadastrado</div>
+          <div class="empty-desc">Grupos recorrentes aparecem automaticamente todas as semanas no calendário.</div>
+          <button class="btn btn-primary mt-16" onclick="DayUseModule.openModalRecorrente()">+ Novo Grupo Recorrente</button>
+        </div>`;
+    }
+
+    const grupos = {};
+    todos.forEach(r => { const d = String(r.diaSemana); (grupos[d] = grupos[d] || []).push(r); });
+
+    return `<div style="padding:16px 0;">` +
+      Object.entries(grupos).sort(([a],[b]) => +a - +b).map(([dow, recs]) => {
+        const rows = recs.map(r => {
+          const hr = r.horarioInicio
+            ? `${r.horarioInicio}${r.horarioFim ? '–' + r.horarioFim : ''}`
+            : '—';
+          return `
+            <tr>
+              <td><strong>${UI.escape(r.nome)}</strong></td>
+              <td class="text-muted">${hr}</td>
+              <td class="text-muted">${UI.escape(r.arenaNome || '—')}</td>
+              <td class="text-muted text-sm">${UI.escape(r.descricao || '—')}</td>
+              <td class="aluno-row-actions">
+                <button class="btn btn-ghost btn-sm" onclick="DayUseModule.openModalRecorrente('${r.id}')" title="Editar">✏️</button>
+                <button class="btn btn-ghost btn-sm danger" onclick="DayUseModule.deleteRecorrente('${r.id}')" title="Excluir">🗑️</button>
+              </td>
+            </tr>`;
+        }).join('');
+        return `
+          <div style="margin-bottom:20px;">
+            <div style="font-weight:700;font-size:12px;color:var(--color-primary);text-transform:uppercase;letter-spacing:.7px;padding:8px 0 6px;border-bottom:2px solid var(--color-primary);margin-bottom:8px;">
+              🔁 ${DIAS_LABEL[+dow]}
+            </div>
+            <div class="table-card">
+              <table class="data-table">
+                <thead><tr><th>Nome</th><th>Horário</th><th>Arena</th><th>Descrição</th><th></th></tr></thead>
+                <tbody>${rows}</tbody>
+              </table>
+            </div>
+          </div>`;
+      }).join('') + `</div>`;
+  },
+
+  openModalRecorrente(id = null) {
+    const rec    = id ? Storage.getById(this.STORAGE_KEY_RECORRENTES, id) : null;
+    const isEdit = !!rec;
+    const v = (field, fb = '') => rec ? UI.escape(String(rec[field] ?? fb)) : fb;
+    const DIAS_LABEL = ['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado'];
+
+    const diaOpts = DIAS_LABEL.map((l, i) =>
+      `<option value="${i}" ${rec && parseInt(rec.diaSemana,10) === i ? 'selected' : ''}>${l}</option>`
+    ).join('');
+
+    const arenas = Storage.getAll('arenas').filter(a => a.status === 'ativa');
+    const arenaOpts = `<option value="">— Sem arena —</option>` +
+      arenas.map(a => `<option value="${a.id}" ${rec && rec.arenaId === a.id ? 'selected' : ''}>${UI.escape(a.nome)}</option>`).join('');
+
+    const content = `
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label" for="dr-nome">Nome do grupo <span class="required-star">*</span></label>
+          <input id="dr-nome" type="text" class="form-input"
+            placeholder="ex: Day Use Matinal" value="${v('nome')}" autocomplete="off" />
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="dr-dia">Dia da semana <span class="required-star">*</span></label>
+          <select id="dr-dia" class="form-select">${diaOpts}</select>
+        </div>
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label" for="dr-ini">Horário início</label>
+            <input id="dr-ini" type="time" class="form-input" value="${v('horarioInicio')}" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="dr-fim">Horário fim</label>
+            <input id="dr-fim" type="time" class="form-input" value="${v('horarioFim')}" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="dr-arena">Arena</label>
+          <select id="dr-arena" class="form-select">${arenaOpts}</select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="dr-desc">Descrição</label>
+          <input id="dr-desc" type="text" class="form-input"
+            placeholder="ex: Grupo fixo às terças" value="${v('descricao')}" autocomplete="off" />
+        </div>
+      </div>`;
+
+    UI.openModal({
+      title:        isEdit ? `Editar Grupo — ${rec.nome}` : 'Novo Grupo Recorrente',
+      content,
+      confirmLabel: isEdit ? 'Salvar alterações' : 'Criar Grupo',
+      onConfirm:    () => this.saveRecorrente(id),
+    });
+  },
+
+  saveRecorrente(id = null) {
+    const g    = sel => document.getElementById(sel);
+    const nome = g('dr-nome');
+    if (!nome || !nome.value.trim()) {
+      if (nome) nome.classList.add('error');
+      UI.toast('Preencha o nome do grupo.', 'warning'); return;
+    }
+    nome.classList.remove('error');
+
+    const arenaId = g('dr-arena')?.value || '';
+    const arena   = arenaId ? Storage.getById('arenas', arenaId) : null;
+
+    const data = {
+      nome:          nome.value.trim(),
+      diaSemana:     parseInt(g('dr-dia')?.value || '1', 10),
+      horarioInicio: g('dr-ini')?.value  || '',
+      horarioFim:    g('dr-fim')?.value  || '',
+      arenaId,
+      arenaNome:     arena ? arena.nome : '',
+      descricao:     g('dr-desc')?.value.trim() || '',
+    };
+
+    if (id) {
+      Storage.update(this.STORAGE_KEY_RECORRENTES, id, data);
+      UI.toast(`Grupo "${data.nome}" atualizado!`, 'success');
+    } else {
+      Storage.create(this.STORAGE_KEY_RECORRENTES, data);
+      UI.toast(`Grupo "${data.nome}" criado com sucesso!`, 'success');
+    }
+    UI.closeModal();
+    this._reRenderContent();
+  },
+
+  async deleteRecorrente(id) {
+    const rec = Storage.getById(this.STORAGE_KEY_RECORRENTES, id);
+    if (!rec) return;
+    const ok = await UI.confirm(`Deseja excluir o grupo recorrente "${rec.nome}"?`, 'Excluir Grupo');
+    if (!ok) return;
+    Storage.delete(this.STORAGE_KEY_RECORRENTES, id);
+    UI.toast('Grupo recorrente excluído.', 'success');
+    this._reRenderContent();
+  },
+
+  _reRenderContent() {
+    const el = document.getElementById('dayuse-content');
+    if (el) el.innerHTML = this._renderCronograma();
+    else this.render();
+  },
+
+  /* ------------------------------------------------------------------ */
   /*  Modal Entrada                                                       */
   /* ------------------------------------------------------------------ */
 
-  openModalEntrada() {
-    const hoje    = new Date().toISOString().slice(0, 10);
+  openModalEntrada(dataPreenchida = null) {
+    const hoje    = dataPreenchida || new Date().toISOString().slice(0, 10);
     const agora   = new Date().toTimeString().slice(0, 5);
     const planos  = this.getPlanosAtivos();
 
