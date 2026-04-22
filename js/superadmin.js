@@ -868,14 +868,21 @@ const SuperAdmin = {
       async () => {
         const s1 = document.getElementById('rs-senha')?.value || '';
         const s2 = document.getElementById('rs-confirma')?.value || '';
-        if (s1.length < 4)  { alert('Senha muito curta (mínimo 4 caracteres).'); return false; }
-        if (s1 !== s2)       { alert('As senhas não coincidem.'); return false; }
-        const hash = btoa(unescape(encodeURIComponent(s1)));
-        const { error } = await SupabaseClient.from('app_usuarios')
-          .update({ data: { ...((await SupabaseClient.from('app_usuarios').select('data').eq('id',id).single()).data?.data || {}), senha: hash } })
-          .eq('id', id);
-        if (error) { alert('Erro: ' + error.message); return false; }
-        alert(`✅ Senha de "${login}" redefinida com sucesso!\nNova senha: ${s1}`);
+        if (s1.length < 4) { alert('Senha muito curta (mínimo 4 caracteres).'); return false; }
+        if (s1 !== s2)      { alert('As senhas não coincidem.'); return false; }
+
+        // 1. Busca os dados atuais do usuário
+        const { data: row, error: errFetch } = await SupabaseClient
+          .from('app_usuarios').select('data').eq('id', id).single();
+        if (errFetch) { alert('Erro ao buscar usuário: ' + errFetch.message); return false; }
+
+        // 2. Atualiza só o campo senha (mesmo hash que tryLogin usa)
+        const dadosAtualizados = { ...(row.data || {}), senha: btoa(s1) };
+        const { error } = await SupabaseClient
+          .from('app_usuarios').update({ data: dadosAtualizados }).eq('id', id);
+        if (error) { alert('Erro ao salvar: ' + error.message); return false; }
+
+        alert(`✅ Senha de "${login}" redefinida!\nNova senha: ${s1}\n\nFaça Ctrl+Shift+R no app para carregar a senha nova.`);
         return true;
       }
     );
