@@ -88,17 +88,56 @@ const SuperAdmin = {
     const s1  = document.getElementById('sa-ns-senha')?.value;
     const s2  = document.getElementById('sa-ns-confirma')?.value;
     const btn = document.getElementById('sa-ns-btn');
-    if (!s1 || s1.length < 6) { UI?.toast?.('Mínimo 6 caracteres.', 'warning'); return; }
-    if (s1 !== s2)             { UI?.toast?.('As senhas não coincidem.', 'warning'); return; }
+    if (!s1 || s1.length < 6) { alert('Mínimo 6 caracteres.'); return; }
+    if (s1 !== s2)             { alert('As senhas não coincidem.'); return; }
     if (btn) { btn.disabled = true; btn.textContent = 'Salvando…'; }
-    const { error } = await SupabaseClient.auth.updateUser({ password: s1 });
+
+    const { data: userNow, error } = await SupabaseClient.auth.updateUser({ password: s1 });
     if (error) {
-      if (btn) { btn.disabled = false; btn.textContent = 'Salvar nova senha'; }
+      if (btn) { btn.disabled = false; btn.textContent = '🔐 Salvar nova senha'; }
       alert('Erro: ' + error.message);
-    } else {
-      // Limpa hash da URL
-      history.replaceState(null, '', window.location.pathname);
-      this._renderLogin('✅ Senha redefinida com sucesso! Faça login com a nova senha.');
+      return;
+    }
+
+    // Atualiza também o app_usuarios do tenant ativo (se existir com esse e-mail)
+    const email = userNow?.user?.email || '';
+    if (email && SupabaseClient && typeof TENANT_ID !== 'undefined' && TENANT_ID) {
+      try {
+        const { data: rows } = await SupabaseClient
+          .from('app_usuarios')
+          .select('id, data')
+          .eq('tenant_id', TENANT_ID);
+        const match = (rows || []).find(r =>
+          r.data?.email?.toLowerCase() === email.toLowerCase() ||
+          r.data?.login?.toLowerCase() === email.toLowerCase()
+        );
+        if (match) {
+          await SupabaseClient.from('app_usuarios').update({
+            data: { ...match.data, senha: btoa(s1) },
+            updated_at: new Date().toISOString(),
+          }).eq('id', match.id);
+        }
+      } catch (_) { /* silencioso */ }
+    }
+
+    // Faz sign-out do Supabase Auth e volta ao app normal
+    await SupabaseClient.auth.signOut();
+    history.replaceState(null, '', window.location.pathname);
+
+    // Esconde o SuperAdmin e mostra o app com mensagem de sucesso
+    const saWrap = document.getElementById('sa-wrap');
+    if (saWrap) saWrap.remove();
+    document.getElementById('login-overlay')?.style.removeProperty('display');
+    document.getElementById('app-layout')?.style.removeProperty('display');
+
+    // Exibe mensagem de sucesso no formulário de login
+    const errEl = document.getElementById('login-error');
+    if (errEl) {
+      errEl.style.display = 'flex';
+      errEl.style.background = '#d1fae5';
+      errEl.style.color = '#065f46';
+      errEl.style.borderColor = '#6ee7b7';
+      errEl.textContent = '✅ Senha redefinida! Use a nova senha para entrar.';
     }
   },
 
@@ -1160,19 +1199,31 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
     </div>`);
 
-  // Aguarda o Supabase processar o token e estabelecer a sessão
+  let _showed = false;
+  const _show = () => {
+    if (_showed) return;
+    _showed = true;
+    SuperAdmin._renderNovaSenha();
+  };
+
+  // Aguarda o Supabase processar o token
   const { data: { subscription } } = SupabaseClient.auth.onAuthStateChange((event, session) => {
     if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && session)) {
       subscription.unsubscribe();
-      SuperAdmin._renderNovaSenha();
+      _show();
     }
   });
 
-  // Fallback: evento pode ter disparado antes do listener — checa sessão imediatamente
+  // Fallback: sessão já pode ter sido estabelecida antes do listener
   SupabaseClient.auth.getSession().then(({ data: { session } }) => {
-    if (session) {
-      subscription.unsubscribe();
-      SuperAdmin._renderNovaSenha();
-    }
+    if (session) { subscription.unsubscribe(); _show(); }
   });
+
+  // Timeout: se em 6s nada acontecer, mostra o formulário mesmo assim
+  setTimeout(() => {
+    if (!_showed) {
+      subscription.unsubscribe();
+      _show();
+    }
+  }, 6000);
 });

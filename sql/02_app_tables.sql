@@ -359,3 +359,17 @@ CREATE TABLE IF NOT EXISTS app_config (
   PRIMARY KEY (id)
 );
 CREATE INDEX IF NOT EXISTS idx_app_config_tenant ON app_config(tenant_id);
+
+-- ─────────────────────────────────────────────
+-- Orçamento (budget por período)
+-- ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS app_orcamento (
+  id         TEXT        NOT NULL,
+  tenant_id  UUID        NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  data       JSONB       NOT NULL DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (id)
+);
+CREATE INDEX IF NOT EXISTS idx_app_orcamento_tenant ON app_orcamento(tenant_id);
+GRANT ALL ON app_orcamento TO anon, authenticated;
