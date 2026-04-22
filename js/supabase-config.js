@@ -25,13 +25,15 @@ let TENANTS = {
 function _resolveActiveTenantKey() {
   const param = new URLSearchParams(window.location.search).get('tenant');
   if (param) { localStorage.setItem('pm_tenant', param); return param; }
-  const saved = localStorage.getItem('pm_tenant');
-  return (saved && TENANTS[saved]) ? saved : Object.keys(TENANTS)[0];
+  return localStorage.getItem('pm_tenant') || Object.keys(TENANTS)[0];
 }
 
 let _activeTenantKey = _resolveActiveTenantKey();
-let TENANT_ID        = TENANTS[_activeTenantKey]?.id   || null;
-let TENANT_TIPO      = TENANTS[_activeTenantKey]?.tipo  || 'arena';
+
+// TENANT_ID: slug no mapa estático → ID cacheado no localStorage → null
+// O cache é gravado por setTenant(), resolvendo slugs que não estão no mapa estático
+let TENANT_ID   = TENANTS[_activeTenantKey]?.id   || localStorage.getItem('pm_tenant_id')   || null;
+let TENANT_TIPO = TENANTS[_activeTenantKey]?.tipo  || localStorage.getItem('pm_tenant_tipo') || 'arena';
 
 /**
  * _loadTenantsFromDB — busca todos os tenants ativos do Supabase.
@@ -106,10 +108,14 @@ function _populateSelect() {
 
 /**
  * setTenant(key) — Troca o tenant ativo e recarrega a página limpa.
+ * Cacheia ID e tipo para que a próxima carga funcione mesmo sem o slug no mapa estático.
  */
 function setTenant(key) {
   if (!TENANTS[key]) return;
-  localStorage.setItem('pm_tenant', key);
+  const t = TENANTS[key];
+  localStorage.setItem('pm_tenant',      key);
+  localStorage.setItem('pm_tenant_id',   t.id);
+  localStorage.setItem('pm_tenant_tipo', t.tipo || 'arena');
   localStorage.removeItem('pm_session');
   const url = new URL(window.location.href);
   url.searchParams.set('tenant', key);
