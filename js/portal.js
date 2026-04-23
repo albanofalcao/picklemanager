@@ -8,6 +8,12 @@ const PortalModule = {
 
   _tab: 'hoje',
 
+  /* Estado do calendário do aluno */
+  _calAlunoAno:  null,
+  _calAlunoMes:  null,
+  _calAlunoView: 'lista',  // 'lista' | 'cal'
+  _CAL_DIAS_PT:  ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'],
+
   /* ------------------------------------------------------------------ */
   /*  Bootstrap                                                           */
   /* ------------------------------------------------------------------ */
@@ -425,10 +431,12 @@ const PortalModule = {
     const nivelAluno    = Storage.getAll('alunos').find(a => a.id === alunoId)?.nivel || '';
 
     const tabs = [
-      { key: 'proxima',   label: '📅 Cronograma' },
-      { key: 'grades',    label: '📚 Minhas Turmas' },
-      { key: 'descobrir', label: '🔍 Descobrir' },
-      { key: 'financeiro',label: '💰 Financeiro' },
+      { key: 'proxima',      label: '📅 Cronograma' },
+      { key: 'grades',       label: '📚 Turmas'      },
+      { key: 'estatisticas', label: '📊 Estatísticas'},
+      { key: 'comunicados',  label: '📣 Comunicados' },
+      { key: 'descobrir',    label: '🔍 Descobrir'   },
+      { key: 'financeiro',   label: '💰 Financeiro'  },
     ];
 
     const tabBar = tabs.map(t => `
@@ -437,10 +445,12 @@ const PortalModule = {
     `).join('');
 
     let content = '';
-    if      (this._tab === 'proxima')    content = this._renderAlunoProximas(session, hoje, proximasAulas);
-    else if (this._tab === 'grades')     content = this._renderAlunoGrades(session);
-    else if (this._tab === 'descobrir')  content = this._renderAlunoDescobrirGrades(session);
-    else if (this._tab === 'financeiro') content = this._renderAlunoFinanceiro(session, matriculas);
+    if      (this._tab === 'proxima')      content = this._renderAlunoProximas(session, hoje, proximasAulas);
+    else if (this._tab === 'grades')       content = this._renderAlunoGrades(session);
+    else if (this._tab === 'estatisticas') content = this._renderAlunoEstatisticas(session);
+    else if (this._tab === 'comunicados')  content = this._renderAlunoComunicados(session);
+    else if (this._tab === 'descobrir')    content = this._renderAlunoDescobrirGrades(session);
+    else if (this._tab === 'financeiro')   content = this._renderAlunoFinanceiro(session, matriculas);
 
     // Card do plano
     const pct      = saldo.total > 0 ? Math.min(100, Math.round((saldo.usado / saldo.total) * 100)) : 0;
@@ -518,13 +528,30 @@ const PortalModule = {
   },
 
   _renderAlunoProximas(session, hoje, aulas) {
+    // Toggle lista/calendário
+    const toggleBar = `
+      <div style="display:flex;gap:6px;margin-bottom:16px;">
+        <button class="btn btn-sm ${this._calAlunoView==='lista'?'btn-primary':'btn-secondary'}"
+          onclick="PortalModule._calAlunoView='lista';PortalModule._reRender()">☰ Lista</button>
+        <button class="btn btn-sm ${this._calAlunoView==='cal'?'btn-primary':'btn-secondary'}"
+          onclick="PortalModule._calAlunoView='cal';PortalModule._reRender()">📅 Calendário</button>
+      </div>`;
+
+    if (this._calAlunoView === 'cal') {
+      return toggleBar + this._renderAlunoCalendario(session, aulas);
+    }
+
     if (!aulas.length) {
-      return `<div class="portal-empty">
+      return toggleBar + `<div class="portal-empty">
         <div class="portal-empty-icon">📭</div>
         <p>Nenhuma aula próxima encontrada.<br>Inscreva-se em uma turma ou aguarde a academia agendar uma aula avulsa para você.</p>
         <button class="btn btn-primary" style="margin-top:16px;" onclick="PortalModule._setTabAluno('descobrir')">Descobrir turmas</button>
       </div>`;
     }
+    return toggleBar + this._renderAlunoListaAulas(session, hoje, aulas);
+  },
+
+  _renderAlunoListaAulas(session, hoje, aulas) {
 
     const alunoId = session.alunoId || session.id;
 
@@ -726,6 +753,296 @@ const PortalModule = {
       </div>` : '';
 
     return `<div class="portal-fin"><div class="portal-fin-saldo">${saldoBars}</div>${resumo}${historico}</div>`;
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Calendário do Aluno                                               */
+  /* ------------------------------------------------------------------ */
+
+  _renderAlunoCalendario(session, aulas) {
+    // Inicializa mês/ano
+    if (!this._calAlunoAno) {
+      const now = new Date();
+      this._calAlunoAno = now.getFullYear();
+      this._calAlunoMes = now.getMonth();
+    }
+    const ano    = this._calAlunoAno;
+    const mes    = this._calAlunoMes;
+    const MESES  = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
+                    'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    const hoje   = new Date().toISOString().slice(0,10);
+    const WKEND  = [0,6];
+
+    const primeiroDia = new Date(ano, mes, 1);
+    const diasDoMes   = new Date(ano, mes + 1, 0).getDate();
+    const inicioSem   = primeiroDia.getDay();
+    const mesStr      = String(mes + 1).padStart(2,'0');
+
+    // Aulas dentro deste mês
+    const aulasDoMes = aulas.filter(a => a.data && a.data.startsWith(`${ano}-${mesStr}`));
+
+    // Navegar
+    const navMes = (delta) => {
+      let m = mes + delta, a = ano;
+      if (m < 0)  { m = 11; a--; }
+      if (m > 11) { m = 0;  a++; }
+      this._calAlunoAno = a; this._calAlunoMes = m;
+      this._reRender();
+    };
+    // Expõe no window temporariamente para onclick inline
+    window._portalCalNav = navMes;
+
+    const headers = this._CAL_DIAS_PT.map(d => `<div class="cal-mes-th">${d}</div>`).join('');
+    let cells = '';
+    for (let i = 0; i < inicioSem; i++) {
+      cells += `<div class="cal-cell cal-cell-outside${WKEND.includes(i)?' cal-cell-fds':''}"></div>`;
+    }
+    for (let d = 1; d <= diasDoMes; d++) {
+      const ds    = `${ano}-${mesStr}-${String(d).padStart(2,'0')}`;
+      const dow   = new Date(ano, mes, d).getDay();
+      const isHj  = ds === hoje;
+      const isPst = ds < hoje;
+      const isFds = WKEND.includes(dow);
+      const evs   = aulasDoMes.filter(a => a.data === ds);
+
+      const evHtml = evs.slice(0,3).map(a =>
+        `<div class="cal-event" style="--ev-cor:#10b981;">
+           <span class="cal-ev-dot" style="background:#10b981;"></span>
+           <span class="cal-event-hora">${(a.horarioInicio||'').slice(0,5)}</span>
+           <span class="cal-event-nome">${UI.escape(a.titulo)}</span>
+         </div>`
+      ).join('');
+      const mais = evs.length > 3 ? `<div class="cal-event-mais">+${evs.length-3} mais</div>` : '';
+
+      cells += `
+        <div class="cal-cell${isHj?' cal-cell-hoje':''}${isPst?' cal-cell-passado':''}${isFds?' cal-cell-fds':''}">
+          <div class="cal-cell-num${isHj?' hoje':''}">${d}</div>
+          ${evHtml}${mais}
+        </div>`;
+    }
+
+    return `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <button class="btn btn-icon" onclick="window._portalCalNav(-1)">‹</button>
+        <span style="font-weight:700;font-size:15px;">${MESES[mes]} ${ano}</span>
+        <button class="btn btn-icon" onclick="window._portalCalNav(1)">›</button>
+      </div>
+      <div class="cal-mes-wrap">
+        <div class="cal-mes-header">${headers}</div>
+        <div class="cal-mes-grid">${cells}</div>
+      </div>`;
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Estatísticas do Aluno                                              */
+  /* ------------------------------------------------------------------ */
+
+  _renderAlunoEstatisticas(session) {
+    const alunoId  = session.alunoId || session.id;
+    const hoje     = new Date().toISOString().slice(0,10);
+    const anoAtual = hoje.slice(0,4);
+
+    // Busca todas as aulas em que o aluno está inscrito
+    const inscricoes = Storage.getAll('turmaAlunos').filter(i =>
+      (alunoId ? i.alunoId === alunoId : i.alunoNome === session.nome) && i.status === 'ativo'
+    );
+    const turmaIds = new Set(inscricoes.map(i => i.turmaId));
+    const todasAulas = Storage.getAll('aulas').filter(a =>
+      a.turmaId && turmaIds.has(a.turmaId) && a.data <= hoje
+    );
+
+    // Presenças
+    const todasPresencas = Storage.getAll('presencas').filter(p =>
+      alunoId ? p.alunoId === alunoId : p.alunoNome === session.nome
+    );
+    const presentes  = todasPresencas.filter(p => p.presente).length;
+    const agendadas  = todasAulas.length;
+    const taxa       = agendadas > 0 ? Math.round((presentes / agendadas) * 100) : 0;
+    const faltas     = todasPresencas.filter(p => !p.presente).length;
+
+    // Este ano
+    const aulasAno   = todasAulas.filter(a => a.data?.startsWith(anoAtual)).length;
+    const presentesAno = todasPresencas.filter(p => {
+      const aula = Storage.getById('aulas', p.aulaId);
+      return p.presente && aula?.data?.startsWith(anoAtual);
+    }).length;
+
+    // Últimos 6 meses para barras
+    const barras = [];
+    for (let i = 5; i >= 0; i--) {
+      const d   = new Date(); d.setDate(1); d.setMonth(d.getMonth() - i);
+      const mes = d.toISOString().slice(0,7);
+      const label = d.toLocaleDateString('pt-BR', { month:'short' });
+      const aulM  = todasAulas.filter(a => a.data?.startsWith(mes)).length;
+      const presM = todasPresencas.filter(p => {
+        const aula = Storage.getById('aulas', p.aulaId);
+        return p.presente && aula?.data?.startsWith(mes);
+      }).length;
+      barras.push({ mes, label, aulas: aulM, presentes: presM });
+    }
+    const maxBar = Math.max(...barras.map(b => b.aulas), 1);
+
+    // Nível
+    const aluno  = Storage.getAll('alunos').find(a => a.id === alunoId);
+    const nivel  = aluno?.nivel || '—';
+    const corTaxa = taxa >= 80 ? '#10b981' : taxa >= 60 ? '#f59e0b' : '#ef4444';
+
+    return `
+      <div style="display:flex;flex-direction:column;gap:16px;">
+
+        <!-- KPIs -->
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
+          ${[
+            { icon:'🏃', val: presentes,  label:'Aulas presentes' },
+            { icon:'📅', val: aulasAno,   label:`Aulas em ${anoAtual}` },
+            { icon:'❌', val: faltas,     label:'Faltas registradas' },
+          ].map(k => `
+            <div class="portal-stat-card">
+              <div class="portal-stat-icon">${k.icon}</div>
+              <div class="portal-stat-val">${k.val}</div>
+              <div class="portal-stat-label">${k.label}</div>
+            </div>`).join('')}
+        </div>
+
+        <!-- Taxa de frequência -->
+        <div class="portal-card" style="padding:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <span style="font-weight:700;font-size:14px;">📊 Taxa de Frequência</span>
+            <span style="font-size:22px;font-weight:800;color:${corTaxa};">${taxa}%</span>
+          </div>
+          <div style="background:var(--card-border);border-radius:99px;height:10px;overflow:hidden;">
+            <div style="height:100%;border-radius:99px;width:${taxa}%;
+              background:linear-gradient(90deg,${corTaxa},${corTaxa}bb);transition:width .4s;"></div>
+          </div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">
+            ${presentes} presença${presentes!==1?'s':''} de ${agendadas} aula${agendadas!==1?'s':''} registradas
+          </div>
+        </div>
+
+        <!-- Barras mensais -->
+        <div class="portal-card" style="padding:20px;">
+          <div style="font-weight:700;font-size:14px;margin-bottom:16px;">📈 Presenças — últimos 6 meses</div>
+          <div style="display:flex;align-items:flex-end;gap:8px;height:100px;">
+            ${barras.map(b => {
+              const h    = maxBar > 0 ? Math.max(4, Math.round((b.aulas / maxBar) * 96)) : 4;
+              const hp   = b.aulas > 0 ? Math.round((b.presentes / b.aulas) * h) : 0;
+              const cor  = b.presentes >= b.aulas * .8 ? '#10b981' : b.presentes >= b.aulas * .5 ? '#f59e0b' : '#ef4444';
+              return `
+                <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;">
+                  <div style="width:100%;background:var(--card-border);border-radius:4px 4px 0 0;
+                    height:${h}px;position:relative;overflow:hidden;">
+                    <div style="position:absolute;bottom:0;left:0;right:0;height:${hp}px;
+                      background:${cor};border-radius:4px 4px 0 0;transition:height .3s;"></div>
+                  </div>
+                  <span style="font-size:10px;color:var(--text-muted);">${b.label}</span>
+                  <span style="font-size:11px;font-weight:700;">${b.presentes}</span>
+                </div>`;
+            }).join('')}
+          </div>
+          <div style="display:flex;gap:12px;margin-top:12px;font-size:11px;">
+            <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;background:#10b981;border-radius:2px;display:inline-block;"></span>≥ 80%</span>
+            <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;background:#f59e0b;border-radius:2px;display:inline-block;"></span>50–80%</span>
+            <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;background:#ef4444;border-radius:2px;display:inline-block;"></span>< 50%</span>
+          </div>
+        </div>
+
+        <!-- Nível -->
+        <div class="portal-card" style="padding:20px;display:flex;align-items:center;gap:16px;">
+          <div style="font-size:36px;">🎯</div>
+          <div>
+            <div style="font-size:12px;color:var(--text-muted);">Nível atual</div>
+            <div style="font-size:20px;font-weight:800;color:var(--text-primary);">${UI.escape(nivel)}</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">
+              ${turmaIds.size} turma${turmaIds.size!==1?'s':''} ativa${turmaIds.size!==1?'s':''}
+            </div>
+          </div>
+        </div>
+
+      </div>`;
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Comunicados do Aluno                                               */
+  /* ------------------------------------------------------------------ */
+
+  _renderAlunoComunicados(session) {
+    const hoje   = new Date().toISOString().slice(0,10);
+    const STATUS_ICON = {
+      planejado:    '📢',
+      aberto:       '✅',
+      em_andamento: '⚡',
+      concluido:    '✔️',
+    };
+
+    // Eventos futuros ou em andamento como comunicados
+    const eventos = Storage.getAll('eventos')
+      .filter(e => (e.status === 'planejado' || e.status === 'aberto' || e.status === 'em_andamento')
+        && (e.data >= hoje || e.status === 'em_andamento'))
+      .sort((a, b) => (a.data || '').localeCompare(b.data || ''));
+
+    // Avisos: poderíamos ter um STORAGE_KEY próprio; por agora usamos eventos + placeholder
+    const avisos = Storage.getAll('avisos') || [];  // futuro
+
+    const semConteudo = !eventos.length && !avisos.length;
+
+    if (semConteudo) {
+      return `<div class="portal-empty">
+        <div class="portal-empty-icon">📭</div>
+        <p>Nenhum comunicado no momento.<br>Fique atento para novidades da academia!</p>
+      </div>`;
+    }
+
+    const TIPO_ICON = { torneio:'🏆', campeonato:'🥇', clinica:'📚', social:'🎉', amistoso:'🤝', outro:'📌' };
+    const TIPO_LABEL = { torneio:'Torneio', campeonato:'Campeonato', clinica:'Clínica', social:'Jogo Social', amistoso:'Amistoso', outro:'Evento' };
+    const COR_STATUS = { planejado:'#3b82f6', aberto:'#10b981', em_andamento:'#f59e0b' };
+
+    return `
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">
+          ${eventos.length} evento${eventos.length!==1?'s':''} anunciado${eventos.length!==1?'s':''}
+        </div>
+
+        ${eventos.map(e => {
+          const cor   = COR_STATUS[e.status] || '#6b7280';
+          const icon  = TIPO_ICON[e.tipo] || '📌';
+          const tipo  = TIPO_LABEL[e.tipo] || 'Evento';
+          const sIcon = STATUS_ICON[e.status] || '📢';
+          const data  = e.data ? new Date(e.data + 'T00:00:00').toLocaleDateString('pt-BR',
+            { day:'numeric', month:'long', year:'numeric' }) : '—';
+          const hr    = e.horarioInicio ? ` · ${e.horarioInicio}` : '';
+
+          return `
+            <div class="portal-card" style="border-left:4px solid ${cor};padding:16px 18px;">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+                <div style="flex:1;">
+                  <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                    <span style="font-size:18px;">${icon}</span>
+                    <span style="font-weight:700;font-size:14px;color:var(--text-primary);">${UI.escape(e.nome)}</span>
+                  </div>
+                  <div style="font-size:12px;color:var(--text-muted);display:flex;flex-wrap:wrap;gap:8px;">
+                    <span>📅 ${data}${hr}</span>
+                    ${e.arenaNome ? `<span>🏟️ ${UI.escape(e.arenaNome)}</span>` : ''}
+                    ${e.vagas     ? `<span>👥 ${e.vagas} vagas</span>` : ''}
+                    ${e.valorInscricao
+                      ? `<span>💰 R$ ${Number(e.valorInscricao).toFixed(2).replace('.',',')}</span>`
+                      : '<span>✅ Gratuito</span>'}
+                  </div>
+                  ${e.descricao ? `<div style="font-size:12px;color:var(--text-secondary);margin-top:8px;line-height:1.5;">💬 ${UI.escape(e.descricao)}</div>` : ''}
+                </div>
+                <span style="background:${cor}20;color:${cor};font-size:11px;font-weight:700;
+                  padding:3px 10px;border-radius:99px;border:1px solid ${cor}40;white-space:nowrap;">
+                  ${sIcon} ${e.status === 'em_andamento' ? 'Em andamento' : e.status === 'aberto' ? 'Inscrições abertas' : 'Em breve'}
+                </span>
+              </div>
+            </div>`;
+        }).join('')}
+
+        ${avisos.map(a => `
+          <div class="portal-card" style="border-left:4px solid #8b5cf6;padding:16px 18px;">
+            <div style="font-weight:700;font-size:14px;margin-bottom:4px;">📌 ${UI.escape(a.titulo)}</div>
+            <div style="font-size:13px;color:var(--text-secondary);">${UI.escape(a.texto||'')}</div>
+          </div>`).join('')}
+      </div>`;
   },
 
   async inscreverAluno(turmaId) {
