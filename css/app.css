@@ -3371,6 +3371,37 @@ tr.tarefa-concluida td { opacity: .6; }
   background: var(--page-bg);
 }
 
+/* Barra de troca de arena (interbase) */
+.portal-arena-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 24px;
+  background: var(--sidebar-bg);
+  border-bottom: 1px solid rgba(255,255,255,.1);
+  flex-wrap: wrap;
+}
+.portal-arena-btn {
+  padding: 4px 14px;
+  border-radius: var(--radius-full);
+  border: 1px solid rgba(255,255,255,.25);
+  background: rgba(255,255,255,.08);
+  color: var(--sidebar-text);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.portal-arena-btn:hover {
+  background: rgba(255,255,255,.18);
+  color: var(--sidebar-text-active);
+}
+.portal-arena-btn.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
 .portal-header {
   display: flex;
   align-items: center;

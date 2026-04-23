@@ -561,6 +561,27 @@ const AdminModule = {
           </select>
           <div class="form-hint" style="margin-top:4px;">Vincula o login ao aluno para filtrar automaticamente as grades em que está inscrito.</div>
         </div>
+
+        <div class="form-group" id="us-arenas-field"
+          style="display:${(user?.perfil === 'professor' || user?.perfil === 'aluno') ? 'block' : 'none'};">
+          <label class="form-label">🏟️ Arenas vinculadas <span class="form-hint">(interbase)</span></label>
+          <div style="display:flex;flex-direction:column;gap:6px;margin-top:6px;padding:10px 12px;
+            background:var(--bg-secondary);border-radius:var(--radius);border:1px solid var(--card-border);">
+            ${Object.entries(TENANTS)
+              .filter(([, t]) => t.tipo !== 'matriz' && t.id)
+              .filter(([, t], i, arr) => arr.findIndex(([, x]) => x.id === t.id) === i)
+              .map(([key, t]) => {
+                const vinculadas = user?.arenasVinculadas || [];
+                const checked = vinculadas.some(a => a.key === key) ? 'checked' : '';
+                return `<label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">
+                  <input type="checkbox" class="us-arena-check" value="${key}"
+                    data-label="${UI.escape(t.label)}" ${checked} />
+                  ${UI.escape(t.label)}
+                </label>`;
+              }).join('')}
+          </div>
+          <div class="form-hint" style="margin-top:4px;">O portal mostrará um seletor de arena para este usuário.</div>
+        </div>
       </div>`;
 
     UI.openModal({
@@ -615,14 +636,22 @@ const AdminModule = {
     const old  = id ? Storage.getById(this.STORAGE_KEY, id) : null;
 
     const perfilVal = (!isMe && g('perfil')) ? g('perfil').value : (old ? old.perfil : 'recepcionista');
+
+    // Coleta arenas vinculadas (interbase)
+    const arenasVinculadas = [];
+    document.querySelectorAll('.us-arena-check:checked').forEach(cb => {
+      arenasVinculadas.push({ key: cb.value, label: cb.dataset.label || cb.value });
+    });
+
     const data = {
-      nome:        nome.value.trim(),
-      login:       login.value.trim().toLowerCase(),
-      email:       g('email')     ? g('email').value.trim()     : '',
-      perfil:      perfilVal,
-      status:      (!isMe && g('status')) ? g('status').value : (old ? old.status : 'ativo'),
-      professorId: perfilVal === 'professor' && g('professor') ? (g('professor').value || null) : null,
-      alunoId:     perfilVal === 'aluno'     && g('aluno')     ? (g('aluno').value     || null) : null,
+      nome:             nome.value.trim(),
+      login:            login.value.trim().toLowerCase(),
+      email:            g('email')     ? g('email').value.trim()     : '',
+      perfil:           perfilVal,
+      status:           (!isMe && g('status')) ? g('status').value : (old ? old.status : 'ativo'),
+      professorId:      perfilVal === 'professor' && g('professor') ? (g('professor').value || null) : null,
+      alunoId:          perfilVal === 'aluno'     && g('aluno')     ? (g('aluno').value     || null) : null,
+      arenasVinculadas: (perfilVal === 'professor' || perfilVal === 'aluno') ? arenasVinculadas : [],
     };
 
     // Only update password if a new one was provided
@@ -704,10 +733,13 @@ const AdminModule = {
   },
 
   _toggleVinculoField(perfil) {
-    const profField  = document.getElementById('us-professor-field');
-    const alunoField = document.getElementById('us-aluno-field');
-    if (profField)  profField.style.display  = perfil === 'professor' ? 'block' : 'none';
-    if (alunoField) alunoField.style.display = perfil === 'aluno'     ? 'block' : 'none';
+    const profField   = document.getElementById('us-professor-field');
+    const alunoField  = document.getElementById('us-aluno-field');
+    const arenasField = document.getElementById('us-arenas-field');
+    const isInterbase = perfil === 'professor' || perfil === 'aluno';
+    if (profField)   profField.style.display   = perfil === 'professor' ? 'block' : 'none';
+    if (alunoField)  alunoField.style.display  = perfil === 'aluno'     ? 'block' : 'none';
+    if (arenasField) arenasField.style.display = isInterbase            ? 'block' : 'none';
   },
 
   /* Redefinir senha de um usuário */

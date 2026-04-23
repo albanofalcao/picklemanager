@@ -128,6 +128,22 @@ function getTenantTipo()        { return TENANT_TIPO; }
 function isMatriz()             { return TENANT_TIPO === 'matriz'; }
 function getAllTenantIds()       { return Object.values(TENANTS).map(t => t.id).filter(Boolean); }
 
+/**
+ * switchArenaPortal(key) — Troca o tenant ativo SEM deslogar o usuário.
+ * Usado pelo portal de professor/aluno que tem acesso a múltiplas arenas.
+ */
+function switchArenaPortal(key) {
+  if (!TENANTS[key]) return;
+  const t = TENANTS[key];
+  localStorage.setItem('pm_tenant',      key);
+  localStorage.setItem('pm_tenant_id',   t.id);
+  localStorage.setItem('pm_tenant_tipo', t.tipo || 'arena');
+  // NÃO remove pm_session — o usuário continua logado na nova arena
+  const url = new URL(window.location.href);
+  url.searchParams.set('tenant', key);
+  window.location.href = url.toString();
+}
+
 const SupabaseClient = window.supabase
   ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
   : null;

@@ -28,6 +28,9 @@ const PortalModule = {
       badge.innerHTML = `${icon} <strong>${UI.escape(session.nome)}</strong>`;
     }
 
+    // Renderiza barra de troca de arena se houver múltiplas arenas vinculadas
+    this._renderArenaBar(session);
+
     if (perfil === 'professor') {
       this._tab = 'hoje';
       this._renderProfessor(session);
@@ -37,6 +40,32 @@ const PortalModule = {
     }
 
     return true;
+  },
+
+  _renderArenaBar(session) {
+    const bar = document.getElementById('portal-arena-bar');
+    if (!bar) return;
+
+    const vinculadas = session?.arenasVinculadas || [];
+    if (!vinculadas.length) { bar.style.display = 'none'; return; }
+
+    const ativa = getActiveTenantKey();
+    const label = getActiveTenantLabel();
+
+    // Inclui a arena atual como opção se não estiver na lista
+    const todasArenas = [...vinculadas];
+    if (!todasArenas.find(a => a.key === ativa)) {
+      todasArenas.unshift({ key: ativa, label: '🏫 ' + label });
+    }
+
+    bar.style.display = 'flex';
+    bar.innerHTML = `
+      <span style="font-size:12px;color:var(--text-muted);margin-right:8px;">🏟️ Arena:</span>
+      ${todasArenas.map(a => `
+        <button class="portal-arena-btn${a.key === ativa ? ' active' : ''}"
+          onclick="switchArenaPortal('${a.key}')">
+          ${UI.escape(a.label.replace(/^[\u{1F3DB}\u{1F3EB}️\s]+/u, ''))}
+        </button>`).join('')}`;
   },
 
   _reRender() {

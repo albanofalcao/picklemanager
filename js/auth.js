@@ -71,13 +71,14 @@ const Auth = {
   setSession(user) {
     const nome = user.nome || user.login || '?';
     localStorage.setItem(this.SESSION_KEY, JSON.stringify({
-      id:          user.id,
+      id:               user.id,
       nome,
-      login:       user.login,
-      perfil:      user.perfil,
-      professorId: user.professorId || null,
-      alunoId:     user.alunoId     || null,
-      avatar:      nome.trim().charAt(0).toUpperCase(),
+      login:            user.login,
+      perfil:           user.perfil,
+      professorId:      user.professorId      || null,
+      alunoId:          user.alunoId          || null,
+      arenasVinculadas: Array.isArray(user.arenasVinculadas) ? user.arenasVinculadas : [],
+      avatar:           nome.trim().charAt(0).toUpperCase(),
     }));
   },
 
