@@ -1703,3 +1703,5 @@ const EventoModule = {
         </div>
       </div>`;
   },
+
+};
