@@ -56,30 +56,44 @@ const Notifications = {
       });
 
     /* -- Matrículas: vencidas ou vencendo em ≤ 7 dias -- */
+    const todosAlunos = Storage.getAll('alunos');
     Storage.getAll('matriculas')
       .filter(m => m.status === 'ativa' || m.status === 'vencida')
       .forEach(m => {
+        const aluno      = todosAlunos.find(a => a.id === m.alunoId) || {};
+        const alunoEmail = aluno.email || '';
+
         if (m.status === 'vencida') {
           lista.push({
-            tipo:   'matricula',
-            nivel:  'error',
-            icon:   '📝',
-            titulo: 'Matrícula vencida',
-            desc:   m.alunoNome || 'Aluno desconhecido',
-            rota:   'matriculas',
+            tipo:        'matricula',
+            nivel:       'error',
+            icon:        '📝',
+            titulo:      'Matrícula vencida',
+            desc:        m.alunoNome || 'Aluno desconhecido',
+            rota:        'matriculas',
+            matriculaId: m.id,
+            alunoEmail,
+            dataFim:     m.dataFim || '',
+            dias:        -99,
           });
           return;
         }
         if (m.dataFim) {
-          const diff = Math.ceil((new Date(m.dataFim + 'T00:00:00') - new Date(hoje + 'T00:00:00')) / 86400000);
+          const diff = Math.ceil(
+            (new Date(m.dataFim + 'T00:00:00') - new Date(hoje + 'T00:00:00')) / 86400000
+          );
           if (diff >= 0 && diff <= 7) {
             lista.push({
-              tipo:   'matricula',
-              nivel:  'warning',
-              icon:   '📝',
-              titulo: `Matrícula vence em ${diff === 0 ? 'hoje' : diff + (diff === 1 ? ' dia' : ' dias')}`,
-              desc:   m.alunoNome || 'Aluno desconhecido',
-              rota:   'matriculas',
+              tipo:        'matricula',
+              nivel:       diff <= 2 ? 'error' : 'warning',
+              icon:        '📝',
+              titulo:      `Matrícula vence em ${diff === 0 ? 'hoje' : diff + (diff === 1 ? ' dia' : ' dias')}`,
+              desc:        m.alunoNome || 'Aluno desconhecido',
+              rota:        'matriculas',
+              matriculaId: m.id,
+              alunoEmail,
+              dataFim:     m.dataFim,
+              dias:        diff,
             });
           }
         }
@@ -129,21 +143,38 @@ const Notifications = {
       return;
     }
 
-    const items = lista.map(n => `
-      <div class="notif-item notif-${n.nivel}" onclick="Router.navigate('${n.rota}');Notifications._closePanel();">
-        <span class="notif-item-icon">${n.icon}</span>
-        <div class="notif-item-text">
-          <div class="notif-item-titulo">${UI.escape(n.titulo)}</div>
-          <div class="notif-item-desc">${UI.escape(n.desc)}</div>
-        </div>
-      </div>`).join('');
+    const items = lista.map(n => {
+      const temEmail   = n.matriculaId && n.alunoEmail;
+      const temConfig  = typeof EmailJSConfig !== 'undefined' && EmailJSConfig.templateAtivo('cobranca');
+      const lembreteBtn = n.matriculaId
+        ? `<button class="notif-lembrete-btn"
+            title="${temEmail ? 'Enviar lembrete por e-mail' : 'Aluno sem e-mail cadastrado'}"
+            ${!temEmail ? 'disabled style="opacity:.4;cursor:not-allowed;"' : ''}
+            onclick="event.stopPropagation();Notifications.enviarLembrete('${n.matriculaId}')">
+            ⚡${temConfig ? '' : ''}
+           </button>`
+        : '';
+
+      return `
+        <div class="notif-item notif-${n.nivel}" onclick="Router.navigate('${n.rota}');Notifications._closePanel();">
+          <span class="notif-item-icon">${n.icon}</span>
+          <div class="notif-item-text">
+            <div class="notif-item-titulo">${UI.escape(n.titulo)}</div>
+            <div class="notif-item-desc">${UI.escape(n.desc)}</div>
+          </div>
+          ${lembreteBtn}
+        </div>`;
+    }).join('');
 
     panel.innerHTML = `
       <div class="notif-header">
         <span>Notificações</span>
         <span class="badge badge-warning" style="font-size:11px;">${count}</span>
       </div>
-      <div class="notif-list">${items}</div>`;
+      <div class="notif-list">${items}</div>
+      <div class="notif-footer-hint">
+        <span>⚡ = enviar lembrete por e-mail</span>
+      </div>`;
   },
 
   toggle() {
@@ -157,5 +188,56 @@ const Notifications = {
     const panel = document.getElementById('notif-panel');
     if (panel) panel.classList.remove('open');
     this._open = false;
+  },
+
+  /**
+   * Envia lembrete de cobrança/vencimento por e-mail via EmailJS.
+   * @param {string} matriculaId
+   */
+  async enviarLembrete(matriculaId) {
+    const mat = Storage.getById('matriculas', matriculaId);
+    if (!mat) { UI.toast('Matrícula não encontrada.', 'error'); return; }
+
+    const aluno = Storage.getAll('alunos').find(a => a.id === mat.alunoId) || {};
+    const email = aluno.email || mat.alunoEmail || '';
+
+    if (!email) {
+      UI.toast(`${mat.alunoNome || 'Aluno'} não tem e-mail cadastrado.`, 'warning');
+      return;
+    }
+
+    if (typeof EmailJSConfig === 'undefined' || !EmailJSConfig.templateAtivo('cobranca')) {
+      UI.toast(
+        'Template "cobranca" não configurado no EmailJS. ' +
+        'Crie o template em emailjs.com e cole o ID em emailjs-config.js.',
+        'warning'
+      );
+      return;
+    }
+
+    UI.toast('Enviando lembrete…', 'info');
+
+    const academia = Storage.getAll('config_academia')[0] || {};
+    const fmt = d => {
+      if (!d) return '—';
+      const [y, m, dy] = d.split('-');
+      return `${dy}/${m}/${y}`;
+    };
+
+    const ok = await EmailJSConfig.enviar('cobranca', {
+      to_email:        email,
+      to_name:         aluno.nome || mat.alunoNome || 'Aluno',
+      academia:        academia.nome || 'PickleManager Academia',
+      plano:           mat.planoNome || '—',
+      valor:           (parseFloat(mat.valorPago) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
+      data_vencimento: fmt(mat.dataFim),
+      chave_pix:       academia.chavePix || '',
+    });
+
+    if (ok) {
+      UI.toast(`✅ Lembrete enviado para ${email}`, 'success');
+    } else {
+      UI.toast('Falha ao enviar e-mail. Verifique a configuração do EmailJS.', 'error');
+    }
   },
 };

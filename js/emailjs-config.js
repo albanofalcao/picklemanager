@@ -18,6 +18,10 @@
  *  matricula:
  *    {{to_email}} {{to_name}} {{academia}} {{plano}}
  *    {{data_inicio}} {{data_fim}}
+ *
+ *  cobranca:
+ *    {{to_email}} {{to_name}} {{academia}} {{plano}}
+ *    {{valor}} {{data_vencimento}} {{chave_pix}}
  */
 const EmailJSConfig = {
   SERVICE_ID:  'service_dil9kl8',
@@ -26,9 +30,7 @@ const EmailJSConfig = {
   TEMPLATES: {
     tarefa:    'template_lv9zkfw',   // notificação de tarefa em evento
     matricula: 'template_6uq8x6b',   // confirmação de matrícula
-    // Adicione novos templates aqui conforme necessário:
-    // cobranca:  '',
-    // aniversario: '',
+    cobranca:  '',                    // lembrete de cobrança — crie em emailjs.com e cole o ID aqui
   },
 
   get ativo() {

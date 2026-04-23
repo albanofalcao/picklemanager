@@ -2366,6 +2366,36 @@ tr.tarefa-concluida td { opacity: .6; }
 .notif-item.notif-error { border-left: 3px solid var(--red); }
 .notif-item.notif-warning { border-left: 3px solid var(--amber); }
 
+/* Botão de lembrete dentro do item de notificação */
+.notif-lembrete-btn {
+  background: none;
+  border: 1px solid var(--color-primary, #3b9e8f);
+  border-radius: 6px;
+  color: var(--color-primary, #3b9e8f);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  flex-shrink: 0;
+  align-self: center;
+  margin-left: 8px;
+  white-space: nowrap;
+  transition: background .15s, color .15s;
+  line-height: 1.5;
+}
+.notif-lembrete-btn:hover:not(:disabled) {
+  background: var(--color-primary, #3b9e8f);
+  color: #fff;
+}
+.notif-footer-hint {
+  padding: 6px 16px;
+  font-size: 10px;
+  color: var(--text-muted);
+  border-top: 1px solid var(--card-border);
+  text-align: center;
+  letter-spacing: .3px;
+}
+
 .notif-empty {
   padding: 32px 16px;
   text-align: center;
@@ -2760,6 +2790,57 @@ tr.tarefa-concluida td { opacity: .6; }
   overflow: hidden;
   text-overflow: ellipsis;
   margin-top: 1px;
+}
+
+/* ── Vencimentos list ───────────────────────────────────── */
+.dash-venc-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--card-border);
+  cursor: pointer;
+  transition: background .15s;
+}
+.dash-venc-item:last-child { border-bottom: none; }
+.dash-venc-item:hover { background: var(--gray-light); }
+
+.dash-venc-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--color-primary, #3b9e8f);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.dash-venc-info { flex: 1; min-width: 0; }
+
+.dash-venc-nome {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dash-venc-plano {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dash-venc-status {
+  font-size: 12px;
+  flex-shrink: 0;
+  text-align: right;
 }
 
 /* ── Dark mode ──────────────────────────────────────────── */

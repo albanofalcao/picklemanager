@@ -70,6 +70,61 @@ function renderStub(key) {
 }
 
 /**
+ * Builds the HTML for the "Vencimentos Próximos" dashboard panel.
+ * Shows matrículas vencidas or expiring in ≤ 30 days.
+ */
+function _buildVencimentosHtml() {
+  const hoje = new Date().toISOString().slice(0, 10);
+
+  const lista = Storage.getAll('matriculas')
+    .filter(m => (m.status === 'ativa' || m.status === 'vencida') && m.dataFim)
+    .map(m => {
+      const diff = Math.ceil(
+        (new Date(m.dataFim + 'T00:00:00') - new Date(hoje + 'T00:00:00')) / 86400000
+      );
+      return { ...m, _diff: diff };
+    })
+    .filter(m => m._diff <= 30)
+    .sort((a, b) => a._diff - b._diff)
+    .slice(0, 8);
+
+  if (!lista.length) {
+    return `<div style="padding:16px;text-align:center;color:var(--text-muted);font-size:13px;">
+      ✅ Nenhum vencimento nos próximos 30 dias.
+    </div>`;
+  }
+
+  const _fmtDate = d => {
+    if (!d) return '—';
+    const [y, m, dy] = d.split('-');
+    return `${dy}/${m}/${y}`;
+  };
+
+  return lista.map(m => {
+    const diff   = m._diff;
+    const vencTxt = diff < 0
+      ? `<span style="color:var(--red,#dc2626);font-weight:700;">Vencida há ${Math.abs(diff)} dia${Math.abs(diff) !== 1 ? 's' : ''}</span>`
+      : diff === 0
+        ? `<span style="color:var(--red,#dc2626);font-weight:700;">Vence hoje</span>`
+        : diff <= 3
+          ? `<span style="color:var(--red,#dc2626);font-weight:600;">Em ${diff} dia${diff !== 1 ? 's' : ''}</span>`
+          : diff <= 7
+            ? `<span style="color:var(--amber,#d97706);font-weight:600;">Em ${diff} dias</span>`
+            : `<span style="color:var(--text-muted);">Em ${diff} dias — ${_fmtDate(m.dataFim)}</span>`;
+
+    return `
+      <div class="dash-venc-item" onclick="MatriculaModule.abrirCobranca('${m.id}')" title="Abrir cobrança">
+        <div class="dash-venc-avatar">${(m.alunoNome || '?').charAt(0).toUpperCase()}</div>
+        <div class="dash-venc-info">
+          <div class="dash-venc-nome">${UI.escape(m.alunoNome || '—')}</div>
+          <div class="dash-venc-plano">${UI.escape(m.planoNome || '—')}</div>
+        </div>
+        <div class="dash-venc-status">${vencTxt}</div>
+      </div>`;
+  }).join('');
+}
+
+/**
  * Render the main dashboard page.
  * Layout: stats compactos → duas colunas (alertas | gráficos).
  */
@@ -187,9 +242,14 @@ function renderDashboard() {
         <span class="dash-stat-icon">🔧</span>
         <div><div class="dash-stat-val">${manutStats.abertos + manutStats.andamento}</div><div class="dash-stat-lbl">Manutenções abertas</div></div>
       </div>
-      <div class="dash-stat ${matStats.vencidas > 0 ? 'dash-stat-danger' : ''}" onclick="Router.navigate('matriculas')" title="Matrículas vencidas">
+      <div class="dash-stat ${(matStats.vencidas + matStats.vencendoEmBreve) > 0 ? 'dash-stat-danger' : ''}"
+        onclick="MatriculaModule.abrirVencimentosRapido ? MatriculaModule.abrirVencimentosRapido() : Router.navigate('matriculas')"
+        title="Vencimentos urgentes (vencidas + vencendo em ≤ 7 dias)">
         <span class="dash-stat-icon">⚠️</span>
-        <div><div class="dash-stat-val">${matStats.vencidas}</div><div class="dash-stat-lbl">Matrículas vencidas</div></div>
+        <div>
+          <div class="dash-stat-val">${matStats.vencidas + matStats.vencendoEmBreve}</div>
+          <div class="dash-stat-lbl">Vencimentos</div>
+        </div>
       </div>
     </div>
 
@@ -225,7 +285,7 @@ function renderDashboard() {
 
       </div>
 
-      <!-- Coluna direita: Gráficos -->
+      <!-- Coluna direita: Gráficos + Vencimentos -->
       <div class="dash-col-right">
 
         <div class="dash-panel">
@@ -237,7 +297,17 @@ function renderDashboard() {
           </div>
         </div>
 
-        <div class="dash-panel">
+        <div class="dash-panel" style="margin-top:20px;">
+          <div class="dash-panel-header">
+            <span class="dash-panel-title">📅 Vencimentos Próximos</span>
+            <button class="btn btn-ghost btn-sm" onclick="Router.navigate('matriculas')" style="font-size:12px;">Ver todas →</button>
+          </div>
+          <div id="dash-vencimentos-list">
+            ${_buildVencimentosHtml()}
+          </div>
+        </div>
+
+        <div class="dash-panel" style="margin-top:20px;">
           <div class="dash-panel-header">
             <span class="dash-panel-title">👥 Alunos por Nível</span>
           </div>

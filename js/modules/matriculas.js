@@ -53,12 +53,21 @@ const MatriculaModule = {
   },
 
   getStats() {
-    const all = this.getAll();
+    const all  = this.getAll();
+    const hoje = new Date().toISOString().slice(0, 10);
+    const ativas = all.filter(m => m.status === 'ativa');
     return {
-      total:        all.length,
-      ativas:       all.filter(m => m.status === 'ativa').length,
-      inadimplentes:all.filter(m => m.status === 'inadimplente').length,
-      encerradas:   all.filter(m => m.status === 'encerrada').length,
+      total:           all.length,
+      ativas:          ativas.length,
+      inadimplentes:   all.filter(m => m.status === 'inadimplente').length,
+      encerradas:      all.filter(m => m.status === 'encerrada').length,
+      vencidas:        all.filter(m => m.status === 'vencida' ||
+                         (m.status === 'ativa' && m.dataFim && m.dataFim < hoje)).length,
+      vencendoEmBreve: ativas.filter(m => {
+        if (!m.dataFim) return false;
+        const diff = Math.ceil((new Date(m.dataFim + 'T00:00:00') - new Date(hoje + 'T00:00:00')) / 86400000);
+        return diff >= 0 && diff <= 7;
+      }).length,
     };
   },
 
@@ -187,6 +196,7 @@ const MatriculaModule = {
           <td class="text-muted text-sm">${UI.escape(m.formaPagamento ? ListasService.label('matriculas_forma_pagamento', m.formaPagamento) : '—')}</td>
           <td>${financeiroBadge}${SaldoService.badgeSaldo(m.alunoId)}</td>
           <td class="aluno-row-actions">
+            <button class="btn btn-ghost btn-sm" onclick="MatriculaModule.abrirCobranca('${m.id}')" title="Cobrança / PIX">💳</button>
             <button class="btn btn-ghost btn-sm" onclick="MatriculaModule.gerarComprovante('${m.id}')" title="Gerar comprovante">📄</button>
             <button class="btn btn-ghost btn-sm" onclick="MatriculaModule.openModal('${m.id}')" title="Editar">✏️</button>
             <button class="btn btn-ghost btn-sm danger" onclick="MatriculaModule.deleteMatricula('${m.id}')" title="Excluir">🗑️</button>
@@ -537,6 +547,172 @@ const MatriculaModule = {
     gradesRecs.forEach(ta => Storage.update('turmaAlunos', ta.id, { status: 'inativo' }));
 
     UI.toast(`"${alunoNome}" removido(a) de ${total} aula${total !== 1 ? 's' : ''}/turma${total !== 1 ? 's' : ''}.`, 'success');
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Cobrança / PIX                                                      */
+  /* ------------------------------------------------------------------ */
+
+  abrirCobranca(id) {
+    const mat = Storage.getById(this.STORAGE_KEY, id);
+    if (!mat) return;
+
+    const aluno    = Storage.getAll('alunos').find(a => a.id === mat.alunoId) || {};
+    const academia = Storage.getAll('config_academia')[0] || {};
+    const chavePix = academia.chavePix || '';
+    const nomeAcad = academia.nome || 'PickleManager';
+    const email    = aluno.email || '';
+    const hoje     = new Date().toISOString().slice(0, 10);
+    const valor    = this._fmtMoeda(mat.valorPago || 0);
+    const venc     = mat.dataFim ? this._fmtDate(mat.dataFim) : 'Indeterminado';
+    const diasDiff = mat.dataFim
+      ? Math.ceil((new Date(mat.dataFim + 'T00:00:00') - new Date(hoje + 'T00:00:00')) / 86400000)
+      : null;
+
+    const badgeDias = diasDiff !== null
+      ? diasDiff < 0
+        ? `<span class="badge badge-danger">Vencida há ${Math.abs(diasDiff)} dia${Math.abs(diasDiff) !== 1 ? 's' : ''}</span>`
+        : diasDiff === 0
+          ? `<span class="badge badge-danger">⚠️ Vence hoje</span>`
+          : diasDiff <= 7
+            ? `<span class="badge badge-warning">Vence em ${diasDiff} dia${diasDiff !== 1 ? 's' : ''}</span>`
+            : `<span class="badge badge-success">Vence em ${diasDiff} dias</span>`
+      : '';
+
+    const pixSection = chavePix
+      ? `<div style="background:var(--bg-secondary);border:1.5px dashed var(--color-primary,#3b9e8f);border-radius:12px;padding:16px;margin-top:12px;">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:8px;">🔑 Chave PIX</div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <code id="pix-chave-val" style="flex:1;background:var(--bg-primary);border:1px solid var(--card-border);border-radius:8px;padding:8px 12px;font-size:13px;word-break:break-all;">${UI.escape(chavePix)}</code>
+            <button class="btn btn-sm btn-secondary" onclick="MatriculaModule._copiarPix()" title="Copiar chave PIX" style="flex-shrink:0;">📋 Copiar</button>
+          </div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:8px;">Valor sugerido: <strong>${valor}</strong></div>
+        </div>`
+      : `<div style="background:#fef3c7;border-radius:10px;padding:12px;margin-top:12px;font-size:12px;color:#92400e;">
+          ⚠️ Chave PIX não cadastrada. Configure em Cadastros → Academia.
+        </div>`;
+
+    const temTemplate = typeof EmailJSConfig !== 'undefined' && EmailJSConfig.templateAtivo('cobranca');
+    const emailSection = email
+      ? `<div style="margin-top:16px;">
+          <button id="cobr-email-btn" class="btn btn-primary" style="width:100%;"
+            onclick="MatriculaModule._enviarLembreteCobranca('${id}')">
+            ✉️ Enviar lembrete por e-mail ${temTemplate ? '' : '<span style=\'font-size:10px;opacity:.7\'>(template não configurado)</span>'}
+          </button>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:6px;text-align:center;">${UI.escape(email)}</div>
+        </div>`
+      : `<div style="margin-top:16px;text-align:center;font-size:12px;color:var(--text-muted);">
+          ⚠️ Aluno sem e-mail cadastrado — não é possível enviar lembrete.
+        </div>`;
+
+    const content = `
+      <div style="padding:4px 0;">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:16px;">
+          <div>
+            <div style="font-size:16px;font-weight:700;">${UI.escape(mat.alunoNome || '—')}</div>
+            <div style="font-size:13px;color:var(--text-muted);margin-top:2px;">${UI.escape(mat.planoNome || '—')}</div>
+          </div>
+          ${badgeDias}
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div style="background:var(--bg-secondary);border-radius:10px;padding:14px;text-align:center;">
+            <div style="font-size:11px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">Valor do Plano</div>
+            <div style="font-size:22px;font-weight:700;color:var(--color-primary,#3b9e8f);">${valor}</div>
+          </div>
+          <div style="background:var(--bg-secondary);border-radius:10px;padding:14px;text-align:center;">
+            <div style="font-size:11px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;">Vencimento</div>
+            <div style="font-size:18px;font-weight:700;">${venc}</div>
+          </div>
+        </div>
+
+        ${pixSection}
+        ${emailSection}
+      </div>`;
+
+    UI.openModal({
+      title:     `💳 Cobrança — ${mat.alunoNome || 'Aluno'}`,
+      content,
+      hideFooter: true,
+    });
+  },
+
+  _copiarPix() {
+    const el = document.getElementById('pix-chave-val');
+    if (!el) return;
+    const texto = el.textContent.trim();
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(texto)
+        .then(() => UI.toast('✅ Chave PIX copiada!', 'success'))
+        .catch(() => this._copiarFallback(el));
+    } else {
+      this._copiarFallback(el);
+    }
+  },
+
+  _copiarFallback(el) {
+    const range = document.createRange();
+    range.selectNode(el);
+    const sel = window.getSelection();
+    sel?.removeAllRanges();
+    sel?.addRange(range);
+    try {
+      document.execCommand('copy');
+      UI.toast('✅ Chave PIX copiada!', 'success');
+    } catch (_) {
+      UI.toast('Não foi possível copiar automaticamente.', 'warning');
+    }
+    sel?.removeAllRanges();
+  },
+
+  async _enviarLembreteCobranca(matriculaId) {
+    const mat   = Storage.getById(this.STORAGE_KEY, matriculaId);
+    if (!mat) return;
+    const aluno = Storage.getAll('alunos').find(a => a.id === mat.alunoId) || {};
+    const email = aluno.email || '';
+
+    if (!email) { UI.toast('Aluno sem e-mail cadastrado.', 'warning'); return; }
+
+    if (typeof EmailJSConfig === 'undefined' || !EmailJSConfig.templateAtivo('cobranca')) {
+      UI.toast(
+        'Template "cobranca" não configurado. ' +
+        'Crie em emailjs.com e cole o ID em js/emailjs-config.js.',
+        'warning'
+      );
+      return;
+    }
+
+    const btnEl = document.getElementById('cobr-email-btn');
+    if (btnEl) { btnEl.disabled = true; btnEl.textContent = '📧 Enviando…'; }
+
+    const academia = Storage.getAll('config_academia')[0] || {};
+    const fmt = d => {
+      if (!d) return '—';
+      const [y, m, dy] = d.split('-');
+      return `${dy}/${m}/${y}`;
+    };
+
+    const ok = await EmailJSConfig.enviar('cobranca', {
+      to_email:        email,
+      to_name:         aluno.nome || mat.alunoNome || 'Aluno',
+      academia:        academia.nome || 'PickleManager Academia',
+      plano:           mat.planoNome || '—',
+      valor:           (parseFloat(mat.valorPago) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
+      data_vencimento: fmt(mat.dataFim),
+      chave_pix:       academia.chavePix || '',
+    });
+
+    if (btnEl) {
+      btnEl.disabled = false;
+      btnEl.textContent = `✉️ Enviar lembrete por e-mail`;
+    }
+
+    if (ok) {
+      UI.toast(`✅ Lembrete enviado para ${email}`, 'success');
+      UI.closeModal();
+    } else {
+      UI.toast('Falha ao enviar. Verifique o template "cobranca" no EmailJS.', 'error');
+    }
   },
 
   /* ------------------------------------------------------------------ */
