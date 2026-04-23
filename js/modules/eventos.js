@@ -18,6 +18,28 @@ const EventoModule = {
     tab: 'dados',
   },
 
+  /* ---- Calendar state ---- */
+  _calSubView:     'lista',   // 'lista' | 'cal'
+  _calView:        'mes',     // 'mes' | 'semana' | 'dia' | 'agenda'
+  _calAno:         null,
+  _calMes:         null,
+  _calDia:         null,
+  _calFilterArena: '',
+
+  _CAL_DIAS:  ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'],
+  _CAL_MESES: ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
+               'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'],
+
+  /* Cor por tipo de evento */
+  CAL_COR: {
+    torneio:    '#f59e0b',
+    campeonato: '#8b5cf6',
+    clinica:    '#3b82f6',
+    social:     '#10b981',
+    amistoso:   '#14b8a6',
+    outro:      '#6b7280',
+  },
+
   STATUS: {
     planejado:    { label: 'Planejado',          badge: 'badge-blue'    },
     aberto:       { label: 'Inscrições abertas', badge: 'badge-success' },
@@ -93,10 +115,13 @@ const EventoModule = {
 
   render() {
     this._detail.id = null;
+    this._calInitDate();
     const stats    = this.getStats();
     const filtered = this.getFiltered();
     const area     = document.getElementById('content-area');
     if (!area) return;
+    const sv = this._calSubView;
+    const svgPlus = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
 
     area.innerHTML = `
       <div class="page-header">
@@ -105,8 +130,7 @@ const EventoModule = {
           <p>Organize torneios, campeonatos e eventos especiais da academia</p>
         </div>
         <button class="btn btn-primary" onclick="EventoModule.openModal()">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          Novo Evento
+          ${svgPlus} Novo Evento
         </button>
       </div>
 
@@ -141,6 +165,18 @@ const EventoModule = {
         </div>
       </div>
 
+      <div class="tabs-bar">
+        <button class="tab-btn ${sv==='lista' ?'active':''}" onclick="EventoModule._calSubView='lista';EventoModule.render()">📋 Lista</button>
+        <button class="tab-btn ${sv==='cal'   ?'active':''}" onclick="EventoModule._calSubView='cal';EventoModule.render()">📅 Calendário</button>
+      </div>
+
+      <div id="eventos-content">
+        ${sv === 'lista' ? this._renderLista(filtered) : this._renderCalendario()}
+      </div>`;
+  },
+
+  _renderLista(filtered) {
+    return `
       <div class="filters-bar">
         <div class="search-wrapper">
           <span class="search-icon">🔍</span>
@@ -171,7 +207,6 @@ const EventoModule = {
           ${filtered.length} evento${filtered.length !== 1 ? 's' : ''}
         </span>
       </div>
-
       <div class="cards-grid" id="eventos-grid">
         ${filtered.length
           ? filtered.map(e => this.renderCard(e)).join('')
@@ -1092,10 +1127,14 @@ const EventoModule = {
   /*  Modal / Form (dados gerais)                                         */
   /* ------------------------------------------------------------------ */
 
-  openModal(id = null) {
+  openModal(id = null, dataPre = null) {
     const evento = id ? Storage.getById(this.STORAGE_KEY, id) : null;
     const isEdit = !!evento;
-    const v      = (field, fallback = '') => evento ? UI.escape(String(evento[field] ?? fallback)) : fallback;
+    const v      = (field, fallback = '') => {
+      if (evento) return UI.escape(String(evento[field] ?? fallback));
+      if (field === 'data' && dataPre) return dataPre;
+      return fallback;
+    };
 
     const arenas = Storage.getAll('arenas').filter(a => a.status === 'ativa');
     const arenaOptions = `<option value="">— Selecionar —</option>` +
@@ -1290,6 +1329,11 @@ const EventoModule = {
     if (countEl) countEl.textContent = `${filtered.length} evento${filtered.length !== 1 ? 's' : ''}`;
   },
 
+  _reRenderCalContent() {
+    const el = document.getElementById('ev-cal-content');
+    if (el) el.innerHTML = this._calRenderBody();
+  },
+
   /* ------------------------------------------------------------------ */
   /*  Helpers                                                             */
   /* ------------------------------------------------------------------ */
@@ -1301,4 +1345,361 @@ const EventoModule = {
       day: '2-digit', month: '2-digit', year: 'numeric',
     });
   },
-};
+
+  /* ================================================================== */
+  /*  CALENDÁRIO DE EVENTOS                                               */
+  /* ================================================================== */
+
+  _calInitDate() {
+    if (this._calAno !== null) return;
+    const now = new Date();
+    this._calAno = now.getFullYear();
+    this._calMes = now.getMonth();
+    this._calDia = now.getDate();
+  },
+
+  /* Retorna eventos que ocorrem em determinada data (span multi-dia) */
+  _calEventosParaDia(dataStr) {
+    return this.getAll().filter(e => {
+      if (!e.data) return false;
+      const fim = e.dataFim || e.data;
+      if (dataStr < e.data || dataStr > fim) return false;
+      if (this._calFilterArena && e.arenaId !== this._calFilterArena) return false;
+      return true;
+    }).sort((a, b) => (a.data || '').localeCompare(b.data || ''));
+  },
+
+  /* Eventos dentro de um intervalo (para agenda/semana) */
+  _calEventosIntervalo(ini, fim) {
+    const iniStr = (ini instanceof Date) ? ini.toISOString().slice(0,10) : ini;
+    const fimStr = (fim instanceof Date) ? fim.toISOString().slice(0,10) : fim;
+    return this.getAll().filter(e => {
+      if (!e.data) return false;
+      const eFim = e.dataFim || e.data;
+      // Intervalo do evento se sobrepõe com intervalo de busca
+      if (eFim < iniStr || e.data > fimStr) return false;
+      if (this._calFilterArena && e.arenaId !== this._calFilterArena) return false;
+      return true;
+    }).sort((a, b) => a.data.localeCompare(b.data) || (a.horarioInicio||'').localeCompare(b.horarioInicio||''));
+  },
+
+  _calSetView(v) {
+    this._calView = v;
+    this._reRenderCalContent();
+  },
+
+  _calNavegar(delta) {
+    const view = this._calView;
+    if (view === 'mes') {
+      let m = this._calMes + delta, a = this._calAno;
+      if (m < 0)  { m = 11; a--; }
+      if (m > 11) { m = 0;  a++; }
+      this._calAno = a; this._calMes = m;
+    } else if (view === 'semana') {
+      const d = new Date(this._calAno, this._calMes, this._calDia);
+      d.setDate(d.getDate() + delta * 7);
+      this._calAno = d.getFullYear(); this._calMes = d.getMonth(); this._calDia = d.getDate();
+    } else if (view === 'dia') {
+      const d = new Date(this._calAno, this._calMes, this._calDia);
+      d.setDate(d.getDate() + delta);
+      this._calAno = d.getFullYear(); this._calMes = d.getMonth(); this._calDia = d.getDate();
+    } else {
+      const d = new Date(this._calAno, this._calMes, this._calDia);
+      d.setDate(d.getDate() + delta * 14);
+      this._calAno = d.getFullYear(); this._calMes = d.getMonth(); this._calDia = d.getDate();
+    }
+    this._reRenderCalContent();
+  },
+
+  _calIrHoje() {
+    const now = new Date();
+    this._calAno = now.getFullYear(); this._calMes = now.getMonth(); this._calDia = now.getDate();
+    this._reRenderCalContent();
+  },
+
+  _calGetTitulo() {
+    const { _calView: v, _calAno: a, _calMes: m, _calDia: d } = this;
+    if (v === 'mes') return `${this._CAL_MESES[m]} ${a}`;
+    if (v === 'dia') return new Date(a, m, d).toLocaleDateString('pt-BR', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+    if (v === 'semana') {
+      const ini = new Date(a, m, d);
+      ini.setDate(ini.getDate() - ini.getDay());
+      const fim = new Date(ini); fim.setDate(ini.getDate() + 6);
+      return `${ini.getDate()} – ${fim.getDate()} de ${this._CAL_MESES[fim.getMonth()]} ${fim.getFullYear()}`;
+    }
+    return `Próximos eventos`;
+  },
+
+  _renderCalendario() {
+    const arenas = Storage.getAll('arenas').sort((a,b)=>a.nome.localeCompare(b.nome));
+    const v = this._calView;
+    return `
+      <div class="cal-toolbar">
+        <div class="cal-toolbar-left">
+          <button class="btn btn-secondary btn-sm" onclick="EventoModule._calIrHoje()">Hoje</button>
+          <button class="btn btn-icon" onclick="EventoModule._calNavegar(-1)">‹</button>
+          <button class="btn btn-icon" onclick="EventoModule._calNavegar(1)">›</button>
+          <span class="cal-titulo">${this._calGetTitulo()}</span>
+        </div>
+        <div class="cal-toolbar-right">
+          <select class="filter-select" style="min-width:130px;"
+            onchange="EventoModule._calFilterArena=this.value;EventoModule._reRenderCalContent()">
+            <option value="">Todas as arenas</option>
+            ${arenas.map(a =>
+              `<option value="${a.id}" ${this._calFilterArena===a.id?'selected':''}>${UI.escape(a.nome)}</option>`
+            ).join('')}
+          </select>
+          <div class="cal-view-btns">
+            <button class="cal-view-btn${v==='mes'    ?'  cal-view-active':''}" onclick="EventoModule._calSetView('mes')">Mês</button>
+            <button class="cal-view-btn${v==='semana' ?' cal-view-active':''}" onclick="EventoModule._calSetView('semana')">Semana</button>
+            <button class="cal-view-btn${v==='dia'    ?' cal-view-active':''}" onclick="EventoModule._calSetView('dia')">Dia</button>
+            <button class="cal-view-btn${v==='agenda' ?' cal-view-active':''}" onclick="EventoModule._calSetView('agenda')">Agenda</button>
+          </div>
+        </div>
+      </div>
+      <div class="cal-legenda" style="margin-bottom:12px;display:flex;gap:10px;flex-wrap:wrap;font-size:12px;">
+        ${Object.entries(this.CAL_COR).map(([tipo, cor]) =>
+          `<span style="display:flex;align-items:center;gap:4px;">
+             <span style="width:10px;height:10px;border-radius:50%;background:${cor};flex-shrink:0;"></span>
+             ${this.TIPO_ICON[tipo]||''} ${this.TIPO[tipo]||tipo}
+           </span>`
+        ).join('')}
+      </div>
+      <div id="ev-cal-content">${this._calRenderBody()}</div>`;
+  },
+
+  _calRenderBody() {
+    const v = this._calView;
+    if (v === 'mes')    return this._calViewMes();
+    if (v === 'semana') return this._calViewSemana();
+    if (v === 'dia')    return this._calViewDia();
+    return this._calViewAgenda();
+  },
+
+  /* ---- Vista Mês ---- */
+  _calViewMes() {
+    const { _calAno: ano, _calMes: mes } = this;
+    const primeiroDia = new Date(ano, mes, 1);
+    const ultimoDia   = new Date(ano, mes + 1, 0);
+    const diasDoMes   = ultimoDia.getDate();
+    const inicioSem   = primeiroDia.getDay();
+    const mesStr      = String(mes + 1).padStart(2, '0');
+    const hojeStr     = new Date().toISOString().slice(0, 10);
+    const HEADER      = this._CAL_DIAS;
+    const WKEND       = [0, 6];
+
+    const headerCols = HEADER.map(h => `<div class="cal-mes-th">${h}</div>`).join('');
+    let cells = '';
+
+    for (let i = 0; i < inicioSem; i++) {
+      cells += `<div class="cal-cell cal-cell-outside${WKEND.includes(i)?' cal-cell-fds':''}"></div>`;
+    }
+
+    for (let d = 1; d <= diasDoMes; d++) {
+      const dataStr = `${ano}-${mesStr}-${String(d).padStart(2,'0')}`;
+      const dow     = new Date(ano, mes, d).getDay();
+      const isHoje  = dataStr === hojeStr;
+      const isPast  = dataStr < hojeStr;
+      const isFds   = WKEND.includes(dow);
+      const evsDia  = this._calEventosParaDia(dataStr);
+      const MAX     = 3;
+      const visiveis = evsDia.slice(0, MAX);
+      const extras   = evsDia.length - MAX;
+
+      const evHtml = visiveis.map(e => {
+        const cor  = this.CAL_COR[e.tipo] || '#6b7280';
+        const icon = this.TIPO_ICON[e.tipo] || '📌';
+        const hr   = (e.horarioInicio || '').slice(0,5);
+        return `<div class="cal-event" style="--ev-cor:${cor};"
+          onclick="event.stopPropagation();EventoModule.openDetail('${e.id}')">
+          <span class="cal-ev-dot" style="background:${cor};"></span>
+          ${hr ? `<span class="cal-event-hora">${hr}</span>` : ''}
+          <span class="cal-event-nome">${icon} ${UI.escape(e.nome)}</span>
+        </div>`;
+      }).join('');
+
+      const mais = extras > 0
+        ? `<div class="cal-event-mais"
+            onclick="event.stopPropagation();EventoModule._calDia=${d};EventoModule._calSetView('dia')">+${extras} mais</div>`
+        : '';
+
+      cells += `
+        <div class="cal-cell${isHoje?' cal-cell-hoje':''}${isPast?' cal-cell-passado':''}${isFds?' cal-cell-fds':''}"
+          onclick="EventoModule.openModal(null,'${dataStr}')" style="cursor:pointer;">
+          <div class="cal-cell-num${isHoje?' hoje':''}">${d}</div>
+          ${evHtml}${mais}
+        </div>`;
+    }
+
+    return `
+      <div class="cal-mes-wrap">
+        <div class="cal-mes-header">${headerCols}</div>
+        <div class="cal-mes-grid">${cells}</div>
+      </div>`;
+  },
+
+  /* ---- Vista Semana ---- */
+  _calViewSemana() {
+    const { _calAno: ano, _calMes: mes, _calDia: dia } = this;
+    const ref = new Date(ano, mes, dia);
+    const ini = new Date(ref); ini.setDate(ref.getDate() - ref.getDay());
+    const fim = new Date(ini); fim.setDate(ini.getDate() + 6);
+    const eventos   = this._calEventosIntervalo(ini, fim);
+    const hojeStr   = new Date().toISOString().slice(0,10);
+
+    const cols = [];
+    for (let i = 0; i < 7; i++) {
+      const d  = new Date(ini); d.setDate(ini.getDate() + i);
+      const ds = d.toISOString().slice(0,10);
+      const isHoje  = ds === hojeStr;
+      const evsDia  = eventos.filter(e => {
+        const eFim = e.dataFim || e.data;
+        return e.data <= ds && eFim >= ds;
+      });
+      const content = evsDia.length
+        ? evsDia.map(e => this._calCardEvento(e, 'sm')).join('')
+        : `<div class="cal-sem-vazio">—</div>`;
+
+      cols.push(`
+        <div class="cal-sem-col${isHoje?' cal-sem-hoje':''}">
+          <div class="cal-sem-header" onclick="EventoModule.openModal(null,'${ds}')"
+            style="cursor:pointer;" title="Novo evento neste dia">
+            <span class="cal-sem-diaNome">${this._CAL_DIAS[i]}</span>
+            <span class="cal-sem-diaNum${isHoje?' hoje':''}">${d.getDate()}</span>
+          </div>
+          <div class="cal-sem-aulas">${content}</div>
+        </div>`);
+    }
+    return `<div class="cal-semana-grid">${cols.join('')}</div>`;
+  },
+
+  /* ---- Vista Dia ---- */
+  _calViewDia() {
+    const { _calAno: ano, _calMes: mes, _calDia: dia } = this;
+    const d       = new Date(ano, mes, dia);
+    const dataStr = d.toISOString().slice(0,10);
+    const evsDia  = this._calEventosParaDia(dataStr);
+
+    if (!evsDia.length) {
+      return `
+        <div class="cal-dia-vazio">
+          <span>🏆</span>
+          <p>Nenhum evento neste dia.</p>
+          <button class="btn btn-primary btn-sm" style="margin-top:12px;"
+            onclick="EventoModule.openModal(null,'${dataStr}')">+ Novo Evento</button>
+        </div>`;
+    }
+    return `
+      <div class="cal-dia-lista">
+        ${evsDia.map(e => this._calCardEvento(e, 'lg')).join('')}
+        <div style="margin-top:12px;text-align:center;">
+          <button class="btn btn-secondary btn-sm"
+            onclick="EventoModule.openModal(null,'${dataStr}')">+ Novo Evento neste dia</button>
+        </div>
+      </div>`;
+  },
+
+  /* ---- Vista Agenda ---- */
+  _calViewAgenda() {
+    const ref = new Date(this._calAno, this._calMes, this._calDia);
+    const fim = new Date(ref); fim.setDate(ref.getDate() + 60);
+    const eventos = this._calEventosIntervalo(ref, fim);
+    const hojeStr = new Date().toISOString().slice(0,10);
+
+    if (!eventos.length) {
+      return `<div class="cal-dia-vazio"><span>📭</span><p>Nenhum evento nos próximos 60 dias.</p></div>`;
+    }
+
+    // Agrupa por data de início
+    const grupos = {};
+    eventos.forEach(e => {
+      const k = e.data;
+      (grupos[k] = grupos[k] || []).push(e);
+    });
+
+    return `<div class="cal-agenda-wrap">` +
+      Object.entries(grupos).sort(([a],[b]) => a.localeCompare(b)).map(([data, evs]) => {
+        const [y, m, d] = data.split('-');
+        const dateObj = new Date(+y, +m-1, +d);
+        const label   = dateObj.toLocaleDateString('pt-BR', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+        const isHoje  = data === hojeStr;
+        return `
+          <div class="cal-agenda-grupo">
+            <div class="cal-agenda-data${isHoje?' hoje':''}">
+              ${label.charAt(0).toUpperCase() + label.slice(1)}
+              ${isHoje ? '<span class="cal-agenda-hoje-badge">Hoje</span>' : ''}
+            </div>
+            <div class="cal-agenda-aulas">
+              ${evs.map(e => this._calCardEvento(e, 'md')).join('')}
+            </div>
+          </div>`;
+      }).join('') + `</div>`;
+  },
+
+  /* ---- Card de evento no calendário ---- */
+  _calCardEvento(e, size = 'md') {
+    const cor    = this.CAL_COR[e.tipo] || '#6b7280';
+    const icon   = this.TIPO_ICON[e.tipo] || '📌';
+    const status = this.STATUS[e.status] || { label: e.status, badge: 'badge-gray' };
+    const hr     = (e.horarioInicio || '').slice(0, 5);
+    const hrFim  = (e.horarioFim   || '').slice(0, 5);
+    const horario = hr ? (hrFim ? `${hr}–${hrFim}` : hr) : '';
+
+    if (size === 'sm') {
+      return `
+        <div class="cal-card cal-card-sm" style="--ev-cor:${cor};"
+          onclick="EventoModule.openDetail('${e.id}')">
+          <div class="cal-card-hora">${horario || icon}</div>
+          <div class="cal-card-titulo">${UI.escape(e.nome)}</div>
+        </div>`;
+    }
+
+    const periodo = e.dataFim && e.dataFim !== e.data
+      ? `${this._fmtData(e.data)} – ${this._fmtData(e.dataFim)}`
+      : this._fmtData(e.data);
+
+    if (size === 'md') {
+      return `
+        <div class="cal-card cal-card-md" style="--ev-cor:${cor};"
+          onclick="EventoModule.openDetail('${e.id}')">
+          <div class="cal-card-left-bar" style="background:${cor};"></div>
+          <div class="cal-card-body">
+            <div class="cal-card-row1">
+              <span class="cal-card-hora">${horario || icon}</span>
+              <span class="cal-card-badge" style="background:${cor}20;color:${cor};">${this.TIPO[e.tipo]||e.tipo}</span>
+              <span class="badge ${status.badge}" style="font-size:10px;">${status.label}</span>
+            </div>
+            <div class="cal-card-titulo">${icon} ${UI.escape(e.nome)}</div>
+            <div class="cal-card-sub">
+              📅 ${periodo}
+              ${e.arenaNome ? `· 📍 ${UI.escape(e.arenaNome)}` : ''}
+              ${e.vagas ? `· 👥 ${e.vagas} vagas` : ''}
+            </div>
+          </div>
+        </div>`;
+    }
+
+    // size === 'lg'
+    return `
+      <div class="cal-card cal-card-lg" style="--ev-cor:${cor};">
+        <div class="cal-card-left-bar" style="background:${cor};"></div>
+        <div class="cal-card-body">
+          <div class="cal-card-row1">
+            <span class="cal-card-hora">${horario}</span>
+            <span class="cal-card-badge" style="background:${cor}20;color:${cor};">${this.TIPO[e.tipo]||e.tipo}</span>
+            <span class="badge ${status.badge}">${status.label}</span>
+          </div>
+          <div class="cal-card-titulo">${icon} ${UI.escape(e.nome)}</div>
+          <div class="cal-card-sub">
+            📅 ${periodo}
+            ${e.arenaNome ? `· 📍 ${UI.escape(e.arenaNome)}` : ''}
+            ${e.vagas     ? `· 👥 ${e.vagas} vagas`         : ''}
+            ${e.nivel     ? `· 🎯 ${this.NIVEL[e.nivel]||e.nivel}` : ''}
+          </div>
+          <div style="margin-top:10px;display:flex;gap:8px;">
+            <button class="btn btn-secondary btn-sm" onclick="EventoModule.openDetail('${e.id}')">📂 Detalhe</button>
+            <button class="btn btn-ghost btn-sm" onclick="EventoModule.openModal('${e.id}')">✏️ Editar</button>
+          </div>
+        </div>
+      </div>`;
+  },
