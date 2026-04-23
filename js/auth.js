@@ -123,7 +123,6 @@ const Auth = {
   },
 
   showEsqueciSenha() {
-    // Mostra mensagem inline no próprio box de login (evita z-index do overlay)
     let box = document.getElementById('li-esqueci-box');
     if (!box) {
       box = document.createElement('div');
@@ -135,20 +134,63 @@ const Auth = {
       document.getElementById('login-form')?.after(box);
     }
     box.innerHTML = `
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-        <div>
-          <div style="font-weight:700;margin-bottom:6px;">🔑 Esqueci minha senha</div>
-          <div>As senhas são gerenciadas pelo administrador.</div>
-          <div style="margin-top:6px;"><strong>Para redefinir:</strong></div>
-          <div>⚙️ Administração → Usuários → 🔑 Redefinir senha</div>
-          <div style="margin-top:6px;color:var(--text-muted);font-size:11px;">
-            Ou acesse a <strong>Área Administrativa</strong> (botão abaixo) para criar um novo usuário.
-          </div>
-        </div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+        <div style="font-weight:700;font-size:14px;">🔑 Recuperar senha</div>
         <button onclick="document.getElementById('li-esqueci-box').remove()"
           style="background:none;border:none;cursor:pointer;font-size:16px;padding:0 0 0 8px;color:var(--text-muted);">✕</button>
-      </div>`;
+      </div>
+      <p style="margin:0 0 10px;font-size:12px;color:var(--text-muted);">
+        Informe seu e-mail. Enviaremos um link para redefinir a senha.
+      </p>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input id="li-rec-email" type="email" class="form-input"
+          placeholder="seu@email.com"
+          style="flex:1;font-size:13px;padding:8px 12px;"
+          onkeydown="if(event.key==='Enter') Auth.enviarRecuperacaoSenha()" />
+        <button id="li-rec-btn" class="btn btn-primary btn-sm"
+          onclick="Auth.enviarRecuperacaoSenha()" style="white-space:nowrap;">Enviar link</button>
+      </div>
+      <div id="li-rec-msg" style="display:none;margin-top:10px;padding:8px 12px;border-radius:8px;font-size:12px;"></div>`;
     box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    document.getElementById('li-rec-email')?.focus();
+  },
+
+  async enviarRecuperacaoSenha() {
+    const emailEl = document.getElementById('li-rec-email');
+    const btnEl   = document.getElementById('li-rec-btn');
+    const msgEl   = document.getElementById('li-rec-msg');
+    const email   = emailEl?.value.trim();
+
+    if (!email) { emailEl?.focus(); return; }
+    if (!SupabaseClient) {
+      if (msgEl) {
+        msgEl.style.display = 'block';
+        msgEl.style.background = '#fef3c7'; msgEl.style.color = '#92400e';
+        msgEl.textContent = 'Fale com o administrador para redefinir a senha.';
+      }
+      return;
+    }
+
+    if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Enviando…'; }
+
+    const { error } = await SupabaseClient.auth.resetPasswordForEmail(email, {
+      redirectTo: 'https://albanofalcao.github.io/picklemanager/',
+    });
+
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Enviar link'; }
+
+    if (msgEl) {
+      msgEl.style.display = 'block';
+      if (error) {
+        msgEl.style.background = '#fee2e2'; msgEl.style.color = '#991b1b';
+        msgEl.textContent = '✕ Erro ao enviar: ' + error.message;
+      } else {
+        msgEl.style.background = '#d1fae5'; msgEl.style.color = '#065f46';
+        msgEl.innerHTML = '✅ <strong>Link enviado!</strong> Verifique seu e-mail e clique no link de recuperação.';
+        if (emailEl) emailEl.disabled = true;
+        if (btnEl)   btnEl.style.display = 'none';
+      }
+    }
   },
 
   populateTenantSelect() {
