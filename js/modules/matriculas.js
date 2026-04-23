@@ -579,18 +579,56 @@ const MatriculaModule = {
             : `<span class="badge badge-success">Vence em ${diasDiff} dias</span>`
       : '';
 
+    // ── PIX: gera payload EMV (Pix Copia e Cola) + QR Code ──────────────
+    const cidadeAcad = (academia.cidade || 'SAO PAULO').substring(0, 15);
+    const valorNum   = parseFloat(mat.valorPago) || 0;
+    const pixPayload = chavePix
+      ? this._gerarPixPayload(chavePix, nomeAcad, cidadeAcad, valorNum)
+      : '';
+    const pixQrUrl = pixPayload
+      ? `https://api.qrserver.com/v1/create-qr-code/?size=150x150&ecc=M&data=${encodeURIComponent(pixPayload)}`
+      : '';
+
     const pixSection = chavePix
       ? `<div style="background:var(--bg-secondary);border:1.5px dashed var(--color-primary,#3b9e8f);border-radius:12px;padding:16px;margin-top:12px;">
-          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:8px;">🔑 Chave PIX</div>
-          <div style="display:flex;align-items:center;gap:8px;">
-            <code id="pix-chave-val" style="flex:1;background:var(--bg-primary);border:1px solid var(--card-border);border-radius:8px;padding:8px 12px;font-size:13px;word-break:break-all;">${UI.escape(chavePix)}</code>
-            <button class="btn btn-sm btn-secondary" onclick="MatriculaModule._copiarPix()" title="Copiar chave PIX" style="flex-shrink:0;">📋 Copiar</button>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:12px;">💳 PIX</div>
+          <div style="display:flex;gap:14px;align-items:flex-start;">
+            <div style="flex-shrink:0;text-align:center;">
+              <img src="${pixQrUrl}" alt="QR Code PIX"
+                style="width:130px;height:130px;border-radius:8px;border:1px solid var(--card-border);display:block;" />
+              <div style="font-size:10px;color:var(--text-muted);margin-top:4px;">Escaneie para pagar</div>
+            </div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:6px;">Chave PIX</div>
+              <code id="pix-chave-val" style="display:block;background:var(--bg-primary);border:1px solid var(--card-border);border-radius:8px;padding:8px 10px;font-size:12px;word-break:break-all;margin-bottom:8px;">${UI.escape(chavePix)}</code>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                <button class="btn btn-sm btn-secondary" onclick="MatriculaModule._copiarPix()">📋 Copiar chave</button>
+                <button class="btn btn-sm btn-secondary" onclick="MatriculaModule._copiarPixCola()">📄 Pix Copia e Cola</button>
+              </div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:8px;">Valor: <strong>${valor}</strong></div>
+            </div>
           </div>
-          <div style="font-size:12px;color:var(--text-muted);margin-top:8px;">Valor sugerido: <strong>${valor}</strong></div>
+          <textarea id="pix-payload-val" style="display:none;">${pixPayload}</textarea>
         </div>`
       : `<div style="background:#fef3c7;border-radius:10px;padding:12px;margin-top:12px;font-size:12px;color:#92400e;">
           ⚠️ Chave PIX não cadastrada. Configure em Cadastros → Academia.
         </div>`;
+
+    const pagarmeSection = `
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--card-border);">
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;font-weight:600;">🌐 Pagamento Online (Pagar.me)</div>
+        <button id="cobr-pagarme-btn" class="btn btn-secondary" style="width:100%;"
+          onclick="MatriculaModule._abrirPagarme('${id}')">
+          🌐 Gerar cobrança via Pagar.me
+        </button>
+        <div id="cobr-pm-section" style="display:none;margin-top:12px;">
+          <div id="cobr-pm-qr" style="text-align:center;margin-bottom:10px;"></div>
+          <textarea id="cobr-pm-payload" readonly
+            style="width:100%;font-size:10px;padding:8px;border-radius:8px;border:1px solid var(--card-border);background:var(--bg-secondary);resize:none;height:56px;"></textarea>
+          <button class="btn btn-sm btn-secondary" style="width:100%;margin-top:6px;"
+            onclick="MatriculaModule._copiarPagarmePayload()">📋 Copiar código Pix (Pagar.me)</button>
+        </div>
+      </div>`;
 
     const temTemplate = typeof EmailJSConfig !== 'undefined' && EmailJSConfig.templateAtivo('cobranca');
     const emailSection = email
@@ -628,6 +666,7 @@ const MatriculaModule = {
 
         ${pixSection}
         ${emailSection}
+        ${pagarmeSection}
       </div>`;
 
     UI.openModal({
@@ -637,32 +676,134 @@ const MatriculaModule = {
     });
   },
 
-  _copiarPix() {
-    const el = document.getElementById('pix-chave-val');
-    if (!el) return;
-    const texto = el.textContent.trim();
+  /** Copia qualquer texto para o clipboard com fallback */
+  _copiarTexto(texto, msg) {
+    const _fb = () => {
+      const ta = document.createElement('textarea');
+      ta.value = texto;
+      ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0;';
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); } catch (_) {}
+      document.body.removeChild(ta);
+      UI.toast(msg || '✅ Copiado!', 'success');
+    };
     if (navigator.clipboard) {
       navigator.clipboard.writeText(texto)
-        .then(() => UI.toast('✅ Chave PIX copiada!', 'success'))
-        .catch(() => this._copiarFallback(el));
+        .then(() => UI.toast(msg || '✅ Copiado!', 'success'))
+        .catch(_fb);
     } else {
-      this._copiarFallback(el);
+      _fb();
     }
   },
 
-  _copiarFallback(el) {
-    const range = document.createRange();
-    range.selectNode(el);
-    const sel = window.getSelection();
-    sel?.removeAllRanges();
-    sel?.addRange(range);
-    try {
-      document.execCommand('copy');
-      UI.toast('✅ Chave PIX copiada!', 'success');
-    } catch (_) {
-      UI.toast('Não foi possível copiar automaticamente.', 'warning');
+  _copiarPix() {
+    const el = document.getElementById('pix-chave-val');
+    if (el) this._copiarTexto(el.textContent.trim(), '✅ Chave PIX copiada!');
+  },
+
+  _copiarPixCola() {
+    const el = document.getElementById('pix-payload-val');
+    if (!el || !el.value) { UI.toast('Payload PIX não disponível.', 'warning'); return; }
+    this._copiarTexto(el.value.trim(), '✅ Código Pix Copia e Cola copiado!');
+  },
+
+  _copiarPagarmePayload() {
+    const el = document.getElementById('cobr-pm-payload');
+    if (!el || !el.value) return;
+    this._copiarTexto(el.value.trim(), '✅ Código Pix Copia e Cola copiado!');
+  },
+
+  /**
+   * Gera payload PIX no padrão EMV (Pix Copia e Cola) com CRC16.
+   */
+  _gerarPixPayload(chave, nome, cidade, valor) {
+    const f = (id, val) => {
+      const s = String(val);
+      return `${id}${String(s.length).padStart(2, '0')}${s}`;
+    };
+    const gui  = f('00', 'br.gov.bcb.pix');
+    const key  = f('01', String(chave).trim());
+    const mAcc = f('26', gui + key);
+    const ref  = f('05', '***');
+    const addD = f('62', ref);
+    const nomeClean   = String(nome   || 'ACADEMIA').substring(0, 25).trim() || 'ACADEMIA';
+    const cidadeClean = String(cidade || 'SAO PAULO').substring(0, 15).trim() || 'SAO PAULO';
+    let p = '';
+    p += f('00', '01');
+    p += mAcc;
+    p += f('52', '0000');
+    p += f('53', '986');
+    const v = parseFloat(valor) || 0;
+    if (v > 0) p += f('54', v.toFixed(2));
+    p += f('58', 'BR');
+    p += f('59', nomeClean);
+    p += f('60', cidadeClean);
+    p += addD;
+    p += '6304';
+    return p + this._crc16(p);
+  },
+
+  /** CRC16-CCITT-FALSE — padrão exigido pelo Banco Central para PIX EMV */
+  _crc16(str) {
+    let crc = 0xFFFF;
+    for (let i = 0; i < str.length; i++) {
+      crc ^= str.charCodeAt(i) << 8;
+      for (let j = 0; j < 8; j++) {
+        crc = (crc & 0x8000) ? ((crc << 1) ^ 0x1021) : (crc << 1);
+        crc &= 0xFFFF;
+      }
     }
-    sel?.removeAllRanges();
+    return crc.toString(16).toUpperCase().padStart(4, '0');
+  },
+
+  /**
+   * Gera cobrança PIX via Pagar.me (requer Supabase Edge Function implantada).
+   */
+  async _abrirPagarme(matriculaId) {
+    const mat   = Storage.getById(this.STORAGE_KEY, matriculaId);
+    if (!mat) return;
+    const aluno = Storage.getAll('alunos').find(a => a.id === mat.alunoId) || {};
+
+    const btnEl = document.getElementById('cobr-pagarme-btn');
+    if (btnEl) { btnEl.disabled = true; btnEl.textContent = '⏳ Gerando cobrança…'; }
+
+    try {
+      const resp = await fetch(`${SUPABASE_URL}/functions/v1/pagarme-checkout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type':  'application/json',
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+        },
+        body: JSON.stringify({
+          valor:       parseFloat(mat.valorPago) || 0,
+          alunoNome:   aluno.nome || mat.alunoNome || 'Aluno',
+          email:       aluno.email || '',
+          descricao:   `Mensalidade — ${mat.planoNome || 'Plano'}`,
+          matriculaId: mat.id,
+        }),
+      });
+
+      const data = await resp.json();
+      if (data.error) { UI.toast(`Pagar.me: ${data.error}`, 'error'); return; }
+
+      const secEl = document.getElementById('cobr-pm-section');
+      const qrEl  = document.getElementById('cobr-pm-qr');
+      const payEl = document.getElementById('cobr-pm-payload');
+
+      if (qrEl && data.qrCodeUrl) {
+        qrEl.innerHTML = `<img src="${data.qrCodeUrl}" style="width:150px;height:150px;border-radius:8px;" alt="QR Pagar.me" />`;
+      }
+      if (payEl && data.qrCode) payEl.value = data.qrCode;
+      if (secEl) secEl.style.display = '';
+
+      UI.toast('✅ Cobrança Pagar.me gerada!', 'success');
+    } catch (err) {
+      console.error('Pagar.me erro:', err);
+      UI.toast('Falha ao conectar. Verifique se a Edge Function está implantada.', 'error');
+    } finally {
+      if (btnEl) { btnEl.disabled = false; btnEl.textContent = '🌐 Gerar cobrança via Pagar.me'; }
+    }
   },
 
   async _enviarLembreteCobranca(matriculaId) {
