@@ -12,6 +12,12 @@ const PortalModule = {
   _calAlunoAno:  null,
   _calAlunoMes:  null,
   _calAlunoView: 'lista',  // 'lista' | 'cal'
+
+  /* Estado do calendário do professor */
+  _calProfAno:  null,
+  _calProfMes:  null,
+  _calProfView: 'lista',  // 'lista' | 'cal'
+
   _CAL_DIAS_PT:  ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'],
 
   /* ------------------------------------------------------------------ */
@@ -155,9 +161,12 @@ const PortalModule = {
 
     // Tabs
     const tabs = [
-      { key: 'hoje',     label: `Hoje  (${aulasHoje.length})` },
-      { key: 'proximas', label: 'Próximas' },
-      { key: 'passadas', label: 'Histórico' },
+      { key: 'hoje',        label: `📍 Hoje (${aulasHoje.length})` },
+      { key: 'proximas',    label: '📅 Agenda'       },
+      { key: 'turmas',      label: '📚 Turmas'       },
+      { key: 'estatisticas',label: '📊 Estatísticas' },
+      { key: 'comunicados', label: '📣 Comunicados'  },
+      { key: 'passadas',    label: '🗂 Histórico'    },
     ];
 
     const tabBar = tabs.map(t => `
@@ -174,12 +183,26 @@ const PortalModule = {
              <p>Nenhuma aula programada para hoje.<br>Aproveite o descanso!</p>
            </div>`;
     } else if (this._tab === 'proximas') {
-      content = proximas.length
-        ? proximas.map(a => this._cardAulaProfessor(a, false, false)).join('')
-        : `<div class="portal-empty">
-             <div class="portal-empty-icon">📭</div>
-             <p>Nenhuma aula próxima agendada.</p>
-           </div>`;
+      const toggleBar = `
+        <div style="display:flex;gap:6px;margin-bottom:16px;">
+          <button class="btn btn-sm ${this._calProfView==='lista'?'btn-primary':'btn-secondary'}"
+            onclick="PortalModule._calProfView='lista';PortalModule._reRender()">☰ Lista</button>
+          <button class="btn btn-sm ${this._calProfView==='cal'?'btn-primary':'btn-secondary'}"
+            onclick="PortalModule._calProfView='cal';PortalModule._reRender()">📅 Calendário</button>
+        </div>`;
+      if (this._calProfView === 'cal') {
+        content = toggleBar + this._renderProfCalendario(todasAulas);
+      } else {
+        content = toggleBar + (proximas.length
+          ? proximas.map(a => this._cardAulaProfessor(a, false, false)).join('')
+          : `<div class="portal-empty"><div class="portal-empty-icon">📭</div><p>Nenhuma aula próxima agendada.</p></div>`);
+      }
+    } else if (this._tab === 'turmas') {
+      content = this._renderProfTurmas(session);
+    } else if (this._tab === 'estatisticas') {
+      content = this._renderProfEstatisticas(session, todasAulas);
+    } else if (this._tab === 'comunicados') {
+      content = this._renderAlunoComunicados(session);   // reutiliza a mesma lógica
     } else {
       content = anteriores.length
         ? anteriores.map(a => this._cardAulaProfessor(a, false, false)).join('')
@@ -303,6 +326,263 @@ const PortalModule = {
           </div>
         </div>
         ${acoesBtns ? `<div class="portal-card-acoes">${acoesBtns}</div>` : ''}
+      </div>`;
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Calendário do Professor                                            */
+  /* ------------------------------------------------------------------ */
+
+  _renderProfCalendario(todasAulas) {
+    if (!this._calProfAno) {
+      const now = new Date();
+      this._calProfAno = now.getFullYear();
+      this._calProfMes = now.getMonth();
+    }
+    const ano    = this._calProfAno;
+    const mes    = this._calProfMes;
+    const MESES  = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
+                    'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    const hoje   = new Date().toISOString().slice(0,10);
+    const WKEND  = [0, 6];
+
+    const primeiroDia = new Date(ano, mes, 1);
+    const diasDoMes   = new Date(ano, mes + 1, 0).getDate();
+    const inicioSem   = primeiroDia.getDay();
+    const mesStr      = String(mes + 1).padStart(2, '0');
+    const aulasDoMes  = todasAulas.filter(a => a.data?.startsWith(`${ano}-${mesStr}`) && a.status !== 'cancelada');
+
+    window._portalProfCalNav = (delta) => {
+      let m = this._calProfMes + delta, a = this._calProfAno;
+      if (m < 0)  { m = 11; a--; }
+      if (m > 11) { m = 0;  a++; }
+      this._calProfAno = a; this._calProfMes = m;
+      this._reRender();
+    };
+
+    const headers = this._CAL_DIAS_PT.map(d => `<div class="cal-mes-th">${d}</div>`).join('');
+    let cells = '';
+    for (let i = 0; i < inicioSem; i++) {
+      cells += `<div class="cal-cell cal-cell-outside${WKEND.includes(i)?' cal-cell-fds':''}"></div>`;
+    }
+    for (let d = 1; d <= diasDoMes; d++) {
+      const ds    = `${ano}-${mesStr}-${String(d).padStart(2,'0')}`;
+      const dow   = new Date(ano, mes, d).getDay();
+      const isHj  = ds === hoje;
+      const isPst = ds < hoje;
+      const isFds = WKEND.includes(dow);
+      const evs   = aulasDoMes.filter(a => a.data === ds)
+                               .sort((a,b) => (a.horarioInicio||'').localeCompare(b.horarioInicio||''));
+
+      const evHtml = evs.slice(0,3).map(a => `
+        <div class="cal-event" style="--ev-cor:#6366f1;">
+          <span class="cal-ev-dot" style="background:#6366f1;"></span>
+          <span class="cal-event-hora">${(a.horarioInicio||'').slice(0,5)}</span>
+          <span class="cal-event-nome">${UI.escape(a.titulo)}</span>
+        </div>`).join('');
+      const mais = evs.length > 3 ? `<div class="cal-event-mais">+${evs.length-3} mais</div>` : '';
+
+      cells += `
+        <div class="cal-cell${isHj?' cal-cell-hoje':''}${isPst?' cal-cell-passado':''}${isFds?' cal-cell-fds':''}">
+          <div class="cal-cell-num${isHj?' hoje':''}">${d}</div>
+          ${evHtml}${mais}
+        </div>`;
+    }
+
+    return `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <button class="btn btn-icon" onclick="window._portalProfCalNav(-1)">‹</button>
+        <span style="font-weight:700;font-size:15px;">${MESES[mes]} ${ano}</span>
+        <button class="btn btn-icon" onclick="window._portalProfCalNav(1)">›</button>
+      </div>
+      <div class="cal-mes-wrap">
+        <div class="cal-mes-header">${headers}</div>
+        <div class="cal-mes-grid">${cells}</div>
+      </div>`;
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Turmas do Professor                                                */
+  /* ------------------------------------------------------------------ */
+
+  _renderProfTurmas(session) {
+    const profId = session.professorId;
+    const turmas = Storage.getAll('turmas').filter(t =>
+      t.status === 'ativa' &&
+      (profId ? t.professorId === profId : t.professorNome === session.nome)
+    ).sort((a, b) => a.nome.localeCompare(b.nome));
+
+    if (!turmas.length) {
+      return `<div class="portal-empty">
+        <div class="portal-empty-icon">📭</div>
+        <p>Nenhuma turma ativa vinculada ao seu perfil.</p>
+      </div>`;
+    }
+
+    const DIAS = { seg:'Seg', ter:'Ter', qua:'Qua', qui:'Qui', sex:'Sex', sab:'Sáb', dom:'Dom' };
+
+    return `<div style="display:flex;flex-direction:column;gap:12px;">
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">
+        ${turmas.length} turma${turmas.length!==1?'s':''} ativa${turmas.length!==1?'s':''}
+      </div>
+      ${turmas.map(t => {
+        const diasNorm = (t.diasSemana || []).map(d => typeof d === 'object' ? d.dia : d);
+        const dias     = diasNorm.map(d => DIAS[d] || d).join(' · ');
+        const hr       = [t.horarioInicio, t.horarioFim].filter(Boolean).join(' – ');
+        const inscritos= Storage.getAll('turmaAlunos').filter(i => i.turmaId === t.id && i.status === 'ativo');
+        const vagas    = t.vagas > 0 ? Math.max(0, t.vagas - inscritos.length) : null;
+        const corVaga  = vagas === 0 ? '#ef4444' : vagas !== null && vagas <= 2 ? '#f59e0b' : '#10b981';
+
+        return `
+          <div class="portal-card" style="padding:16px 18px;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
+              <div style="flex:1;">
+                <div style="font-weight:700;font-size:15px;color:var(--text-primary);margin-bottom:6px;">
+                  📚 ${UI.escape(t.nome)}
+                </div>
+                <div class="portal-card-meta">
+                  ${t.arenaNome ? `<span>🏟️ ${UI.escape(t.arenaNome)}</span>` : ''}
+                  ${dias ? `<span>📆 ${dias}</span>` : ''}
+                  ${hr   ? `<span>🕐 ${hr}</span>`  : ''}
+                  ${t.nivel ? `<span>🎯 ${t.nivel}</span>` : ''}
+                </div>
+              </div>
+              <div style="text-align:right;flex-shrink:0;">
+                <div style="font-size:22px;font-weight:800;color:var(--text-primary);">${inscritos.length}</div>
+                <div style="font-size:11px;color:var(--text-muted);">aluno${inscritos.length!==1?'s':''}</div>
+                ${vagas !== null ? `
+                  <div style="font-size:11px;color:${corVaga};margin-top:2px;font-weight:600;">
+                    ${vagas === 0 ? 'Lotada' : `${vagas} vaga${vagas!==1?'s':''}`}
+                  </div>` : ''}
+              </div>
+            </div>
+            ${inscritos.length ? `
+              <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--card-border);">
+                <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;">Alunos inscritos</div>
+                <div style="display:flex;flex-wrap:wrap;gap:4px;">
+                  ${inscritos.map(i => `
+                    <span style="background:var(--bg-secondary);border:1px solid var(--card-border);
+                      border-radius:99px;padding:2px 10px;font-size:11px;color:var(--text-secondary);">
+                      ${UI.escape(i.alunoNome)}
+                    </span>`).join('')}
+                </div>
+              </div>` : ''}
+          </div>`;
+      }).join('')}
+    </div>`;
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Estatísticas do Professor                                          */
+  /* ------------------------------------------------------------------ */
+
+  _renderProfEstatisticas(session, todasAulas) {
+    const hoje     = new Date().toISOString().slice(0,10);
+    const anoAtual = hoje.slice(0,4);
+    const profId   = session.professorId;
+
+    const aulasDadas    = todasAulas.filter(a => a.data <= hoje && a.status !== 'cancelada');
+    const aulasAno      = aulasDadas.filter(a => a.data?.startsWith(anoAtual));
+    const aulasCanceladas = todasAulas.filter(a => a.status === 'cancelada').length;
+
+    // Total de alunos únicos atendidos
+    const turmaIds = new Set(aulasDadas.filter(a => a.turmaId).map(a => a.turmaId));
+    const alunosUnicos = new Set(
+      Storage.getAll('turmaAlunos')
+        .filter(i => turmaIds.has(i.turmaId) && i.status === 'ativo')
+        .map(i => i.alunoId)
+    ).size;
+
+    // Presença média
+    const presencasTotal = Storage.getAll('presencas').filter(p => {
+      const aula = Storage.getById('aulas', p.aulaId);
+      return aula && (profId ? aula.professorId === profId : aula.professorNome === session.nome);
+    });
+    const totalPres    = presencasTotal.length;
+    const presentes    = presencasTotal.filter(p => p.presente).length;
+    const taxaMedia    = totalPres > 0 ? Math.round((presentes / totalPres) * 100) : 0;
+    const corTaxa      = taxaMedia >= 80 ? '#10b981' : taxaMedia >= 60 ? '#f59e0b' : '#ef4444';
+
+    // Turmas ativas
+    const turmasAtivas = Storage.getAll('turmas').filter(t =>
+      t.status === 'ativa' &&
+      (profId ? t.professorId === profId : t.professorNome === session.nome)
+    ).length;
+
+    // Últimos 6 meses
+    const barras = [];
+    for (let i = 5; i >= 0; i--) {
+      const d   = new Date(); d.setDate(1); d.setMonth(d.getMonth() - i);
+      const mes = d.toISOString().slice(0,7);
+      const label = d.toLocaleDateString('pt-BR', { month:'short' });
+      const qAulas = aulasDadas.filter(a => a.data?.startsWith(mes)).length;
+      barras.push({ mes, label, aulas: qAulas });
+    }
+    const maxBar = Math.max(...barras.map(b => b.aulas), 1);
+
+    return `
+      <div style="display:flex;flex-direction:column;gap:16px;">
+
+        <!-- KPIs -->
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
+          ${[
+            { icon:'🎓', val: aulasDadas.length, label:'Aulas ministradas'   },
+            { icon:'📅', val: aulasAno.length,   label:`Aulas em ${anoAtual}` },
+            { icon:'👥', val: alunosUnicos,       label:'Alunos atendidos'    },
+          ].map(k => `
+            <div class="portal-stat-card">
+              <div class="portal-stat-icon">${k.icon}</div>
+              <div class="portal-stat-val">${k.val}</div>
+              <div class="portal-stat-label">${k.label}</div>
+            </div>`).join('')}
+        </div>
+
+        <!-- Mais KPIs -->
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
+          ${[
+            { icon:'📚', val: turmasAtivas,      label:'Turmas ativas'    },
+            { icon:'✅', val: `${taxaMedia}%`,   label:'Freq. média alunos' },
+            { icon:'❌', val: aulasCanceladas,   label:'Aulas canceladas' },
+          ].map(k => `
+            <div class="portal-stat-card">
+              <div class="portal-stat-icon">${k.icon}</div>
+              <div class="portal-stat-val" style="${k.label.includes('Freq') ? `color:${corTaxa}` : ''}">${k.val}</div>
+              <div class="portal-stat-label">${k.label}</div>
+            </div>`).join('')}
+        </div>
+
+        <!-- Gráfico mensal -->
+        <div class="portal-card" style="padding:20px;">
+          <div style="font-weight:700;font-size:14px;margin-bottom:16px;">📈 Aulas ministradas — últimos 6 meses</div>
+          <div style="display:flex;align-items:flex-end;gap:8px;height:100px;">
+            ${barras.map(b => {
+              const h = maxBar > 0 ? Math.max(4, Math.round((b.aulas / maxBar) * 96)) : 4;
+              return `
+                <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;">
+                  <div style="width:100%;background:var(--card-border);border-radius:4px 4px 0 0;height:${h}px;
+                    background:linear-gradient(180deg,#6366f1,#818cf8);border-radius:4px 4px 0 0;"></div>
+                  <span style="font-size:10px;color:var(--text-muted);">${b.label}</span>
+                  <span style="font-size:11px;font-weight:700;">${b.aulas}</span>
+                </div>`;
+            }).join('')}
+          </div>
+        </div>
+
+        <!-- Frequência média -->
+        <div class="portal-card" style="padding:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <span style="font-weight:700;font-size:14px;">📊 Frequência média dos alunos</span>
+            <span style="font-size:22px;font-weight:800;color:${corTaxa};">${taxaMedia}%</span>
+          </div>
+          <div style="background:var(--card-border);border-radius:99px;height:10px;overflow:hidden;">
+            <div style="height:100%;border-radius:99px;width:${taxaMedia}%;
+              background:linear-gradient(90deg,${corTaxa},${corTaxa}bb);"></div>
+          </div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">
+            ${presentes} presença${presentes!==1?'s':''} de ${totalPres} registros de frequência
+          </div>
+        </div>
+
       </div>`;
   },
 
