@@ -1393,6 +1393,24 @@ tr.tarefa-concluida td { opacity: .6; }
 .manut-tl-user    { font-size:11px; color:var(--text-muted); }
 .manut-tl-status  { font-size:11px; color:var(--color-primary); margin-top:4px; font-weight:600; }
 
+/* SLA Preview no modal de chamado */
+.mn-sla-preview {
+  background: var(--bg-secondary);
+  border: 1.5px solid var(--color-primary);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 13px;
+}
+.mn-sla-header {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-bottom: 8px; font-weight: 600; color: var(--text-primary);
+}
+.mn-sla-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.mn-sla-resultado {
+  font-size: 13px; color: var(--text-secondary);
+  padding-top: 8px; border-top: 1px solid var(--card-border);
+}
+
 .exec-cl-item { background:var(--bg-secondary); border-radius:8px; padding:12px 14px; margin-bottom:10px; border:1px solid var(--card-border); }
 .exec-cl-pergunta  { font-size:13px; font-weight:600; margin-bottom:8px; }
 .exec-cl-respostas { display:flex; gap:16px; }

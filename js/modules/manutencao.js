@@ -67,9 +67,27 @@ const ManutencaoModule = {
   _slaDeadline(urgencia, dataAbertura) {
     const u = this.URGENCIA[urgencia];
     if (!u || !dataAbertura) return null;
+    return this._slaDeadlineFromHrs(u.sla, dataAbertura);
+  },
+
+  _slaDeadlineFromHrs(hrs, dataAbertura) {
+    if (!hrs || !dataAbertura) return null;
     const d = new Date(dataAbertura + 'T08:00:00');
-    d.setHours(d.getHours() + u.sla);
+    d.setHours(d.getHours() + hrs);
     return d.toISOString();
+  },
+
+  _slaHrsFromCatalogo(servicoId, urgencia) {
+    const cat = this.getCat().find(c => c.id === servicoId);
+    if (!cat) return this.URGENCIA[urgencia]?.sla || 72;
+    const map = { normal: cat.slaNormal||72, urgencia_leve: cat.slaLeve||24, urgencia_grave: cat.slaGrave||8, emergencia: cat.slaEmergencia||2 };
+    return map[urgencia] || 72;
+  },
+
+  _formatDeadline(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return d.toLocaleDateString('pt-BR') + ' às ' + d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
   },
 
   _slaStatus(m) {
@@ -550,6 +568,9 @@ const ManutencaoModule = {
     const tipoOpts  = Object.entries(this.TIPO).map(([k,v2])=>`<option value="${k}" ${(item?.tipo||'corretiva')===k?'selected':''}>${v2.icon} ${v2.label}</option>`).join('');
     const urgOpts   = Object.entries(this.URGENCIA).map(([k,v2])=>`<option value="${k}" ${(item?.urgencia||'normal')===k?'selected':''}>${v2.icon} ${v2.label}</option>`).join('');
     const stOpts    = Object.entries(this.STATUS).map(([k,v2])=>`<option value="${k}" ${(item?.status||'aberto')===k?'selected':''}>${v2.label}</option>`).join('');
+    const urgAtual  = item?.urgencia || 'normal';
+    const srvAtual  = item?.servicoId || '';
+    const slaHrsInit= srvAtual ? this._slaHrsFromCatalogo(srvAtual, urgAtual) : (this.URGENCIA[urgAtual]?.sla||72);
 
     UI.openModal({
       title: isEdit?`Editar Chamado #${String(item.numero||'?').padStart(4,'0')}`:'Abrir Chamado de Manutenção',
@@ -563,13 +584,20 @@ const ManutencaoModule = {
             <div class="form-group"><label class="form-label">Tipo de manutenção</label>
               <select id="mn-tipo" class="form-select">${tipoOpts}</select></div>
             <div class="form-group"><label class="form-label">Urgência</label>
-              <select id="mn-urgencia" class="form-select">${urgOpts}</select></div>
+              <select id="mn-urgencia" class="form-select"
+                onchange="ManutencaoModule._updateSlaPreview()">${urgOpts}</select></div>
           </div>
           <div class="form-grid-2">
             <div class="form-group"><label class="form-label">Área</label>
               <select id="mn-area" class="form-select">${areaOpts}</select></div>
             <div class="form-group"><label class="form-label">Serviço (catálogo)</label>
-              <select id="mn-servico" class="form-select">${catOpts}</select></div>
+              <select id="mn-servico" class="form-select"
+                onchange="ManutencaoModule._updateSlaPreview()">${catOpts}</select></div>
+          </div>
+
+          <!-- SLA PREVIEW -->
+          <div id="mn-sla-preview" class="mn-sla-preview">
+            ${this._buildSlaPreviewHtml(srvAtual, urgAtual, item?.dataAbertura||new Date().toISOString().slice(0,10))}
           </div>
           <div class="form-grid-2">
             <div class="form-group"><label class="form-label">Grupo de manutenção</label>
@@ -598,20 +626,24 @@ const ManutencaoModule = {
     if (!g('titulo')?.value.trim()||!g('abertura')?.value) {
       UI.toast('Preencha os campos obrigatórios.','warning'); return;
     }
-    const grupoEl  = g('grupo');
-    const grupoObj = this.getGrupos().find(gr=>gr.id===grupoEl?.value);
-    const urgencia = g('urgencia')?.value||'normal';
+    const grupoEl   = g('grupo');
+    const grupoObj  = this.getGrupos().find(gr=>gr.id===grupoEl?.value);
+    const urgencia  = g('urgencia')?.value  || 'normal';
+    const servicoId = g('servico')?.value   || '';
+    const slaHrs    = this._slaHrsFromCatalogo(servicoId, urgencia);
+    const prazo     = this._slaDeadlineFromHrs(slaHrs, g('abertura').value);
     const record = {
       titulo:       g('titulo').value.trim(),
       tipo:         g('tipo')?.value       ||'corretiva',
       urgencia,
       areaId:       g('area')?.value       ||'',
-      servicoId:    g('servico')?.value    ||'',
+      servicoId,
       grupoId:      grupoEl?.value         ||'',
       grupoNome:    grupoObj?.nome         ||'',
       status:       g('status')?.value     ||'aberto',
       dataAbertura: g('abertura').value,
-      prazo:        this._slaDeadline(urgencia, g('abertura').value),
+      prazo,
+      slaHrs,
       custoMaoObra: parseFloat(g('custo-mo')?.value)||0,
       descricao:    g('desc')?.value.trim()||'',
     };
@@ -630,6 +662,43 @@ const ManutencaoModule = {
     UI.closeModal();
     this._state.tab='chamados';
     this.render();
+  },
+
+  /* ── SLA PREVIEW ─────────────────────────────────────────── */
+  _updateSlaPreview() {
+    const preview  = document.getElementById('mn-sla-preview');
+    if (!preview) return;
+    const servicoId = document.getElementById('mn-servico')?.value  || '';
+    const urgencia  = document.getElementById('mn-urgencia')?.value || 'normal';
+    const abertura  = document.getElementById('mn-abertura')?.value || new Date().toISOString().slice(0,10);
+    preview.innerHTML = this._buildSlaPreviewHtml(servicoId, urgencia, abertura);
+  },
+
+  _buildSlaPreviewHtml(servicoId, urgencia, abertura) {
+    const cat    = servicoId ? this.getCat().find(c=>c.id===servicoId) : null;
+    const u      = this.URGENCIA[urgencia] || this.URGENCIA.normal;
+    const slaMap = cat
+      ? { normal:cat.slaNormal||72, urgencia_leve:cat.slaLeve||24, urgencia_grave:cat.slaGrave||8, emergencia:cat.slaEmergencia||2 }
+      : { normal:72, urgencia_leve:24, urgencia_grave:8, emergencia:2 };
+    const slaHrs = slaMap[urgencia] || 72;
+    const prazo  = this._slaDeadlineFromHrs(slaHrs, abertura);
+
+    const badges = Object.entries(slaMap).map(([k,h])=>{
+      const ug  = this.URGENCIA[k];
+      const sel = k===urgencia;
+      return `<span class="badge ${ug?.badge||'badge-gray'}" style="font-size:11px;${sel?'box-shadow:0 0 0 2px currentColor;':''}">${ug?.icon} ${ug?.label}: <strong>${h}h</strong></span>`;
+    }).join('');
+
+    return `
+      <div class="mn-sla-header">
+        <span>⏱ SLA ${cat?`do serviço <strong>${UI.escape(cat.nome)}</strong>`:'padrão do sistema'}</span>
+        ${cat?'':`<span style="font-size:11px;color:var(--text-muted);">Selecione um serviço para usar SLA personalizado</span>`}
+      </div>
+      <div class="mn-sla-badges">${badges}</div>
+      <div class="mn-sla-resultado">
+        ${u.icon} <strong>${u.label}</strong> → prazo de <strong>${slaHrs}h</strong>
+        ${prazo?` → vence em <strong>${this._formatDeadline(prazo)}</strong>`:''}
+      </div>`;
   },
 
   /* ── TAB: CHECKLISTS ──────────────────────────────────────── */
