@@ -361,7 +361,7 @@ const ManutencaoModule = {
             const val = m.validacaoSolicitante;
             if (!val && m.status==='concluido') return '<span class="badge badge-warning" style="font-size:10px;">⏳ Aguarda OK do solicitante</span>';
             if (val?.tipo==='ok')  return '<span class="badge badge-success" style="font-size:10px;">✅ Validado pelo solicitante</span>';
-            if (val?.tipo==='nok') return '<span class="badge badge-warning" style="font-size:10px;">⚠️ Solicitante reportou problema</span>';
+            if (val?.tipo==='nok') return '<span class="badge badge-warning" style="font-size:10px;">⚠️ Solicitante reportou incidente</span>';
             return '';
           })()}
         </div>
@@ -577,7 +577,7 @@ const ManutencaoModule = {
               border:1px solid ${val.tipo==='ok'?'#6ee7b7':'#fcd34d'};">
               <div style="font-size:20px;margin-bottom:4px;">${val.tipo==='ok'?'✅':'⚠️'}</div>
               <div style="font-weight:700;font-size:13px;">
-                ${val.tipo==='ok'?'Você confirmou que o problema foi resolvido':'Você reportou que o problema persiste'}
+                ${val.tipo==='ok'?'Você confirmou que o incidente foi resolvido':'Você reportou que o incidente persiste'}
               </div>
               <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">${UI.formatDate(val.data)}</div>
             </div>`;
@@ -586,19 +586,19 @@ const ManutencaoModule = {
             // Aguarda validação
             return `
             <div style="margin-top:16px;background:var(--bg-secondary);border:1px solid var(--card-border);border-radius:10px;padding:16px;">
-              <div style="font-size:13px;font-weight:700;margin-bottom:4px;">O problema foi resolvido?</div>
+              <div style="font-size:13px;font-weight:700;margin-bottom:4px;">O incidente foi resolvido?</div>
               <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">
-                Nossa equipe marcou este chamado como concluído. Confirme se o problema foi resolvido.
+                Nossa equipe marcou este chamado como concluído. Confirme se o incidente foi resolvido.
               </div>
               <div style="display:flex;gap:8px;flex-wrap:wrap;">
                 <button class="btn btn-primary"
                   onclick="ManutencaoModule.confirmarAtendimento('${m.id}')">
-                  ✅ Sim, problema resolvido
+                  ✅ Sim, incidente resolvido
                 </button>
                 <button class="btn btn-ghost btn-sm"
                   style="color:var(--color-warning,#f59e0b);"
                   onclick="ManutencaoModule.reportarProblema('${m.id}')">
-                  ⚠️ Não, ainda tem problema
+                  ⚠️ Não, incidente persiste
                 </button>
               </div>
             </div>`;
@@ -891,7 +891,7 @@ const ManutencaoModule = {
       content: `
         <div class="form-grid">
           <div class="form-group"><label class="form-label">Título <span class="required-star">*</span></label>
-            <input id="mn-titulo" type="text" class="form-input" placeholder="Descreva brevemente o problema"
+            <input id="mn-titulo" type="text" class="form-input" placeholder="Descreva brevemente o incidente"
               value="${v('titulo')}" required autocomplete="off" /></div>
           <div class="form-grid-2">
             <div class="form-group"><label class="form-label">Tipo de manutenção</label>
@@ -926,8 +926,8 @@ const ManutencaoModule = {
               <input id="mn-custo-mo" type="number" class="form-input" min="0" step="0.01"
                 value="${v('custoMaoObra','0')}" /></div>
           </div>
-          <div class="form-group"><label class="form-label">Descrição do problema</label>
-            <textarea id="mn-desc" class="form-textarea" rows="3" placeholder="Detalhe o problema…">${item?UI.escape(item.descricao||''):''}</textarea></div>
+          <div class="form-group"><label class="form-label">Descrição do incidente</label>
+            <textarea id="mn-desc" class="form-textarea" rows="3" placeholder="Detalhe o incidente…">${item?UI.escape(item.descricao||''):''}</textarea></div>
         </div>`,
       confirmLabel: isEdit?'Salvar':'Abrir Chamado',
       onConfirm: ()=>this._saveChamado(id),
@@ -1050,7 +1050,7 @@ const ManutencaoModule = {
                 ${area?`📍 ${UI.escape(area.nome)} &nbsp;•&nbsp; `:''}
                 📅 ${UI.formatDate(m.dataAbertura)}
                 ${val?.tipo==='ok'?'&nbsp;•&nbsp; ✅ <span style="color:#22c55e;font-size:11px;">Validado por você</span>':''}
-                ${val?.tipo==='nok'?'&nbsp;•&nbsp; ⚠️ <span style="color:#f59e0b;font-size:11px;">Problema reportado</span>':''}
+                ${val?.tipo==='nok'?'&nbsp;•&nbsp; ⚠️ <span style="color:#f59e0b;font-size:11px;">Incidente reportado</span>':''}
               </div>
             </div>
           </div>
@@ -1065,10 +1065,10 @@ const ManutencaoModule = {
       <div class="page-header">
         <div class="page-header-text">
           <h2>🔧 Manutenção</h2>
-          <p>Reporte problemas e acompanhe seus chamados</p>
+          <p>Registre incidentes e acompanhe seus chamados</p>
         </div>
         <button class="btn btn-primary" onclick="ManutencaoModule.openChamadoSimples()">
-          + Reportar Problema
+          + Registrar Incidente
         </button>
       </div>
 
@@ -1080,7 +1080,7 @@ const ManutencaoModule = {
       <div class="empty-state" style="margin-top:40px;">
         <div class="empty-icon">🔧</div>
         <div class="empty-title">Nenhum chamado aberto</div>
-        <div class="empty-desc">Encontrou algum problema? Clique em "Reportar Problema" para nos avisar.</div>
+        <div class="empty-desc">Identificou algum incidente? Clique em "Registrar Incidente" para nos avisar.</div>
       </div>`}`;
   },
 
@@ -1090,7 +1090,7 @@ const ManutencaoModule = {
       areas.map(a=>`<option value="${a.id}">${this._areaIcon(a.tipo)} ${UI.escape(a.nome)}</option>`).join('');
 
     UI.openModal({
-      title: '🔧 Reportar Problema',
+      title: '🔧 Registrar Incidente',
       content: `
         <div class="form-grid">
           <div class="form-group">
@@ -1103,7 +1103,7 @@ const ManutencaoModule = {
             <select id="cs-area" class="form-select">${areaOpts}</select>
           </div>
           <div class="form-group">
-            <label class="form-label">Descreva melhor o problema</label>
+            <label class="form-label">Descreva melhor o incidente</label>
             <textarea id="cs-desc" class="form-textarea" rows="3"
               placeholder="Quantos detalhes puder nos ajuda a resolver mais rápido…"></textarea>
           </div>
@@ -1115,7 +1115,7 @@ const ManutencaoModule = {
 
   _saveChamadoSimples() {
     const titulo = document.getElementById('cs-titulo')?.value.trim();
-    if (!titulo) { UI.toast('Descreva o problema brevemente.', 'warning'); return false; }
+    if (!titulo) { UI.toast('Descreva o incidente brevemente.', 'warning'); return false; }
     const user   = Auth.getCurrentUser();
     const areaId = document.getElementById('cs-area')?.value || '';
     const desc   = document.getElementById('cs-desc')?.value.trim() || '';
@@ -1156,7 +1156,7 @@ const ManutencaoModule = {
         usuarioNome: user?.nome || '—',
       },
     });
-    this._addHistorico(id, 'Serviço validado pelo solicitante', 'Solicitante confirmou que o problema foi resolvido.');
+    this._addHistorico(id, 'Serviço validado pelo solicitante', 'Solicitante confirmou que o incidente foi resolvido.');
     UI.toast('Obrigado pela confirmação! ✅', 'success');
     UI.closeModal();
     this.render();
@@ -1164,17 +1164,18 @@ const ManutencaoModule = {
 
   reportarProblema(id) {
     UI.openModal({
-      title: '⚠️ Problema persistente',
+      title: '⚠️ Incidente persistente',
       content: `
         <div class="form-group">
           <label class="form-label">Descreva o que ainda não foi resolvido <span class="required-star">*</span></label>
           <textarea id="rp-desc" class="form-textarea" rows="3"
-            placeholder="Ex: A tomada ainda não funciona no lado esquerdo…"></textarea>
+            placeholder="Ex: A tomada ainda não funciona no lado esquerdo…"/>
+
         </div>`,
       confirmLabel: 'Enviar',
       onConfirm: () => {
         const desc = document.getElementById('rp-desc')?.value.trim();
-        if (!desc) { UI.toast('Descreva o problema.', 'warning'); return false; }
+        if (!desc) { UI.toast('Descreva o incidente.', 'warning'); return false; }
         const user = Auth.getCurrentUser();
         const m    = Storage.getById(this.SK, id);
         // Marca validação negativa e reabre o chamado
@@ -1187,8 +1188,8 @@ const ManutencaoModule = {
             usuarioNome: user?.nome || '—',
           },
         });
-        this._addHistorico(id, 'Problema reportado pelo solicitante', desc, 'concluido', 'aberto');
-        UI.toast('Problema reportado. A equipe verificará novamente.', 'info');
+        this._addHistorico(id, 'Incidente reportado pelo solicitante', desc, 'concluido', 'aberto');
+        UI.toast('Incidente reportado. A equipe verificará novamente.', 'info');
         UI.closeModal();
         this.render();
       },
