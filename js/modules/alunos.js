@@ -352,7 +352,93 @@ const AlunoModule = {
       </div>
     </div>
 
-    <div class="form-group">
+    <details style="margin-top:4px;">
+      <summary style="cursor:pointer;font-size:12px;font-weight:700;letter-spacing:.5px;
+        text-transform:uppercase;color:var(--text-muted);padding:8px 0;list-style:none;
+        display:flex;align-items:center;gap:6px;user-select:none;">
+        <span style="font-size:14px;">▸</span> Dados Complementares
+        <span style="font-size:11px;font-weight:400;">(endereço, vestuário, físico)</span>
+      </summary>
+      <div class="form-grid" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--card-border);">
+
+        <div class="form-group">
+          <label class="form-label" for="a-rua">Endereço — Rua</label>
+          <input id="a-rua" type="text" class="form-input" placeholder="ex: Rua das Flores, 123"
+            value="${v('enderecoRua')}" autocomplete="off" />
+        </div>
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label" for="a-bairro">Bairro</label>
+            <input id="a-bairro" type="text" class="form-input" placeholder="ex: Centro"
+              value="${v('enderecoBairro')}" autocomplete="off" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="a-cidade">Cidade</label>
+            <input id="a-cidade" type="text" class="form-input" placeholder="ex: São Paulo"
+              value="${v('enderecoCidade')}" autocomplete="off" />
+          </div>
+        </div>
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label" for="a-cep">CEP</label>
+            <input id="a-cep" type="text" class="form-input" placeholder="00000-000"
+              value="${v('enderecoCep')}" maxlength="9" oninput="AlunoModule._maskCep(this)" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="a-raquete">Raquete</label>
+            <input id="a-raquete" type="text" list="raquete-suggestions" class="form-input"
+              placeholder="modelo" value="${v('raquete')}" autocomplete="off" />
+            <datalist id="raquete-suggestions">
+              <option value="Selkirk Vanguard 2.0"><option value="Selkirk SLK Halo">
+              <option value="JOOLA Ben Johns Hyperion"><option value="JOOLA Perseus">
+              <option value="Paddletek Tempest Wave Pro"><option value="Paddletek Phoenix Pro">
+              <option value="Engage Poach Advantage"><option value="Head Radical Pro">
+              <option value="Wilson Juice"><option value="Franklin Ben Johns Signature">
+            </datalist>
+          </div>
+        </div>
+
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label" for="a-peso">Peso (kg)</label>
+            <input id="a-peso" type="number" class="form-input" placeholder="ex: 75"
+              min="20" max="200" step="0.1" value="${v('peso')}" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="a-altura">Altura (cm)</label>
+            <input id="a-altura" type="number" class="form-input" placeholder="ex: 175"
+              min="100" max="230" value="${v('altura')}" />
+          </div>
+        </div>
+
+        <div class="form-grid-3">
+          <div class="form-group">
+            <label class="form-label" for="a-camisa">Camiseta</label>
+            <select id="a-camisa" class="form-select">
+              <option value="">—</option>
+              ${['PP','P','M','G','GG','XG','XXG'].map(s =>
+                `<option value="${s}" ${v('tamanhoCamisa')===s?'selected':''}>${s}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="a-short">Short</label>
+            <select id="a-short" class="form-select">
+              <option value="">—</option>
+              ${['PP','P','M','G','GG','XG','XXG'].map(s =>
+                `<option value="${s}" ${v('tamanhoShort')===s?'selected':''}>${s}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="a-sapato">Calçado (nº)</label>
+            <input id="a-sapato" type="number" class="form-input" placeholder="42"
+              min="28" max="48" value="${v('tamanhoSapato')}" />
+          </div>
+        </div>
+
+      </div>
+    </details>
+
+    <div class="form-group" style="margin-top:8px;">
       <label class="form-label" for="a-obs">Observações</label>
       <textarea id="a-obs" class="form-textarea" placeholder="Informações adicionais…" rows="2">${aluno ? UI.escape(aluno.observacoes || '') : ''}</textarea>
     </div>
@@ -453,32 +539,41 @@ const AlunoModule = {
       if (!cont) return;
     }
 
+    // Para campos não visíveis no form, preserva o valor existente (evita apagar dados)
+    const ex = id ? (Storage.getById(this.STORAGE_KEY, id) || {}) : {};
+    const gv = (campo, fallback = '') => {
+      const el = g(campo);
+      return el ? (el.tagName === 'SELECT' ? el.value : el.value.trim()) : (ex[fallback || campo] ?? '');
+    };
+
     const data = {
       nome:           nome.value.trim(),
-      cpf:            g('cpf')        ? g('cpf').value.trim()        : '',
-      telefone:       g('telefone')   ? g('telefone').value.trim()   : '',
-      email:          g('email')      ? g('email').value.trim()      : '',
-      dataNascimento: g('nascimento') ? g('nascimento').value        : '',
-      nivel:          g('nivel')      ? g('nivel').value             : 'iniciante',
-      status:         g('status')     ? g('status').value            : 'ativo',
-      observacoes:    g('obs')        ? g('obs').value.trim()        : '',
-      tamanhoCamisa:  g('camisa')     ? g('camisa').value            : '',
-      tamanhoShort:   g('short')      ? g('short').value             : '',
-      tamanhoSapato:  g('sapato')     ? g('sapato').value            : '',
-      rsInstagram:    g('rs-instagram') ? g('rs-instagram').value.trim() : '',
-      rsFacebook:     g('rs-facebook')  ? g('rs-facebook').value.trim()  : '',
-      rsTikTok:       g('rs-tiktok')    ? g('rs-tiktok').value.trim()    : '',
-      rsYouTube:      g('rs-youtube')   ? g('rs-youtube').value.trim()   : '',
-      rsTwitter:      g('rs-twitter')   ? g('rs-twitter').value.trim()   : '',
-      rsLinkedIn:     g('rs-linkedin')  ? g('rs-linkedin').value.trim()  : '',
-      enderecoRua:    g('rua')        ? g('rua').value.trim()        : '',
-      enderecoBairro: g('bairro')     ? g('bairro').value.trim()     : '',
-      enderecoCidade: g('cidade')     ? g('cidade').value.trim()     : '',
-      enderecoCep:    g('cep')        ? g('cep').value.trim()        : '',
-      peso:           g('peso')       ? g('peso').value              : '',
-      altura:         g('altura')     ? g('altura').value            : '',
-      ladoDominante:  g('lado')       ? g('lado').value              : '',
-      raquete:        g('raquete')    ? g('raquete').value.trim()    : '',
+      cpf:            gv('cpf'),
+      telefone:       gv('telefone'),
+      email:          gv('email'),
+      dataNascimento: g('nascimento') ? g('nascimento').value : (ex.dataNascimento || ''),
+      nivel:          gv('nivel')      || 'iniciante',
+      status:         gv('status')     || 'ativo',
+      ladoDominante:  gv('lado',        'ladoDominante'),
+      observacoes:    gv('obs',         'observacoes'),
+      rsInstagram:    gv('rs-instagram','rsInstagram'),
+      // Campos dos Dados Complementares — preserva se o <details> não estiver no DOM
+      tamanhoCamisa:  gv('camisa',      'tamanhoCamisa'),
+      tamanhoShort:   gv('short',       'tamanhoShort'),
+      tamanhoSapato:  gv('sapato',      'tamanhoSapato'),
+      enderecoRua:    gv('rua',         'enderecoRua'),
+      enderecoBairro: gv('bairro',      'enderecoBairro'),
+      enderecoCidade: gv('cidade',      'enderecoCidade'),
+      enderecoCep:    gv('cep',         'enderecoCep'),
+      peso:           gv('peso'),
+      altura:         gv('altura'),
+      raquete:        gv('raquete'),
+      // Campos de redes sociais removidos do form — preserva existentes
+      rsFacebook:     ex.rsFacebook  || '',
+      rsTikTok:       ex.rsTikTok    || '',
+      rsYouTube:      ex.rsYouTube   || '',
+      rsTwitter:      ex.rsTwitter   || '',
+      rsLinkedIn:     ex.rsLinkedIn  || '',
     };
 
     if (id) {
