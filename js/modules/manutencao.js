@@ -6,6 +6,7 @@ const ManutencaoModule = {
   SK_AREAS: 'manut_areas',
   SK_CAT:   'manut_catalogo',
   SK_GRUP:  'manut_grupos',
+  SK_EXEC:  'manut_execucoes',
 
   _state: {
     tab:            'chamados',
@@ -57,6 +58,30 @@ const ManutencaoModule = {
   getAreas()  { return Storage.getAll(this.SK_AREAS); },
   getCat()    { return Storage.getAll(this.SK_CAT); },
   getGrupos() { return Storage.getAll(this.SK_GRUP); },
+  getExecs()  { return Storage.getAll(this.SK_EXEC); },
+
+  /**
+   * _manutRole — papel do usuário logado no contexto de manutenção:
+   *   'coord'      → admin / supervisor / coordenador: visão completa + dispensar
+   *   'operador'   → equipe técnica: visão interna sem custos
+   *   'solicitante'→ aluno / professor / cliente: visão simplificada
+   */
+  _manutRole() {
+    const user = Auth.getCurrentUser();
+    if (!user) return 'solicitante';
+    const p = (user.perfil||'').toLowerCase();
+    if (['admin','superadmin','supervisor','coordenador','coord','gerente'].includes(p)) return 'coord';
+    if (['professor','aluno','cliente'].includes(p)) return 'solicitante';
+    return 'operador'; // funcionario, manutencao, tecnico, recepcao, etc.
+  },
+
+  /** Badge visual para a ação tomada num item de checklist */
+  _badgeAcao(acao) {
+    if (!acao) return '<span class="badge badge-warning" style="font-size:10px;">⏳ Pendente</span>';
+    const map = { chamado_aberto:'badge-success', escalado:'badge-blue', dispensado:'badge-gray' };
+    const txt = { chamado_aberto:'🔧 Chamado aberto', escalado:'📤 Escalado', dispensado:'✅ Dispensado' };
+    return `<span class="badge ${map[acao]||'badge-gray'}" style="font-size:10px;">${txt[acao]||acao}</span>`;
+  },
 
   _nextNum() {
     const all = this.getAll();
@@ -289,6 +314,13 @@ const ManutencaoModule = {
   abrirDetalhe(id) {
     const m = Storage.getById(this.SK, id);
     if (!m) return;
+
+    // Roteamento por papel ─────────────────────────────────────
+    const role = this._manutRole();
+    if (role === 'solicitante') { this._abrirDetalheSolicitante(m); return; }
+    const showCustos = (role === 'coord'); // operador não vê valores financeiros
+    // ──────────────────────────────────────────────────────────
+
     const status   = this.STATUS[m.status]     || { label:m.status,   badge:'badge-gray', icon:'?' };
     const urgencia = this.URGENCIA[m.urgencia] || { label:'Normal',   badge:'badge-gray', icon:'🟢' };
     const tipo     = this.TIPO[m.tipo]         || { label:'Corretiva', icon:'🔧' };
@@ -398,7 +430,7 @@ const ManutencaoModule = {
           ${materiais.length?`
           <div class="table-wrapper" style="margin:0;">
           <table class="data-table" style="font-size:12px;">
-            <thead><tr><th>Item</th><th>Qtd</th><th>Estoque</th><th>Custo unit.</th><th>Total</th></tr></thead>
+            <thead><tr><th>Item</th><th>Qtd</th><th>Estoque</th>${showCustos?'<th>Custo unit.</th><th>Total</th>':''}</tr></thead>
             <tbody>
               ${materiais.map(mt=>{
                 const est = Storage.getAll('loja_estoque_loja').find(e=>e.produtoId===mt.produtoId);
@@ -413,16 +445,15 @@ const ManutencaoModule = {
                 return `<tr>
                   <td>${UI.escape(mt.nome||'—')}</td>
                   <td>${mt.qtd||1}</td><td>${sit}</td>
-                  <td>${cu.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</td>
-                  <td>${tot.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</td>
+                  ${showCustos?`<td>${cu.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</td><td>${tot.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</td>`:''}
                 </tr>`;
               }).join('')}
             </tbody>
-            <tfoot>
+            ${showCustos?`<tfoot>
               <tr><td colspan="4" style="text-align:right;font-weight:600;">Materiais:</td><td style="font-weight:700;">${custoMat.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</td></tr>
               ${custoMO?`<tr><td colspan="4" style="text-align:right;">Mão de obra:</td><td>${custoMO.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</td></tr>`:''}
               <tr style="border-top:2px solid var(--card-border)"><td colspan="4" style="text-align:right;font-weight:700;">TOTAL:</td><td style="font-weight:700;">${custoTot.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</td></tr>
-            </tfoot>
+            </tfoot>`:''}
           </table></div>`:`<div style="color:var(--text-muted);font-size:13px;">Nenhum material adicionado.</div>`}
         </div>
 
@@ -451,6 +482,73 @@ const ManutencaoModule = {
               onkeydown="if(event.key==='Enter')ManutencaoModule.addObs('${id}')" />
             <button class="btn btn-secondary btn-sm" onclick="ManutencaoModule.addObs('${id}')">Registrar</button>
           </div>`:''}
+        </div>`,
+      hideFooter: true,
+    });
+  },
+
+  /* ── DETALHE SIMPLIFICADO (solicitante) ─────────────────────── */
+  _abrirDetalheSolicitante(m) {
+    const STATUS_SIMPLES = {
+      aberto:              { icon:'🕐', label:'Aguardando atendimento' },
+      atribuido:           { icon:'👤', label:'Equipe designada'       },
+      em_execucao:         { icon:'⚙️', label:'Em atendimento'         },
+      aguardando_material: { icon:'📦', label:'Aguardando material'    },
+      concluido:           { icon:'✅', label:'Resolvido'              },
+      cancelado:           { icon:'❌', label:'Cancelado'              },
+    };
+    const st = STATUS_SIMPLES[m.status] || { icon:'❓', label: m.status };
+
+    // Filtra histórico para mostrar apenas eventos públicos
+    const pub = (m.historico||[]).filter(h =>
+      h.statusNovo || (h.acao||'').startsWith('Chamado aberto')
+    );
+
+    UI.openModal({
+      title: `#${String(m.numero||'?').padStart(4,'0')} — ${UI.escape(m.titulo)}`,
+      content: `
+        <!-- Status central -->
+        <div style="text-align:center;padding:20px 0 16px;border-bottom:1px solid var(--card-border);margin-bottom:20px;">
+          <div style="font-size:40px;margin-bottom:8px;">${st.icon}</div>
+          <div style="font-size:17px;font-weight:700;">${st.label}</div>
+          ${m.prazo && !['concluido','cancelado'].includes(m.status)
+            ? `<div style="font-size:12px;color:var(--text-muted);margin-top:6px;">Previsão de atendimento: ${UI.formatDate(m.prazo)}</div>`
+            : ''}
+          ${m.dataConclusao
+            ? `<div style="font-size:12px;color:#22c55e;margin-top:6px;">Concluído em ${UI.formatDate(m.dataConclusao)}</div>`
+            : ''}
+        </div>
+
+        <!-- Sua solicitação -->
+        ${m.descricao ? `
+        <div style="margin-bottom:20px;">
+          <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Sua solicitação</div>
+          <div style="background:var(--bg-secondary);border-radius:8px;padding:12px;font-size:13px;line-height:1.5;">
+            💬 ${UI.escape(m.descricao)}
+          </div>
+        </div>` : ''}
+
+        <!-- Linha do tempo pública -->
+        <div>
+          <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Atualizações</div>
+          ${pub.length ? `
+          <div class="manut-timeline">
+            ${[...pub].reverse().map(h=>`
+              <div class="manut-tl-item">
+                <div class="manut-tl-dot"></div>
+                <div class="manut-tl-content">
+                  <div class="manut-tl-header">
+                    <span class="manut-tl-acao">
+                      ${h.statusNovo
+                        ? (STATUS_SIMPLES[h.statusNovo]?.icon||'') + ' ' + (STATUS_SIMPLES[h.statusNovo]?.label||h.statusNovo)
+                        : UI.escape(h.acao)}
+                    </span>
+                    <span class="manut-tl-data">${UI.formatDate(h.data)}</span>
+                  </div>
+                </div>
+              </div>`).join('')}
+          </div>`
+          : `<div style="color:var(--text-muted);font-size:13px;">Aguardando movimentação.</div>`}
         </div>`,
       hideFooter: true,
     });
@@ -865,21 +963,70 @@ const ManutencaoModule = {
   _renderChecklists() {
     const all   = Storage.getAll(this.SK_PREV);
     const today = new Date().toISOString().slice(0,10);
-    if (!all.length) return `
+    const role  = this._manutRole();
+
+    // Painel de pendências escaladas (visível só para coord)
+    let painelEscalados = '';
+    if (role === 'coord') {
+      const execs     = this.getExecs();
+      const escalados = execs.filter(e =>
+        e.itens?.some(i => i.resposta === 'nok' && i.acao === 'escalado')
+      );
+      if (escalados.length) {
+        const linhas = escalados.flatMap(e => {
+          const p = Storage.getById(this.SK_PREV, e.checklistId);
+          return e.itens
+            .filter(i => i.resposta === 'nok' && i.acao === 'escalado')
+            .map(i => ({ execId:e.id, item:i, checklistNome:p?.titulo||'—', data:e.data, op:e.operadorNome }));
+        });
+        painelEscalados = `
+          <div style="background:var(--bg-secondary);border:1px solid var(--color-warning,#f59e0b);border-radius:12px;padding:16px;margin-bottom:20px;">
+            <h4 style="font-size:13px;font-weight:700;margin-bottom:12px;">📤 Pendências escaladas para sua decisão</h4>
+            <div style="display:flex;flex-direction:column;gap:8px;">
+              ${linhas.map(l=>`
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--card-bg);border-radius:8px;padding:10px 12px;flex-wrap:wrap;">
+                  <div>
+                    <div style="font-size:13px;font-weight:600;">❌ ${UI.escape(l.item.texto)}</div>
+                    <div style="font-size:11px;color:var(--text-muted);">${UI.escape(l.checklistNome)} • ${UI.formatDate(l.data)} • por ${UI.escape(l.op)}</div>
+                    ${l.item.obs?`<div style="font-size:12px;color:var(--text-muted);">💬 ${UI.escape(l.item.obs)}</div>`:''}
+                  </div>
+                  <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                    <button class="btn btn-primary btn-sm"
+                      onclick="ManutencaoModule.abrirChamadoDeItem('${l.execId}', ${l.item.itemIdx})">
+                      🔧 Abrir Chamado
+                    </button>
+                    <button class="btn btn-ghost btn-sm"
+                      onclick="ManutencaoModule.dispensarItem('${l.execId}', ${l.item.itemIdx})">
+                      ✅ Dispensar
+                    </button>
+                  </div>
+                </div>`).join('')}
+            </div>
+          </div>`;
+      }
+    }
+
+    if (!all.length) return painelEscalados + `
       <div class="empty-state" style="margin-top:32px;">
         <div class="empty-icon">📋</div>
         <div class="empty-title">Nenhum modelo de checklist</div>
         <div class="empty-desc">Crie modelos de inspeção preventiva e preditiva.</div>
         <button class="btn btn-primary mt-16" onclick="ManutencaoModule.openModalChecklist()">+ Novo Modelo</button>
       </div>`;
-    return `<div class="cards-grid">${all.map(p=>this._renderChecklistCard(p,today)).join('')}</div>`;
+
+    return painelEscalados +
+      `<div class="cards-grid">${all.map(p=>this._renderChecklistCard(p,today)).join('')}</div>`;
   },
 
   _renderChecklistCard(p, today) {
-    const freq    = this.FREQUENCIA[p.frequencia]||{label:p.frequencia||'—'};
-    const tipo    = this.TIPO[p.tipoManut]||{label:'Preventiva',icon:'📋'};
-    const vencida = p.ativo && p.proximaData && p.proximaData<today;
-    const nItems  = (p.checklistTemplate||[]).length;
+    const freq     = this.FREQUENCIA[p.frequencia]||{label:p.frequencia||'—'};
+    const tipo     = this.TIPO[p.tipoManut]||{label:'Preventiva',icon:'📋'};
+    const vencida  = p.ativo && p.proximaData && p.proximaData<today;
+    const nItems   = (p.checklistTemplate||[]).length;
+    // Última execução
+    const execs    = this.getExecs().filter(e=>e.checklistId===p.id);
+    const ultima   = execs.length ? execs[execs.length-1] : null;
+    const pendExec = ultima && ultima.status === 'com_pendencias';
     return `
       <div class="arena-card ${vencida?'card-vencida':''}" data-id="${p.id}">
         <div class="arena-card-top">
@@ -889,6 +1036,7 @@ const ManutencaoModule = {
           <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-top:4px;">
             <span class="badge badge-blue" style="font-size:10px;">${tipo.label}</span>
             <span class="badge badge-gray" style="font-size:10px;">🔁 ${freq.label}</span>
+            ${pendExec?`<span class="badge badge-warning" style="font-size:10px;">⏳ Pendências</span>`:''}
           </div>
         </div>
         <div class="arena-details">
@@ -896,12 +1044,13 @@ const ManutencaoModule = {
             <div class="detail-value">${p.proximaData?UI.formatDate(p.proximaData):'—'}</div></div>
           <div class="detail-item"><div class="detail-label">Itens</div>
             <div class="detail-value">${nItems} item${nItems!==1?'s':''}</div></div>
-          <div class="detail-item"><div class="detail-label">Responsável</div>
-            <div class="detail-value">${UI.escape(p.responsavel||'—')}</div></div>
+          <div class="detail-item"><div class="detail-label">Última execução</div>
+            <div class="detail-value">${ultima?UI.formatDate(ultima.data):'Nunca'}</div></div>
         </div>
         <div class="arena-actions">
           <button class="btn btn-primary btn-sm" onclick="ManutencaoModule.executarChecklist('${p.id}')">▶ Executar</button>
-          <button class="btn btn-secondary btn-sm" onclick="ManutencaoModule.openModalChecklist('${p.id}')">✏️ Editar</button>
+          ${ultima?`<button class="btn btn-secondary btn-sm" onclick="ManutencaoModule.verResultadoExecucao('${ultima.id}')">📋 Resultado</button>`:''}
+          <button class="btn btn-ghost btn-sm" onclick="ManutencaoModule.openModalChecklist('${p.id}')">✏️</button>
           <span class="spacer"></span>
           <button class="btn btn-ghost btn-sm danger" onclick="ManutencaoModule._deleteChecklist('${p.id}')">🗑️</button>
         </div>
@@ -990,80 +1139,295 @@ const ManutencaoModule = {
   },
 
   executarChecklist(id) {
-    const p = Storage.getById(this.SK_PREV,id);
+    const p = Storage.getById(this.SK_PREV, id);
     if (!p) return;
-    const items = p.checklistTemplate||[];
-    if (!items.length) { UI.toast('Adicione itens ao checklist antes de executar.','warning'); return; }
+    const items = p.checklistTemplate || [];
+    if (!items.length) { UI.toast('Adicione itens ao checklist antes de executar.', 'warning'); return; }
 
     UI.openModal({
-      title: `▶ Executar: ${p.titulo}`,
+      title: `▶ Executar: ${UI.escape(p.titulo)}`,
       wide: true,
       content: `
         <div style="margin-bottom:12px;font-size:13px;color:var(--text-muted);">
-          Responda cada item. Ao encontrar defeito, um chamado é gerado automaticamente.
+          Responda cada item. Itens com defeito poderão gerar chamados após a inspeção — a decisão é sua.
         </div>
         <div id="exec-cl-list">
-          ${items.map((it,idx)=>`
+          ${items.map((it, idx) => `
             <div class="exec-cl-item">
               <div class="exec-cl-pergunta">${UI.escape(it.texto)}</div>
               <div class="exec-cl-respostas">
-                <label class="exec-cl-label ok"><input type="radio" name="cl-${idx}" value="ok" checked> ✅ OK</label>
-                <label class="exec-cl-label nok"><input type="radio" name="cl-${idx}" value="nok"
-                  onchange="document.getElementById('exec-obs-${idx}').style.display=''"> ❌ Defeito</label>
+                <label class="exec-cl-label ok">
+                  <input type="radio" name="cl-${idx}" value="ok" checked> ✅ OK
+                </label>
+                <label class="exec-cl-label nok">
+                  <input type="radio" name="cl-${idx}" value="nok"
+                    onchange="document.getElementById('exec-obs-${idx}').style.display=''"> ❌ Defeito
+                </label>
+                <label class="exec-cl-label na">
+                  <input type="radio" name="cl-${idx}" value="na"
+                    onchange="document.getElementById('exec-obs-${idx}').style.display=''"> ➖ N/A
+                </label>
               </div>
               <div id="exec-obs-${idx}" style="display:none;margin-top:8px;">
                 <input type="text" class="form-input" style="font-size:12px;" id="exec-obs-txt-${idx}"
-                  placeholder="Descreva o defeito encontrado…" />
+                  placeholder="Observação…" />
               </div>
             </div>`).join('')}
         </div>`,
       confirmLabel: 'Concluir Inspeção',
-      onConfirm: ()=>this._finalizarExecucao(id,items),
+      onConfirm: () => this._finalizarExecucao(id, items),
     });
   },
 
   _finalizarExecucao(checklistId, items) {
-    let gerados = 0;
-    items.forEach((it,idx)=>{
+    // Coleta respostas — NÃO gera chamados automaticamente
+    const itensResult = items.map((it, idx) => {
       const radio = document.querySelector(`input[name="cl-${idx}"]:checked`);
-      if (radio?.value==='nok') {
-        const obs = document.getElementById(`exec-obs-txt-${idx}`)?.value.trim()||it.texto;
-        const num = this._nextNum();
-        const p   = Storage.getById(this.SK_PREV,checklistId);
-        const novo = Storage.create(this.SK,{
-          numero:       num,
-          titulo:       `[Inspeção] ${it.texto}`,
-          tipo:         p?.tipoManut||'preventiva',
-          urgencia:     'normal',
-          areaId:       p?.areaId||'',
-          checklistId,
-          status:       'aberto',
-          dataAbertura: new Date().toISOString().slice(0,10),
-          prazo:        this._slaDeadline('normal',new Date().toISOString().slice(0,10)),
-          descricao:    obs,
-          materiais:    [],
-          historico:    [],
-        });
-        this._addHistorico(novo.id,'Gerado por inspeção',`Checklist: ${p?.titulo||'—'}`);
-        gerados++;
-      }
+      const resp  = radio?.value || 'ok';
+      const obs   = document.getElementById(`exec-obs-txt-${idx}`)?.value.trim() || '';
+      return {
+        itemIdx:     idx,
+        texto:       it.texto,
+        resposta:    resp,   // 'ok' | 'nok' | 'na'
+        obs,
+        acao:        null,   // null | 'chamado_aberto' | 'escalado' | 'dispensado'
+        chamadoId:   null,
+        chamadoNum:  null,
+        acaoData:    null,
+        acaoUsuario: null,
+      };
     });
-    const p    = Storage.getById(this.SK_PREV,checklistId);
-    const freq = p?this.FREQUENCIA[p.frequencia]:null;
+
+    const user = Auth.getCurrentUser();
+    const exec = Storage.create(this.SK_EXEC, {
+      checklistId,
+      data:         new Date().toISOString(),
+      operadorNome: user?.nome || user?.login || '—',
+      itens:        itensResult,
+      status:       itensResult.some(i => i.resposta === 'nok') ? 'com_pendencias' : 'concluido',
+    });
+
+    // Atualiza próxima data do modelo
+    const p    = Storage.getById(this.SK_PREV, checklistId);
+    const freq = p ? this.FREQUENCIA[p.frequencia] : null;
     if (freq?.dias) {
       const next = new Date();
-      next.setDate(next.getDate()+freq.dias);
-      Storage.update(this.SK_PREV,checklistId,{
-        ultimaExecucao: new Date().toISOString().slice(0,10),
-        proximaData:    next.toISOString().slice(0,10),
+      next.setDate(next.getDate() + freq.dias);
+      Storage.update(this.SK_PREV, checklistId, {
+        ultimaExecucao: new Date().toISOString().slice(0, 10),
+        proximaData:    next.toISOString().slice(0, 10),
       });
     }
+
     UI.closeModal();
-    UI.toast(gerados>0
-      ?`Inspeção concluída! ${gerados} chamado${gerados!==1?'s':''} gerado${gerados!==1?'s':''}.`
-      :'Inspeção concluída sem defeitos! ✅','success');
-    this._state.tab = gerados>0?'chamados':'checklists';
-    this.render();
+    const nok = itensResult.filter(i => i.resposta === 'nok').length;
+    if (nok > 0) {
+      UI.toast(`Inspeção salva — ${nok} item${nok > 1 ? 'ns' : ''} com defeito. Defina a ação para cada um.`, 'warning');
+      setTimeout(() => this.verResultadoExecucao(exec.id), 300);
+    } else {
+      UI.toast('Inspeção concluída sem defeitos! ✅', 'success');
+      this._state.tab = 'checklists';
+      this.render();
+    }
+  },
+
+  /* ── RESULTADO DA EXECUÇÃO ────────────────────────────────── */
+  verResultadoExecucao(execId) {
+    // Sempre relê do storage (ações anteriores já podem ter atualizado)
+    const exec = Storage.getById(this.SK_EXEC, execId);
+    if (!exec) return;
+    const p        = Storage.getById(this.SK_PREV, exec.checklistId);
+    const role     = this._manutRole();
+    const nokItems = exec.itens.filter(i => i.resposta === 'nok');
+    const okCount  = exec.itens.filter(i => i.resposta === 'ok').length;
+    const naCount  = exec.itens.filter(i => i.resposta === 'na').length;
+    const pendentes= nokItems.filter(i => !i.acao).length;
+
+    UI.openModal({
+      title: `📋 Resultado: ${UI.escape(p?.titulo || 'Inspeção')}`,
+      wide:  true,
+      content: `
+        <!-- Cabeçalho -->
+        <div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--card-border);">
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">
+            📅 ${UI.formatDate(exec.data)} &nbsp;•&nbsp; 👤 ${UI.escape(exec.operadorNome)}
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <span class="badge badge-success">✅ ${okCount} OK</span>
+            ${naCount > 0 ? `<span class="badge badge-gray">➖ ${naCount} N/A</span>` : ''}
+            <span class="badge ${nokItems.length > 0 ? 'badge-danger' : 'badge-gray'}">
+              ❌ ${nokItems.length} defeito${nokItems.length !== 1 ? 's' : ''}
+            </span>
+            ${pendentes > 0 ? `<span class="badge badge-warning">⏳ ${pendentes} sem ação</span>` : ''}
+          </div>
+        </div>
+
+        ${nokItems.length ? `
+        <h4 style="font-size:13px;font-weight:700;margin-bottom:12px;">🔴 Itens com defeito — defina a ação</h4>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          ${nokItems.map(it => `
+            <div class="exec-nok-card">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px;flex-wrap:wrap;">
+                <span style="font-size:13px;font-weight:600;">❌ ${UI.escape(it.texto)}</span>
+                ${this._badgeAcao(it.acao)}
+              </div>
+              ${it.obs ? `<div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">💬 ${UI.escape(it.obs)}</div>` : ''}
+              ${!it.acao ? `
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;">
+                <button class="btn btn-primary btn-sm"
+                  onclick="ManutencaoModule.abrirChamadoDeItem('${execId}', ${it.itemIdx})">
+                  🔧 Abrir Chamado
+                </button>
+                <button class="btn btn-ghost btn-sm"
+                  onclick="ManutencaoModule.escalarItem('${execId}', ${it.itemIdx})">
+                  📤 Escalar para Coordenador
+                </button>
+                ${role === 'coord' ? `
+                <button class="btn btn-ghost btn-sm"
+                  onclick="ManutencaoModule.dispensarItem('${execId}', ${it.itemIdx})">
+                  ✅ Dispensar
+                </button>` : ''}
+              </div>` : `
+              <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">
+                ${it.acao === 'chamado_aberto' ? `🔧 Chamado #${String(it.chamadoNum||'?').padStart(4,'0')} aberto` :
+                  it.acao === 'escalado'       ? `📤 Escalado em ${UI.formatDate(it.acaoData)} por ${UI.escape(it.acaoUsuario||'—')}` :
+                  it.acao === 'dispensado'     ? `✅ Dispensado por ${UI.escape(it.acaoUsuario||'—')}` : ''}
+              </div>`}
+            </div>
+          `).join('')}
+        </div>` : `
+        <div style="text-align:center;padding:24px;color:var(--text-muted);">
+          ✅ Nenhum defeito encontrado nesta inspeção.
+        </div>`}`,
+      confirmLabel: 'Fechar',
+      onConfirm: () => { this._state.tab = 'checklists'; this.render(); },
+    });
+  },
+
+  abrirChamadoDeItem(execId, itemIdx) {
+    const exec = Storage.getById(this.SK_EXEC, execId);
+    if (!exec) return;
+    const item = exec.itens.find(i => i.itemIdx === itemIdx);
+    if (!item) return;
+    const p = Storage.getById(this.SK_PREV, exec.checklistId);
+
+    UI.openModal({
+      title: '🔧 Abrir Chamado',
+      content: `
+        <div class="form-grid">
+          <div style="background:var(--bg-secondary);border-radius:8px;padding:10px 12px;font-size:13px;">
+            <strong>Item:</strong> ${UI.escape(item.texto)}
+            ${item.obs ? `<div style="color:var(--text-muted);font-size:12px;margin-top:4px;">Obs: ${UI.escape(item.obs)}</div>` : ''}
+          </div>
+          <div class="form-group">
+            <label class="form-label">Título do chamado</label>
+            <input id="ci-titulo" type="text" class="form-input"
+              value="${UI.escape('[Inspeção] ' + item.texto)}" />
+          </div>
+          <div class="form-grid-2">
+            <div class="form-group"><label class="form-label">Urgência</label>
+              <select id="ci-urgencia" class="form-select">
+                ${Object.entries(this.URGENCIA).map(([k,v])=>`<option value="${k}">${v.icon} ${v.label}</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-group"><label class="form-label">Grupo responsável</label>
+              <select id="ci-grupo" class="form-select">
+                <option value="">— Sem grupo —</option>
+                ${this.getGrupos().map(g=>`<option value="${g.id}">${UI.escape(g.nome)}</option>`).join('')}
+              </select>
+            </div>
+          </div>
+        </div>`,
+      confirmLabel: 'Abrir Chamado',
+      onConfirm: () => this._criarChamadoDeItem(execId, itemIdx),
+    });
+  },
+
+  _criarChamadoDeItem(execId, itemIdx) {
+    const exec  = Storage.getById(this.SK_EXEC, execId);
+    const item  = exec?.itens?.find(i => i.itemIdx === itemIdx);
+    if (!item) return;
+    const p       = Storage.getById(this.SK_PREV, exec.checklistId);
+    const titulo  = document.getElementById('ci-titulo')?.value.trim() || '[Inspeção] ' + item.texto;
+    const urgencia= document.getElementById('ci-urgencia')?.value || 'normal';
+    const grupoId = document.getElementById('ci-grupo')?.value || '';
+    const grupoObj= this.getGrupos().find(g => g.id === grupoId);
+    const slaHrs  = this._slaHrsFromCatalogo('', urgencia);
+    const hoje    = new Date().toISOString().slice(0, 10);
+    const num     = this._nextNum();
+    const user    = Auth.getCurrentUser();
+
+    const novo = Storage.create(this.SK, {
+      numero:          num,
+      titulo,
+      tipo:            p?.tipoManut || 'corretiva',
+      urgencia,
+      areaId:          p?.areaId || '',
+      checklistId:     exec.checklistId,
+      execucaoId:      execId,
+      grupoId,
+      grupoNome:       grupoObj?.nome || '',
+      status:          'aberto',
+      dataAbertura:    hoje,
+      prazo:           this._slaDeadlineFromHrs(slaHrs, hoje),
+      slaHrs,
+      descricao:       item.obs || item.texto,
+      materiais:       [],
+      historico:       [],
+      evolucao:        [],
+      solicitanteNome: user?.nome || user?.login || '—',
+    });
+    this._addHistorico(novo.id, 'Gerado por inspeção', `Checklist: ${p?.titulo || '—'}`);
+
+    // Atualiza a execução com a ação tomada
+    const itens = exec.itens.map(i =>
+      i.itemIdx === itemIdx
+        ? { ...i, acao:'chamado_aberto', chamadoId:novo.id, chamadoNum:num,
+            acaoData:new Date().toISOString(), acaoUsuario:user?.nome||'—' }
+        : i
+    );
+    const allDone = itens.filter(i => i.resposta === 'nok').every(i => i.acao);
+    Storage.update(this.SK_EXEC, execId, { itens, status: allDone ? 'concluido' : 'com_pendencias' });
+
+    UI.toast(`Chamado #${String(num).padStart(4,'0')} aberto!`, 'success');
+    UI.closeModal();
+    setTimeout(() => this.verResultadoExecucao(execId), 250);
+  },
+
+  escalarItem(execId, itemIdx) {
+    const exec = Storage.getById(this.SK_EXEC, execId);
+    if (!exec) return;
+    const user  = Auth.getCurrentUser();
+    const itens = exec.itens.map(i =>
+      i.itemIdx === itemIdx
+        ? { ...i, acao:'escalado', acaoData:new Date().toISOString(), acaoUsuario:user?.nome||'—' }
+        : i
+    );
+    const allDone = itens.filter(i => i.resposta === 'nok').every(i => i.acao);
+    Storage.update(this.SK_EXEC, execId, { itens, status: allDone ? 'concluido' : 'com_pendencias' });
+    UI.toast('Item escalado para o coordenador.', 'info');
+    UI.closeModal();
+    setTimeout(() => this.verResultadoExecucao(execId), 250);
+  },
+
+  dispensarItem(execId, itemIdx) {
+    if (this._manutRole() !== 'coord') {
+      UI.toast('Somente o coordenador pode dispensar itens.', 'warning');
+      return;
+    }
+    const exec = Storage.getById(this.SK_EXEC, execId);
+    if (!exec) return;
+    const user  = Auth.getCurrentUser();
+    const itens = exec.itens.map(i =>
+      i.itemIdx === itemIdx
+        ? { ...i, acao:'dispensado', acaoData:new Date().toISOString(), acaoUsuario:user?.nome||'—' }
+        : i
+    );
+    const allDone = itens.filter(i => i.resposta === 'nok').every(i => i.acao);
+    Storage.update(this.SK_EXEC, execId, { itens, status: allDone ? 'concluido' : 'com_pendencias' });
+    UI.toast('Item dispensado.', 'success');
+    UI.closeModal();
+    setTimeout(() => this.verResultadoExecucao(execId), 250);
   },
 
   /* ── TAB: CATÁLOGO ────────────────────────────────────────── */

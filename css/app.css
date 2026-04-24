@@ -1417,6 +1417,16 @@ tr.tarefa-concluida td { opacity: .6; }
 .exec-cl-label     { display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer; padding:4px 10px; border-radius:6px; }
 .exec-cl-label.ok  { background:#d1fae5; color:#065f46; }
 .exec-cl-label.nok { background:#fee2e2; color:#991b1b; }
+.exec-cl-label.na  { background:#f3f4f6; color:#6b7280; }
+
+/* Cartão de item com defeito (resultado execução) */
+.exec-nok-card {
+  background: var(--card-bg);
+  border: 1px solid #fca5a5;
+  border-left: 4px solid #ef4444;
+  border-radius: 10px;
+  padding: 12px 14px;
+}
 
 /* ---------- Manut: Evolução da Execução ---------- */
 .manut-evol-list  { position:relative; padding-left:20px; }
