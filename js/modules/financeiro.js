@@ -873,9 +873,10 @@ const FinanceiroModule = {
         </tr>`;
     }).join('');
 
-    const temModelo  = Storage.getAll(this.STORAGE_KEY_MODELO).length > 0;
-    const temLinhas  = orcamentos.length > 0;
-    const anoAtual   = mesSel.slice(0, 4);
+    const temModelo      = Storage.getAll(this.STORAGE_KEY_MODELO).length > 0;
+    const temLinhas      = orcamentos.length > 0;
+    const temLancamentos = this.getAll().length > 0;
+    const anoAtual       = mesSel.slice(0, 4);
 
     return `
       <div class="page-header">
@@ -885,6 +886,7 @@ const FinanceiroModule = {
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button class="btn btn-primary" onclick="FinanceiroModule.openModalOrcamento()">+ Nova Linha</button>
+          ${temLancamentos ? `<button class="btn btn-secondary" onclick="FinanceiroModule.gerarProjecaoLinhaDeBase()" title="Gerar orçamento baseado no realizado do ano anterior">📈 Linha de Base</button>` : ''}
           ${temLinhas ? `<button class="btn btn-secondary" onclick="FinanceiroModule.openModalReplicar('${mesSel}')">📋 Replicar</button>` : ''}
           ${temLinhas ? `<button class="btn btn-secondary" onclick="FinanceiroModule.projetarAnoTodo('${mesSel}')">📅 Projetar Ano Todo</button>` : ''}
           ${temLinhas ? `<button class="btn btn-ghost btn-sm" onclick="FinanceiroModule.salvarComoModelo('${mesSel}')" title="Salvar como modelo permanente">💾 Salvar Modelo</button>` : ''}
@@ -1452,6 +1454,316 @@ const FinanceiroModule = {
     });
 
     UI.toast(`✅ Modelo aplicado: ${modelo.length} linha${modelo.length!==1?'s':''} criada${modelo.length!==1?'s':''} em ${this._formatMesLabel(mesSel)}.`, 'success');
+    this.switchTab('orcamento');
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Orçamento — Projeção por Linha de Base (ano anterior × crescimento) */
+  /* ------------------------------------------------------------------ */
+
+  /** Abre modal para gerar orçamento baseado no realizado do ano anterior */
+  gerarProjecaoLinhaDeBase() {
+    const hoje     = new Date();
+    const anoAtual = hoje.getFullYear();
+
+    // Anos com lançamentos realizados
+    const todosAnos = [...new Set(
+      this.getAll()
+        .map(l => l.data ? l.data.slice(0, 4) : null)
+        .filter(Boolean)
+    )].sort((a, b) => b.localeCompare(a));
+
+    const anoBaseDefault = String(anoAtual - 1);
+    const anoBaseOpts = todosAnos.length
+      ? todosAnos.map(a =>
+          `<option value="${a}" ${a === anoBaseDefault ? 'selected' : ''}>${a}</option>`
+        ).join('')
+      : `<option value="${anoBaseDefault}">${anoBaseDefault} (sem dados)</option>`;
+
+    const anosDestino = [anoAtual, anoAtual + 1, anoAtual + 2];
+    const anoDestOpts = anosDestino.map(a =>
+      `<option value="${a}" ${a === anoAtual ? 'selected' : ''}>${a}</option>`
+    ).join('');
+
+    const semDados = !todosAnos.length;
+
+    UI.openModal({
+      title:   '📈 Projeção por Linha de Base',
+      wide:    true,
+      content: `
+        <div style="font-size:13px;color:var(--text-muted);margin-bottom:16px;
+          background:var(--bg-secondary);border-radius:8px;padding:12px;line-height:1.6;">
+          Gera o orçamento de cada mês usando o <strong>realizado do mesmo mês no ano de base</strong>
+          multiplicado pelo crescimento definido, respeitando a sazonalidade.
+          Os valores gerados podem ser ajustados individualmente após a criação.
+        </div>
+
+        ${semDados ? `
+          <div style="padding:12px;background:rgba(239,68,68,.08);border-radius:8px;
+            font-size:13px;color:var(--danger,#ef4444);margin-bottom:16px;">
+            ⚠️ Nenhum lançamento encontrado. Para usar esta função, cadastre os lançamentos
+            realizados do ano de base primeiro. Você ainda pode gerar um orçamento zerado
+            para depois preencher manualmente.
+          </div>` : ''}
+
+        <div class="form-grid-2" style="margin-bottom:16px;">
+          <div class="form-group">
+            <label class="form-label">Ano de base — realizado <span class="required-star">*</span></label>
+            <select id="proj-ano-base" class="form-select"
+              onchange="FinanceiroModule._atualizarPreviaProjecao()">${anoBaseOpts}</select>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">
+              Fonte dos valores realizados (sazonalidade preservada)
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Ano de destino — orçamento <span class="required-star">*</span></label>
+            <select id="proj-ano-dest" class="form-select"
+              onchange="FinanceiroModule._atualizarPreviaProjecao()">${anoDestOpts}</select>
+          </div>
+        </div>
+
+        <div class="form-grid-2" style="margin-bottom:16px;">
+          <div class="form-group">
+            <label class="form-label">Crescimento — Receitas (%)</label>
+            <input id="proj-pct-rec" type="number" class="form-input" value="0" step="0.5"
+              placeholder="0 = sem crescimento"
+              oninput="FinanceiroModule._atualizarPreviaProjecao()" />
+            <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">
+              Ex: +10 para projetar 10% a mais de receita
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Crescimento — Despesas / CMV (%)</label>
+            <input id="proj-pct-desp" type="number" class="form-input" value="0" step="0.5"
+              placeholder="0 = sem crescimento"
+              oninput="FinanceiroModule._atualizarPreviaProjecao()" />
+            <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">
+              Ex: +6 para reajuste salarial / inflação de custos
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom:16px;">
+          <label class="form-label">Se o mês já tiver orçamento</label>
+          <div style="display:flex;gap:20px;flex-wrap:wrap;margin-top:6px;">
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
+              <input type="radio" name="proj-conflito" value="substituir" checked>
+              Substituir (recomendado)
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
+              <input type="radio" name="proj-conflito" value="manter"> Manter existente (pular mês)
+            </label>
+          </div>
+        </div>
+
+        <div id="proj-preview">
+          <!-- preenchido por _atualizarPreviaProjecao -->
+        </div>`,
+      confirmLabel: 'Aplicar Projeção',
+      onConfirm:    () => this._aplicarProjecao(),
+    });
+
+    requestAnimationFrame(() => this._atualizarPreviaProjecao());
+  },
+
+  /** Atualiza a tabela de pré-visualização no modal de projeção */
+  _atualizarPreviaProjecao() {
+    const el = document.getElementById('proj-preview');
+    if (!el) return;
+
+    const anoBase = document.getElementById('proj-ano-base')?.value;
+    const anoDest = document.getElementById('proj-ano-dest')?.value;
+    if (!anoBase || !anoDest) return;
+
+    const pctRec    = parseFloat(document.getElementById('proj-pct-rec')?.value)  || 0;
+    const pctDesp   = parseFloat(document.getElementById('proj-pct-desp')?.value) || 0;
+    const fatorRec  = 1 + pctRec  / 100;
+    const fatorDesp = 1 + pctDesp / 100;
+
+    let totalBaseRec = 0, totalBaseDesp = 0;
+    let totalDestRec = 0, totalDestDesp = 0;
+    let mesesComDados = 0;
+
+    const rows = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0')).map(mm => {
+      const mesBase = `${anoBase}-${mm}`;
+      const mesDest = `${anoDest}-${mm}`;
+
+      const lancsMes = this.getAll().filter(l =>
+        l.data && l.data.slice(0, 7) === mesBase && l.status !== 'cancelado'
+      );
+
+      const recBase  = lancsMes.filter(l => l.tipo === 'receita')
+        .reduce((s, l) => s + (parseFloat(l.valor) || 0), 0);
+      const despBase = lancsMes.filter(l => l.tipo === 'despesa' || l.tipo === 'cmv')
+        .reduce((s, l) => s + (parseFloat(l.valor) || 0), 0);
+
+      const recDest  = Math.round(recBase  * fatorRec  * 100) / 100;
+      const despDest = Math.round(despBase * fatorDesp * 100) / 100;
+
+      const temOrc  = Storage.getAll(this.STORAGE_KEY_ORC).some(o => o.periodo === mesDest);
+      const semDado = recBase < 0.01 && despBase < 0.01;
+
+      if (!semDado) mesesComDados++;
+      totalBaseRec  += recBase;
+      totalBaseDesp += despBase;
+      totalDestRec  += recDest;
+      totalDestDesp += despDest;
+
+      const nomeMes  = new Date(+anoBase, +mm - 1, 1)
+        .toLocaleDateString('pt-BR', { month: 'short' })
+        .replace('.', '');
+      const statusBadge = temOrc
+        ? `<span class="badge badge-warning" style="font-size:10px;">já tem orç.</span>`
+        : semDado
+          ? `<span class="badge badge-gray" style="font-size:10px;">sem dados</span>`
+          : `<span class="badge badge-success" style="font-size:10px;">novo</span>`;
+
+      return `<tr style="${semDado ? 'opacity:.42' : ''}">
+        <td style="font-weight:600;text-transform:capitalize;">${nomeMes}</td>
+        <td style="text-align:right;">${recBase  > 0.01 ? this._fmt(recBase)  : '—'}</td>
+        <td style="text-align:right;">${despBase > 0.01 ? this._fmt(despBase) : '—'}</td>
+        <td style="text-align:right;color:var(--success,#16a34a);font-weight:600;">${recDest  > 0.01 ? this._fmt(recDest)  : '—'}</td>
+        <td style="text-align:right;color:var(--danger,#ef4444);font-weight:600;">${despDest > 0.01 ? this._fmt(despDest) : '—'}</td>
+        <td>${statusBadge}</td>
+      </tr>`;
+    }).join('');
+
+    const varRec  = totalBaseRec  > 0.01 ? `(${pctRec  >= 0 ? '+' : ''}${pctRec}%)` : '';
+    const varDesp = totalBaseDesp > 0.01 ? `(${pctDesp >= 0 ? '+' : ''}${pctDesp}%)` : '';
+
+    el.innerHTML = `
+      <div style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;
+        color:var(--text-muted);margin-bottom:8px;">
+        Pré-visualização — ${mesesComDados} mês${mesesComDados !== 1 ? 'es' : ''} com dados em ${anoBase}
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="data-table" style="min-width:520px;font-size:12px;">
+          <thead>
+            <tr>
+              <th>Mês</th>
+              <th style="text-align:right;">Rec. ${anoBase}</th>
+              <th style="text-align:right;">Desp. ${anoBase}</th>
+              <th style="text-align:right;">Rec. orç. ${anoDest} ${varRec}</th>
+              <th style="text-align:right;">Desp. orç. ${anoDest} ${varDesp}</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+          <tfoot>
+            <tr style="font-weight:800;border-top:2px solid var(--border-color);">
+              <td>TOTAL ANO</td>
+              <td style="text-align:right;">${this._fmt(totalBaseRec)}</td>
+              <td style="text-align:right;">${this._fmt(totalBaseDesp)}</td>
+              <td style="text-align:right;color:var(--success,#16a34a);">${this._fmt(totalDestRec)}</td>
+              <td style="text-align:right;color:var(--danger,#ef4444);">${this._fmt(totalDestDesp)}</td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      ${mesesComDados === 0 ? `
+        <div style="margin-top:10px;padding:10px 14px;background:rgba(239,68,68,.08);
+          border-radius:8px;font-size:13px;color:var(--danger,#ef4444);">
+          ⚠️ Nenhum dado encontrado para ${anoBase}. Será criado orçamento com valores zero —
+          você poderá editá-los manualmente linha por linha.
+        </div>` : `
+        <div style="margin-top:10px;padding:10px 14px;background:rgba(22,163,74,.06);
+          border-radius:8px;font-size:12px;color:var(--text-muted);">
+          💡 Após aplicar, cada linha pode ser ajustada individualmente pelo botão ✏️ na tabela de orçamento.
+        </div>`}`;
+  },
+
+  /** Aplica a projeção de linha de base para todos os 12 meses do ano de destino */
+  _aplicarProjecao() {
+    const anoBase = document.getElementById('proj-ano-base')?.value;
+    const anoDest = document.getElementById('proj-ano-dest')?.value;
+    if (!anoBase || !anoDest) { UI.toast('Selecione os anos.', 'warning'); return false; }
+    if (anoBase === anoDest)  { UI.toast('Ano de base e destino não podem ser iguais.', 'warning'); return false; }
+
+    const pctRec   = parseFloat(document.getElementById('proj-pct-rec')?.value)  || 0;
+    const pctDesp  = parseFloat(document.getElementById('proj-pct-desp')?.value) || 0;
+    const fatorRec  = 1 + pctRec  / 100;
+    const fatorDesp = 1 + pctDesp / 100;
+    const conflito  = document.querySelector('input[name="proj-conflito"]:checked')?.value || 'substituir';
+
+    let criados = 0, mesesAfetados = 0, mesesPulados = 0;
+
+    Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0')).forEach(mm => {
+      const mesBase = `${anoBase}-${mm}`;
+      const mesDest = `${anoDest}-${mm}`;
+
+      const existentes = Storage.getAll(this.STORAGE_KEY_ORC).filter(o => o.periodo === mesDest);
+      if (existentes.length && conflito === 'manter') { mesesPulados++; return; }
+      if (existentes.length) {
+        existentes.forEach(e => Storage.delete(this.STORAGE_KEY_ORC, e.id));
+      }
+
+      const lancsMes = this.getAll().filter(l =>
+        l.data && l.data.slice(0, 7) === mesBase && l.status !== 'cancelado'
+      );
+
+      // Mapear para linhas DRE (preserva categorias detalhadas)
+      this._DRE_LINHAS.forEach(linha => {
+        const total = lancsMes
+          .filter(l => l.tipo === linha.grupo &&
+            linha.cats.some(c => c.toLowerCase() === (l.categoria || '').toLowerCase()))
+          .reduce((s, l) => s + (parseFloat(l.valor) || 0), 0);
+
+        if (total < 0.01) return;
+
+        const fator    = linha.grupo === 'receita' ? fatorRec : fatorDesp;
+        const valorOrc = Math.round(total * fator * 100) / 100;
+
+        Storage.create(this.STORAGE_KEY_ORC, {
+          periodo:   mesDest,
+          tipo:      linha.grupo,
+          catId:     linha.id,
+          categoria: linha.label,
+          valor:     valorOrc,
+          obs:       `Base: ${this._fmt(total)} realizado em ${this._formatMesLabel(mesBase)}`,
+        });
+        criados++;
+      });
+
+      // Itens não mapeados nas linhas DRE → agrupar em "Outros"
+      ['receita', 'cmv', 'despesa'].forEach(tipo => {
+        const mapeadas  = this._DRE_LINHAS.filter(l => l.grupo === tipo)
+          .flatMap(l => l.cats.map(c => c.toLowerCase()));
+        const naoMapeadas = lancsMes.filter(l =>
+          l.tipo === tipo &&
+          !mapeadas.includes((l.categoria || '').toLowerCase())
+        );
+        if (!naoMapeadas.length) return;
+
+        const total = naoMapeadas.reduce((s, l) => s + (parseFloat(l.valor) || 0), 0);
+        if (total < 0.01) return;
+
+        const fator      = tipo === 'receita' ? fatorRec : fatorDesp;
+        const linhaOutro = this._DRE_LINHAS.find(l =>
+          l.grupo === tipo && (l.id === 'outro_r' || l.id === 'outro_d' || l.id === 'cmv_loja')
+        );
+
+        Storage.create(this.STORAGE_KEY_ORC, {
+          periodo:   mesDest,
+          tipo,
+          catId:     linhaOutro?.id  || `outro_${tipo}`,
+          categoria: linhaOutro?.label || 'Outros',
+          valor:     Math.round(total * fator * 100) / 100,
+          obs:       `Base: ${this._fmt(total)} realizado em ${this._formatMesLabel(mesBase)} (não categ.)`,
+        });
+        criados++;
+      });
+
+      mesesAfetados++;
+    });
+
+    const aviso = mesesPulados > 0 ? ` · ${mesesPulados} mês${mesesPulados !== 1 ? 'es' : ''} mantido${mesesPulados !== 1 ? 's' : ''} (já tinham orçamento)` : '';
+    UI.toast(
+      `✅ Projeção ${anoDest} gerada! ${criados} linha${criados !== 1 ? 's' : ''} em ${mesesAfetados} mês${mesesAfetados !== 1 ? 'es' : ''}${aviso}.`,
+      'success'
+    );
+    UI.closeModal();
+    this._state.filterMes = `${anoDest}-01`;
     this.switchTab('orcamento');
   },
 
