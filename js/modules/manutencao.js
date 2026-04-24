@@ -62,17 +62,18 @@ const ManutencaoModule = {
 
   /**
    * _manutRole — papel do usuário logado no contexto de manutenção:
-   *   'coord'      → admin / supervisor / coordenador: visão completa + dispensar
-   *   'operador'   → equipe técnica: visão interna sem custos
-   *   'solicitante'→ aluno / professor / cliente: visão simplificada
+   *   'coord'      → admin / gerente / supervisor: visão completa com custos + dispensar itens
+   *   'operador'   → perfil 'manutencao' / técnico: visão interna sem valores financeiros
+   *   'solicitante'→ todos os demais (professor/aluno/recepcionista/financeiro…):
+   *                  visão simplificada — apenas abre chamados e acompanha os seus
    */
   _manutRole() {
     const user = Auth.getCurrentUser();
     if (!user) return 'solicitante';
     const p = (user.perfil||'').toLowerCase();
     if (['admin','superadmin','supervisor','coordenador','coord','gerente'].includes(p)) return 'coord';
-    if (['professor','aluno','cliente'].includes(p)) return 'solicitante';
-    return 'operador'; // funcionario, manutencao, tecnico, recepcao, etc.
+    if (['manutencao','tecnico','operador'].includes(p)) return 'operador';
+    return 'solicitante'; // professor, aluno, recepcionista, financeiro, etc.
   },
 
   /** Badge visual para a ação tomada num item de checklist */
@@ -179,6 +180,13 @@ const ManutencaoModule = {
   render() {
     const area = document.getElementById('content-area');
     if (!area) return;
+
+    // Solicitante tem página própria — sem tabs internas
+    if (this._manutRole() === 'solicitante') {
+      area.innerHTML = this._renderPortalSolicitante();
+      return;
+    }
+
     const tab = this._state.tab;
 
     const tabs = [
@@ -349,6 +357,13 @@ const ManutencaoModule = {
           <span class="badge ${urgencia.badge}">${urgencia.icon} ${urgencia.label}</span>
           <span class="badge ${status.badge}">${status.icon} ${status.label}</span>
           ${sla?`<span class="manut-sla ${sla.css}">⏱ SLA: ${sla.label}</span>`:''}
+          ${(()=>{
+            const val = m.validacaoSolicitante;
+            if (!val && m.status==='concluido') return '<span class="badge badge-warning" style="font-size:10px;">⏳ Aguarda OK do solicitante</span>';
+            if (val?.tipo==='ok')  return '<span class="badge badge-success" style="font-size:10px;">✅ Validado pelo solicitante</span>';
+            if (val?.tipo==='nok') return '<span class="badge badge-warning" style="font-size:10px;">⚠️ Solicitante reportou problema</span>';
+            return '';
+          })()}
         </div>
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 20px;margin-bottom:16px;font-size:13px;">
@@ -529,7 +544,7 @@ const ManutencaoModule = {
         </div>` : ''}
 
         <!-- Linha do tempo pública -->
-        <div>
+        <div style="margin-bottom:${m.status==='concluido'&&!m.validacaoSolicitante?'0':'0'}px;">
           <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Atualizações</div>
           ${pub.length ? `
           <div class="manut-timeline">
@@ -549,7 +564,47 @@ const ManutencaoModule = {
               </div>`).join('')}
           </div>`
           : `<div style="color:var(--text-muted);font-size:13px;">Aguardando movimentação.</div>`}
-        </div>`,
+        </div>
+
+        <!-- OK DO SOLICITANTE -->
+        ${(()=>{
+          const val = m.validacaoSolicitante;
+          if (val) {
+            // Já validado — mostra resultado
+            return `
+            <div style="margin-top:16px;border-radius:10px;padding:14px;text-align:center;
+              background:${val.tipo==='ok'?'#d1fae5':'#fef3c7'};
+              border:1px solid ${val.tipo==='ok'?'#6ee7b7':'#fcd34d'};">
+              <div style="font-size:20px;margin-bottom:4px;">${val.tipo==='ok'?'✅':'⚠️'}</div>
+              <div style="font-weight:700;font-size:13px;">
+                ${val.tipo==='ok'?'Você confirmou que o problema foi resolvido':'Você reportou que o problema persiste'}
+              </div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">${UI.formatDate(val.data)}</div>
+            </div>`;
+          }
+          if (m.status === 'concluido') {
+            // Aguarda validação
+            return `
+            <div style="margin-top:16px;background:var(--bg-secondary);border:1px solid var(--card-border);border-radius:10px;padding:16px;">
+              <div style="font-size:13px;font-weight:700;margin-bottom:4px;">O problema foi resolvido?</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">
+                Nossa equipe marcou este chamado como concluído. Confirme se o problema foi resolvido.
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <button class="btn btn-primary"
+                  onclick="ManutencaoModule.confirmarAtendimento('${m.id}')">
+                  ✅ Sim, problema resolvido
+                </button>
+                <button class="btn btn-ghost btn-sm"
+                  style="color:var(--color-warning,#f59e0b);"
+                  onclick="ManutencaoModule.reportarProblema('${m.id}')">
+                  ⚠️ Não, ainda tem problema
+                </button>
+              </div>
+            </div>`;
+          }
+          return '';
+        })()}`,
       hideFooter: true,
     });
   },
@@ -957,6 +1012,187 @@ const ManutencaoModule = {
         ${u.icon} <strong>${u.label}</strong> → prazo de <strong>${slaHrs}h</strong>
         ${prazo?` → vence em <strong>${this._formatDeadline(prazo)}</strong>`:''}
       </div>`;
+  },
+
+  /* ── PORTAL DO SOLICITANTE ───────────────────────────────── */
+  _renderPortalSolicitante() {
+    const user    = Auth.getCurrentUser();
+    const userId  = user?.id || '';
+    const areas   = this.getAreas();
+
+    // Chamados do solicitante logado (por id ou nome como fallback)
+    const meus = this.getAll().filter(m =>
+      m.solicitanteId === userId ||
+      (!m.solicitanteId && m.solicitanteNome === (user?.nome || user?.login))
+    ).sort((a,b) => (b.dataAbertura||'').localeCompare(a.dataAbertura||''));
+
+    const STATUS_SIMPLES = {
+      aberto:              { icon:'🕐', label:'Aguardando atendimento', badge:'badge-warning' },
+      atribuido:           { icon:'👤', label:'Equipe designada',        badge:'badge-blue'   },
+      em_execucao:         { icon:'⚙️', label:'Em atendimento',          badge:'badge-blue'   },
+      aguardando_material: { icon:'📦', label:'Aguardando material',     badge:'badge-amber'  },
+      concluido:           { icon:'✅', label:'Resolvido',               badge:'badge-success'},
+      cancelado:           { icon:'❌', label:'Cancelado',               badge:'badge-gray'   },
+    };
+
+    const linhas = meus.map(m => {
+      const st  = STATUS_SIMPLES[m.status] || { icon:'❓', label:m.status, badge:'badge-gray' };
+      const area= areas.find(a=>a.id===m.areaId);
+      const val = m.validacaoSolicitante;
+      return `
+        <div class="manut-row" onclick="ManutencaoModule.abrirDetalhe('${m.id}')"
+          style="cursor:pointer;">
+          <div class="manut-row-main">
+            <div class="manut-row-num">#${String(m.numero||'?').padStart(4,'0')}</div>
+            <div class="manut-row-info">
+              <div class="manut-row-titulo">${UI.escape(m.titulo)}</div>
+              <div class="manut-row-meta">
+                ${area?`📍 ${UI.escape(area.nome)} &nbsp;•&nbsp; `:''}
+                📅 ${UI.formatDate(m.dataAbertura)}
+                ${val?.tipo==='ok'?'&nbsp;•&nbsp; ✅ <span style="color:#22c55e;font-size:11px;">Validado por você</span>':''}
+                ${val?.tipo==='nok'?'&nbsp;•&nbsp; ⚠️ <span style="color:#f59e0b;font-size:11px;">Problema reportado</span>':''}
+              </div>
+            </div>
+          </div>
+          <div class="manut-row-badges">
+            <span class="badge ${st.badge}">${st.icon} ${st.label}</span>
+            ${m.status==='concluido'&&!val?'<span class="badge badge-warning" style="font-size:10px;">⏳ Aguarda sua confirmação</span>':''}
+          </div>
+        </div>`;
+    }).join('');
+
+    return `
+      <div class="page-header">
+        <div class="page-header-text">
+          <h2>🔧 Manutenção</h2>
+          <p>Reporte problemas e acompanhe seus chamados</p>
+        </div>
+        <button class="btn btn-primary" onclick="ManutencaoModule.openChamadoSimples()">
+          + Reportar Problema
+        </button>
+      </div>
+
+      ${meus.length ? `
+      <div style="margin-bottom:8px;font-size:13px;color:var(--text-muted);">
+        ${meus.length} chamado${meus.length!==1?'s':''} aberto${meus.length!==1?'s':''} por você
+      </div>
+      <div class="manut-list">${linhas}</div>` : `
+      <div class="empty-state" style="margin-top:40px;">
+        <div class="empty-icon">🔧</div>
+        <div class="empty-title">Nenhum chamado aberto</div>
+        <div class="empty-desc">Encontrou algum problema? Clique em "Reportar Problema" para nos avisar.</div>
+      </div>`}`;
+  },
+
+  openChamadoSimples() {
+    const areas   = this.getAreas().filter(a => a.ativa !== false);
+    const areaOpts= `<option value="">— Onde ocorreu? (opcional) —</option>` +
+      areas.map(a=>`<option value="${a.id}">${this._areaIcon(a.tipo)} ${UI.escape(a.nome)}</option>`).join('');
+
+    UI.openModal({
+      title: '🔧 Reportar Problema',
+      content: `
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">O que aconteceu? <span class="required-star">*</span></label>
+            <input id="cs-titulo" type="text" class="form-input"
+              placeholder="Ex: Tomada da quadra 3 não funciona" required autocomplete="off" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Área / Local</label>
+            <select id="cs-area" class="form-select">${areaOpts}</select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Descreva melhor o problema</label>
+            <textarea id="cs-desc" class="form-textarea" rows="3"
+              placeholder="Quantos detalhes puder nos ajuda a resolver mais rápido…"></textarea>
+          </div>
+        </div>`,
+      confirmLabel: 'Enviar',
+      onConfirm: () => this._saveChamadoSimples(),
+    });
+  },
+
+  _saveChamadoSimples() {
+    const titulo = document.getElementById('cs-titulo')?.value.trim();
+    if (!titulo) { UI.toast('Descreva o problema brevemente.', 'warning'); return false; }
+    const user   = Auth.getCurrentUser();
+    const areaId = document.getElementById('cs-area')?.value || '';
+    const desc   = document.getElementById('cs-desc')?.value.trim() || '';
+    const hoje   = new Date().toISOString().slice(0, 10);
+    const slaHrs = this.URGENCIA.normal.sla;
+    const num    = this._nextNum();
+
+    const novo = Storage.create(this.SK, {
+      numero:          num,
+      titulo,
+      tipo:            'corretiva',
+      urgencia:        'normal',
+      areaId,
+      status:          'aberto',
+      dataAbertura:    hoje,
+      prazo:           this._slaDeadlineFromHrs(slaHrs, hoje),
+      slaHrs,
+      descricao:       desc,
+      materiais:       [],
+      historico:       [],
+      evolucao:        [],
+      solicitanteId:   user?.id   || '',
+      solicitanteNome: user?.nome || user?.login || '—',
+    });
+    this._addHistorico(novo.id, 'Chamado aberto', desc);
+    UI.toast(`Chamado #${String(num).padStart(4,'0')} enviado! Em breve nossa equipe entrará em contato.`, 'success');
+    UI.closeModal();
+    this.render();
+  },
+
+  /* OK do solicitante na conclusão ─────────────────────────── */
+  confirmarAtendimento(id) {
+    const user = Auth.getCurrentUser();
+    Storage.update(this.SK, id, {
+      validacaoSolicitante: {
+        tipo:        'ok',
+        data:        new Date().toISOString(),
+        usuarioNome: user?.nome || '—',
+      },
+    });
+    this._addHistorico(id, 'Serviço validado pelo solicitante', 'Solicitante confirmou que o problema foi resolvido.');
+    UI.toast('Obrigado pela confirmação! ✅', 'success');
+    UI.closeModal();
+    this.render();
+  },
+
+  reportarProblema(id) {
+    UI.openModal({
+      title: '⚠️ Problema persistente',
+      content: `
+        <div class="form-group">
+          <label class="form-label">Descreva o que ainda não foi resolvido <span class="required-star">*</span></label>
+          <textarea id="rp-desc" class="form-textarea" rows="3"
+            placeholder="Ex: A tomada ainda não funciona no lado esquerdo…"></textarea>
+        </div>`,
+      confirmLabel: 'Enviar',
+      onConfirm: () => {
+        const desc = document.getElementById('rp-desc')?.value.trim();
+        if (!desc) { UI.toast('Descreva o problema.', 'warning'); return false; }
+        const user = Auth.getCurrentUser();
+        const m    = Storage.getById(this.SK, id);
+        // Marca validação negativa e reabre o chamado
+        Storage.update(this.SK, id, {
+          status: 'aberto',
+          validacaoSolicitante: {
+            tipo:        'nok',
+            motivo:      desc,
+            data:        new Date().toISOString(),
+            usuarioNome: user?.nome || '—',
+          },
+        });
+        this._addHistorico(id, 'Problema reportado pelo solicitante', desc, 'concluido', 'aberto');
+        UI.toast('Problema reportado. A equipe verificará novamente.', 'info');
+        UI.closeModal();
+        this.render();
+      },
+    });
   },
 
   /* ── TAB: CHECKLISTS ──────────────────────────────────────── */

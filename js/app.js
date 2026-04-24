@@ -103,11 +103,11 @@ const App = {
   SEED_PERFIS: [
     { key: 'admin',         label: 'Administrador',    descricao: 'Acesso total ao sistema, incluindo gestão de usuários',    cor: 'badge-danger',  modulos: ['dashboard','arenas','alunos','matriculas','planos','professores','turmas','eventos','loja','dayuse','financeiro','manutencao','relatorios','cadastros','admin'] },
     { key: 'gerente',       label: 'Gerente',          descricao: 'Acesso a todos os módulos operacionais',                   cor: 'badge-warning', modulos: ['dashboard','arenas','alunos','matriculas','planos','professores','turmas','eventos','loja','dayuse','financeiro','manutencao','relatorios','cadastros'] },
-    { key: 'recepcionista', label: 'Recepcionista',    descricao: 'Atendimento ao aluno, matrículas e turmas',               cor: 'badge-blue',    modulos: ['dashboard','alunos','matriculas','turmas','eventos','loja','dayuse'] },
-    { key: 'financeiro',    label: 'Financeiro',       descricao: 'Controle financeiro e planos de contratação',              cor: 'badge-success', modulos: ['dashboard','financeiro','planos','alunos','loja','dayuse','relatorios'] },
+    { key: 'recepcionista', label: 'Recepcionista',    descricao: 'Atendimento ao aluno, matrículas e turmas',               cor: 'badge-blue',    modulos: ['dashboard','alunos','matriculas','turmas','eventos','loja','dayuse','manutencao'] },
+    { key: 'financeiro',    label: 'Financeiro',       descricao: 'Controle financeiro e planos de contratação',              cor: 'badge-success', modulos: ['dashboard','financeiro','planos','alunos','loja','dayuse','relatorios','manutencao'] },
     { key: 'manutencao',    label: 'Manutenção',       descricao: 'Gestão de arenas e chamados de manutenção',               cor: 'badge-gray',    modulos: ['dashboard','arenas','manutencao'] },
-    { key: 'professor',     label: 'Professor',        descricao: 'Acesso às grades e aulas do próprio professor',            cor: 'badge-blue',    modulos: ['turmas'] },
-    { key: 'aluno',         label: 'Aluno',            descricao: 'Acesso às grades e aulas em que está inscrito',             cor: 'badge-success', modulos: ['turmas'] },
+    { key: 'professor',     label: 'Professor',        descricao: 'Acesso às grades e aulas do próprio professor',            cor: 'badge-blue',    modulos: ['turmas','manutencao'] },
+    { key: 'aluno',         label: 'Aluno',            descricao: 'Acesso às grades e aulas em que está inscrito',             cor: 'badge-success', modulos: ['turmas','manutencao'] },
   ],
 
   SEED_USUARIOS: [
@@ -550,12 +550,13 @@ const App = {
    */
   _migratePerfis() {
     const novosPorPerfil = {
-      admin:         ['relatorios', 'turmas', 'dayuse', 'loja', 'matriculas'],
-      gerente:       ['relatorios', 'turmas', 'dayuse', 'loja', 'matriculas'],
-      recepcionista: ['turmas', 'dayuse', 'loja', 'matriculas'],
-      financeiro:    ['relatorios', 'dayuse', 'loja'],
-      professor:     ['turmas'],
-      aluno:         ['turmas'],
+      admin:         ['relatorios', 'turmas', 'dayuse', 'loja', 'matriculas', 'manutencao'],
+      gerente:       ['relatorios', 'turmas', 'dayuse', 'loja', 'matriculas', 'manutencao'],
+      recepcionista: ['turmas', 'dayuse', 'loja', 'matriculas', 'manutencao'],
+      financeiro:    ['relatorios', 'dayuse', 'loja', 'manutencao'],
+      manutencao:    ['manutencao'],
+      professor:     ['turmas', 'manutencao'],
+      aluno:         ['turmas', 'manutencao'],
     };
 
     // Remove dashboard de professor e aluno (eles usam o portal dedicado)
@@ -574,8 +575,8 @@ const App = {
 
     // Garante que os perfis professor e aluno existam
     const perfisFaltantes = [
-      { key: 'professor', label: 'Professor',  descricao: 'Acesso às grades e aulas do próprio professor', cor: 'badge-blue',    modulos: ['turmas'] },
-      { key: 'aluno',     label: 'Aluno',      descricao: 'Acesso às grades e aulas em que está inscrito',  cor: 'badge-success', modulos: ['turmas'] },
+      { key: 'professor', label: 'Professor',  descricao: 'Acesso às grades e aulas do próprio professor', cor: 'badge-blue',    modulos: ['turmas','manutencao'] },
+      { key: 'aluno',     label: 'Aluno',      descricao: 'Acesso às grades e aulas em que está inscrito',  cor: 'badge-success', modulos: ['turmas','manutencao'] },
     ];
     const now = new Date().toISOString();
     perfisFaltantes.forEach(p => {
