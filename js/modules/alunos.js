@@ -300,6 +300,20 @@ const AlunoModule = {
 
     <div class="form-grid-2">
       <div class="form-group">
+        <label class="form-label" for="a-cpf">CPF</label>
+        <input id="a-cpf" type="text" class="form-input" placeholder="000.000.000-00"
+          value="${v('cpf')}" maxlength="14" oninput="AlunoModule._maskCpf(this)" />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="a-nascimento">Data de nascimento</label>
+        <input id="a-nascimento" type="date" class="form-input"
+          value="${v('dataNascimento')}"
+          oninput="AlunoModule._showIdade(this)" />
+      </div>
+    </div>
+
+    <div class="form-grid-2">
+      <div class="form-group">
         <label class="form-label" for="a-telefone">Telefone</label>
         <input id="a-telefone" type="text" class="form-input" placeholder="(00) 00000-0000"
           value="${v('telefone')}" maxlength="15" oninput="AlunoModule._maskTel(this)" />
@@ -311,7 +325,6 @@ const AlunoModule = {
       </div>
     </div>
 
-    <div class="aluno-secao-titulo" style="font-size:12px;margin-top:4px;">📱 Redes Sociais</div>
     <div class="form-grid-2">
       <div class="form-group">
         <label class="form-label" for="a-rs-instagram">
@@ -321,175 +334,21 @@ const AlunoModule = {
           value="${v('rsInstagram')}" autocomplete="off" />
       </div>
       <div class="form-group">
-        <label class="form-label" for="a-rs-facebook">
-          <span style="color:#1877F2;">●</span> Facebook
-        </label>
-        <input id="a-rs-facebook" type="text" class="form-input" placeholder="nome ou link"
-          value="${v('rsFacebook')}" autocomplete="off" />
-      </div>
-    </div>
-    <div class="form-grid-2">
-      <div class="form-group">
-        <label class="form-label" for="a-rs-tiktok">
-          <span style="color:#000;">●</span> TikTok
-        </label>
-        <input id="a-rs-tiktok" type="text" class="form-input" placeholder="@usuario"
-          value="${v('rsTikTok')}" autocomplete="off" />
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="a-rs-youtube">
-          <span style="color:#FF0000;">●</span> YouTube
-        </label>
-        <input id="a-rs-youtube" type="text" class="form-input" placeholder="canal"
-          value="${v('rsYouTube')}" autocomplete="off" />
-      </div>
-    </div>
-    <div class="form-grid-2">
-      <div class="form-group">
-        <label class="form-label" for="a-rs-twitter">
-          <span style="color:#1DA1F2;">●</span> X / Twitter
-        </label>
-        <input id="a-rs-twitter" type="text" class="form-input" placeholder="@usuario"
-          value="${v('rsTwitter')}" autocomplete="off" />
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="a-rs-linkedin">
-          <span style="color:#0A66C2;">●</span> LinkedIn
-        </label>
-        <input id="a-rs-linkedin" type="text" class="form-input" placeholder="perfil"
-          value="${v('rsLinkedIn')}" autocomplete="off" />
+        <label class="form-label" for="a-status">Status</label>
+        <select id="a-status" class="form-select">${statusOptions}</select>
       </div>
     </div>
 
-    <div class="form-grid-2">
-      <div class="form-group">
-        <label class="form-label" for="a-cpf">CPF</label>
-        <input id="a-cpf" type="text" class="form-input" placeholder="000.000.000-00"
-          value="${v('cpf')}" maxlength="14" oninput="AlunoModule._maskCpf(this)" />
-      </div>
-    </div>
+    <div class="aluno-secao-titulo">🏓 Esporte</div>
 
     <div class="form-grid-2">
       <div class="form-group">
-        <label class="form-label" for="a-nascimento">Data de nascimento</label>
-        <input id="a-nascimento" type="date" class="form-input"
-          value="${v('dataNascimento')}"
-          oninput="AlunoModule._showIdade(this)" />
+        <label class="form-label" for="a-nivel">Nível</label>
+        <select id="a-nivel" class="form-select">${nivelOptions}</select>
       </div>
-      <div class="form-group">
-        <label class="form-label">Idade</label>
-        <div id="a-idade-display" class="form-input" style="background:var(--bg-secondary);display:flex;align-items:center;color:var(--text-secondary);">
-          ${idade ? `<strong>${idade} anos</strong>` : '<span style="color:var(--text-muted);">— preencha o nascimento</span>'}
-        </div>
-      </div>
-    </div>
-
-    <div class="form-group">
-      <label class="form-label" for="a-rua">Endereço — Rua</label>
-      <input id="a-rua" type="text" class="form-input" placeholder="ex: Rua das Flores, 123"
-        value="${v('enderecoRua')}" autocomplete="off" />
-    </div>
-
-    <div class="form-grid-2">
-      <div class="form-group">
-        <label class="form-label" for="a-bairro">Bairro</label>
-        <input id="a-bairro" type="text" class="form-input" placeholder="ex: Centro"
-          value="${v('enderecoBairro')}" autocomplete="off" />
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="a-cidade">Cidade</label>
-        <input id="a-cidade" type="text" class="form-input" placeholder="ex: São Paulo"
-          value="${v('enderecoCidade')}" autocomplete="off" />
-      </div>
-    </div>
-
-    <div class="form-grid-2">
-      <div class="form-group">
-        <label class="form-label" for="a-cep">CEP</label>
-        <input id="a-cep" type="text" class="form-input" placeholder="00000-000"
-          value="${v('enderecoCep')}" maxlength="9" oninput="AlunoModule._maskCep(this)" />
-      </div>
-      <div></div>
-    </div>
-
-    <div class="aluno-secao-titulo">🏓 Dados do Esporte</div>
-
-    <div class="form-grid-2">
-      <div class="form-group">
-        <label class="form-label" for="a-peso">Peso (kg)</label>
-        <input id="a-peso" type="number" class="form-input" placeholder="ex: 75" min="20" max="200" step="0.1"
-          value="${v('peso')}" />
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="a-altura">Altura (cm)</label>
-        <input id="a-altura" type="number" class="form-input" placeholder="ex: 175" min="100" max="230"
-          value="${v('altura')}" />
-      </div>
-    </div>
-
-    <div class="form-grid-2">
       <div class="form-group">
         <label class="form-label" for="a-lado">Lado dominante</label>
         <select id="a-lado" class="form-select">${ladoOpts}</select>
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="a-nivel">Nível no esporte</label>
-        <select id="a-nivel" class="form-select">${nivelOptions}</select>
-      </div>
-    </div>
-
-    <div class="form-group">
-      <label class="form-label" for="a-raquete">Raquete que usa</label>
-      <input id="a-raquete" type="text" list="raquete-suggestions" class="form-input"
-        placeholder="Digite ou selecione o modelo"
-        value="${v('raquete')}" autocomplete="off" />
-      <datalist id="raquete-suggestions">
-        <option value="Selkirk Vanguard 2.0">
-        <option value="Selkirk SLK Halo">
-        <option value="JOOLA Ben Johns Hyperion">
-        <option value="JOOLA Perseus">
-        <option value="Paddletek Tempest Wave Pro">
-        <option value="Paddletek Phoenix Pro">
-        <option value="Engage Poach Advantage">
-        <option value="Engage Encore Pro">
-        <option value="Franklin Ben Johns Signature">
-        <option value="Head Radical Pro">
-        <option value="Wilson Juice">
-        <option value="ProXR Palladium">
-        <option value="Vulcan V530">
-        <option value="Babolat Touch Lite">
-      </datalist>
-    </div>
-
-    <div class="aluno-secao-titulo">⚙️ Configurações</div>
-
-    <div class="form-group">
-      <label class="form-label" for="a-status">Status</label>
-      <select id="a-status" class="form-select">${statusOptions}</select>
-    </div>
-
-    <div class="aluno-secao-titulo">👕 Vestuário</div>
-    <div class="form-grid-3">
-      <div class="form-group">
-        <label class="form-label" for="a-camisa">Camiseta</label>
-        <select id="a-camisa" class="form-select">
-          <option value="">—</option>
-          ${['PP','P','M','G','GG','XG','XXG'].map(s =>
-            `<option value="${s}" ${v('tamanhoCamisa')===s?'selected':''}>${s}</option>`).join('')}
-        </select>
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="a-short">Short</label>
-        <select id="a-short" class="form-select">
-          <option value="">—</option>
-          ${['PP','P','M','G','GG','XG','XXG'].map(s =>
-            `<option value="${s}" ${v('tamanhoShort')===s?'selected':''}>${s}</option>`).join('')}
-        </select>
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="a-sapato">Calçado (nº)</label>
-        <input id="a-sapato" type="number" class="form-input" placeholder="ex: 42" min="28" max="48"
-          value="${v('tamanhoSapato')}" />
       </div>
     </div>
 
