@@ -679,14 +679,16 @@ tr.tarefa-concluida td { opacity: .6; }
   background: rgba(15,23,42,.55);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
   z-index: 500;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.25s ease;
-  padding: 20px;
+  /* Overlay rola para manter dialog acessível em telas pequenas */
+  overflow-y: auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 24px 16px;
 }
 
 .modal-overlay.open {
@@ -700,12 +702,14 @@ tr.tarefa-concluida td { opacity: .6; }
   box-shadow: 0 20px 60px rgba(0,0,0,.2);
   width: 100%;
   max-width: 580px;
-  max-height: 90vh;
+  /* Flex column: header fixo + body rola + footer fixo */
   display: flex;
   flex-direction: column;
+  max-height: calc(100dvh - 48px);
   transform: scale(0.94) translateY(8px);
   transition: transform 0.25s ease;
-  overflow: hidden;
+  /* Sem overflow:hidden — modal-body cuida do scroll */
+  margin: auto;
 }
 
 .modal-overlay.open .modal-dialog {
@@ -729,7 +733,8 @@ tr.tarefa-concluida td { opacity: .6; }
   justify-content: space-between;
   padding: 20px 24px 16px;
   border-bottom: 1px solid var(--card-border);
-  flex-shrink: 0;
+  flex-shrink: 0;          /* nunca encolhe */
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
 
 .modal-title {
@@ -745,24 +750,16 @@ tr.tarefa-concluida td { opacity: .6; }
 
 .modal-body {
   padding: 20px 24px;
-  overflow-y: auto;
+  overflow-y: auto;        /* body rola */
   overflow-x: hidden;
-  flex: 1;
-  min-height: 0;
+  flex: 1 1 auto;          /* cresce e encolhe */
+  min-height: 0;           /* permite flex encolher abaixo do conteúdo */
 }
 .modal-body .form-grid,
 .modal-body .form-grid-2,
-.modal-body .form-grid-3 {
-  min-width: 0;
-}
-.modal-body details {
-  min-width: 0;
-  width: 100%;
-}
-.modal-body details > div {
-  min-width: 0;
-  overflow: hidden;
-}
+.modal-body .form-grid-3 { min-width: 0; }
+.modal-body details        { min-width: 0; width: 100%; }
+.modal-body details > div  { min-width: 0; }
 
 .modal-footer {
   display: flex;
