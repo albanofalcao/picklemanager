@@ -14,8 +14,9 @@ const FinanceiroModule = {
     filterMes:    '',
   },
 
-  STORAGE_KEY_PC:  'planoContas',
-  STORAGE_KEY_ORC: 'orcamento',
+  STORAGE_KEY_PC:     'planoContas',
+  STORAGE_KEY_ORC:    'orcamento',
+  STORAGE_KEY_MODELO: 'orcamento_modelo',
 
   TIPO_PC: {
     receita:    { label: 'Receita',    badge: 'badge-success' },
@@ -872,16 +873,23 @@ const FinanceiroModule = {
         </tr>`;
     }).join('');
 
+    const temModelo  = Storage.getAll(this.STORAGE_KEY_MODELO).length > 0;
+    const temLinhas  = orcamentos.length > 0;
+    const anoAtual   = mesSel.slice(0, 4);
+
     return `
       <div class="page-header">
         <div class="page-header-text">
           <h2>Orçamento</h2>
           <p>Planejamento financeiro — valores projetados por período</p>
         </div>
-        <button class="btn btn-primary" onclick="FinanceiroModule.openModalOrcamento()">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          Nova Linha
-        </button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-primary" onclick="FinanceiroModule.openModalOrcamento()">+ Nova Linha</button>
+          ${temLinhas ? `<button class="btn btn-secondary" onclick="FinanceiroModule.openModalReplicar('${mesSel}')">📋 Replicar</button>` : ''}
+          ${temLinhas ? `<button class="btn btn-secondary" onclick="FinanceiroModule.projetarAnoTodo('${mesSel}')">📅 Projetar Ano Todo</button>` : ''}
+          ${temLinhas ? `<button class="btn btn-ghost btn-sm" onclick="FinanceiroModule.salvarComoModelo('${mesSel}')" title="Salvar como modelo permanente">💾 Salvar Modelo</button>` : ''}
+          ${temModelo && !temLinhas ? `<button class="btn btn-secondary" onclick="FinanceiroModule.carregarModelo('${mesSel}')">📂 Carregar Modelo</button>` : ''}
+        </div>
       </div>
 
       <div class="filters-bar" style="margin-bottom:20px;">
@@ -889,6 +897,7 @@ const FinanceiroModule = {
         <select class="filter-select" onchange="FinanceiroModule._state.filterMes=this.value;FinanceiroModule.switchTab('orcamento')">
           ${mesOptions}
         </select>
+        ${temModelo && temLinhas ? `<button class="btn btn-ghost btn-sm" onclick="FinanceiroModule.carregarModelo('${mesSel}')" style="font-size:12px;">📂 Carregar Modelo</button>` : ''}
         <button class="btn btn-secondary btn-sm" onclick="FinanceiroModule.switchTab('dre')" style="margin-left:auto;">
           📈 Ver DRE Comparativo →
         </button>
@@ -1240,6 +1249,209 @@ const FinanceiroModule = {
     if (!ok) return;
     Storage.delete(this.STORAGE_KEY_ORC, id);
     UI.toast('Linha removida.', 'success');
+    this.switchTab('orcamento');
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Orçamento — Replicar / Modelo / Projetar Ano                       */
+  /* ------------------------------------------------------------------ */
+
+  /** Abre modal para replicar orçamento do mês atual para outros meses */
+  openModalReplicar(mesOrigem) {
+    const hoje = new Date();
+    const meses = [];
+    for (let i = 1; i <= 18; i++) {
+      const d  = new Date(hoje.getFullYear(), hoje.getMonth() + i, 1);
+      const ym = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      meses.push(ym);
+    }
+    const nLinhas = Storage.getAll(this.STORAGE_KEY_ORC).filter(o => o.periodo === mesOrigem).length;
+
+    UI.openModal({
+      title: `📋 Replicar orçamento de ${this._formatMesLabel(mesOrigem)}`,
+      wide: true,
+      content: `
+        <div style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">
+          ${nLinhas} linha${nLinhas!==1?'s':''} serão copiadas para os meses selecionados.
+        </div>
+
+        <div style="margin-bottom:16px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <label class="form-label" style="margin:0;">Meses de destino</label>
+            <button type="button" class="btn btn-ghost btn-sm"
+              onclick="document.querySelectorAll('.rep-mes-chk').forEach(c=>c.checked=true)">
+              Selecionar todos
+            </button>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;">
+            ${meses.map(m => `
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;
+                background:var(--bg-secondary);border-radius:6px;padding:6px 10px;">
+                <input type="checkbox" class="rep-mes-chk" value="${m}">
+                ${this._formatMesLabel(m)}
+              </label>`).join('')}
+          </div>
+        </div>
+
+        <div class="form-grid-2" style="margin-bottom:12px;">
+          <div class="form-group">
+            <label class="form-label">Ajuste de valor (%)</label>
+            <input id="rep-ajuste" type="number" class="form-input" value="0" step="0.5"
+              placeholder="0 = sem ajuste, +5 = 5% a mais" />
+            <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">
+              Ex: +5% para corrigir pelo IPCA anual
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Se o mês já tiver orçamento</label>
+            <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px;">
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
+                <input type="radio" name="rep-conflito" value="manter" checked> Manter existente
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
+                <input type="radio" name="rep-conflito" value="substituir"> Substituir tudo
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
+                <input type="radio" name="rep-conflito" value="acrescentar"> Acrescentar linhas
+              </label>
+            </div>
+          </div>
+        </div>`,
+      confirmLabel: 'Replicar',
+      onConfirm: () => this._executarReplicacao(mesOrigem),
+    });
+  },
+
+  _executarReplicacao(mesOrigem) {
+    const selecionados = [...document.querySelectorAll('.rep-mes-chk:checked')].map(c => c.value);
+    if (!selecionados.length) { UI.toast('Selecione pelo menos um mês.', 'warning'); return false; }
+
+    const ajustePct  = parseFloat(document.getElementById('rep-ajuste')?.value) || 0;
+    const conflito   = document.querySelector('input[name="rep-conflito"]:checked')?.value || 'manter';
+    const linhasOrig = Storage.getAll(this.STORAGE_KEY_ORC).filter(o => o.periodo === mesOrigem);
+    const fator      = 1 + ajustePct / 100;
+    let criados = 0;
+
+    selecionados.forEach(mes => {
+      const existentes = Storage.getAll(this.STORAGE_KEY_ORC).filter(o => o.periodo === mes);
+      if (existentes.length && conflito === 'manter') return; // pula
+      if (existentes.length && conflito === 'substituir') {
+        existentes.forEach(e => Storage.delete(this.STORAGE_KEY_ORC, e.id));
+      }
+      linhasOrig.forEach(l => {
+        Storage.create(this.STORAGE_KEY_ORC, {
+          periodo:   mes,
+          tipo:      l.tipo,
+          catId:     l.catId,
+          categoria: l.categoria,
+          valor:     Math.round((parseFloat(l.valor) * fator) * 100) / 100,
+          obs:       l.obs || '',
+        });
+        criados++;
+      });
+    });
+
+    UI.toast(`✅ ${criados} linha${criados!==1?'s':''} criada${criados!==1?'s':''} em ${selecionados.length} mês${selecionados.length!==1?'es':''}!`, 'success');
+    UI.closeModal();
+    this.switchTab('orcamento');
+  },
+
+  /** Projeta o orçamento do mês atual para todos os meses do ano */
+  async projetarAnoTodo(mesOrigem) {
+    const ano    = mesOrigem.slice(0, 4);
+    const meses  = Array.from({length: 12}, (_, i) =>
+      `${ano}-${String(i + 1).padStart(2,'0')}`
+    ).filter(m => m !== mesOrigem);
+
+    const linhasOrig  = Storage.getAll(this.STORAGE_KEY_ORC).filter(o => o.periodo === mesOrigem);
+    const jaExistem   = meses.filter(m =>
+      Storage.getAll(this.STORAGE_KEY_ORC).some(o => o.periodo === m)
+    );
+
+    const msg = jaExistem.length
+      ? `Replicar as ${linhasOrig.length} linhas de ${this._formatMesLabel(mesOrigem)} para todos os ${meses.length} meses restantes de ${ano}?\n\n⚠️ ${jaExistem.length} mês${jaExistem.length!==1?'es':''} já tem orçamento e será substituído.`
+      : `Replicar as ${linhasOrig.length} linhas de ${this._formatMesLabel(mesOrigem)} para todos os ${meses.length} meses restantes de ${ano}?`;
+
+    const ok = await UI.confirm(msg, `📅 Projetar ${ano} completo`);
+    if (!ok) return;
+
+    let criados = 0;
+    meses.forEach(mes => {
+      // Remove existentes e recria
+      Storage.getAll(this.STORAGE_KEY_ORC)
+        .filter(o => o.periodo === mes)
+        .forEach(e => Storage.delete(this.STORAGE_KEY_ORC, e.id));
+      linhasOrig.forEach(l => {
+        Storage.create(this.STORAGE_KEY_ORC, {
+          periodo:   mes,
+          tipo:      l.tipo,
+          catId:     l.catId,
+          categoria: l.categoria,
+          valor:     parseFloat(l.valor),
+          obs:       l.obs || '',
+        });
+        criados++;
+      });
+    });
+
+    UI.toast(`✅ Ano ${ano} projetado! ${criados} linhas criadas em ${meses.length} meses.`, 'success');
+    this.switchTab('orcamento');
+  },
+
+  /** Salva as linhas do mês atual como modelo permanente */
+  async salvarComoModelo(mesSel) {
+    const linhas = Storage.getAll(this.STORAGE_KEY_ORC).filter(o => o.periodo === mesSel);
+    if (!linhas.length) { UI.toast('Nenhuma linha para salvar.', 'warning'); return; }
+
+    const temModelo = Storage.getAll(this.STORAGE_KEY_MODELO).length > 0;
+    if (temModelo) {
+      const ok = await UI.confirm('Substituir o modelo permanente existente pelas linhas deste mês?', 'Salvar Modelo');
+      if (!ok) return;
+      // Limpa modelo anterior
+      Storage.getAll(this.STORAGE_KEY_MODELO).forEach(m => Storage.delete(this.STORAGE_KEY_MODELO, m.id));
+    }
+
+    linhas.forEach(l => {
+      Storage.create(this.STORAGE_KEY_MODELO, {
+        tipo:      l.tipo,
+        catId:     l.catId,
+        categoria: l.categoria,
+        valor:     parseFloat(l.valor),
+        obs:       l.obs || '',
+      });
+    });
+
+    UI.toast(`💾 Modelo salvo com ${linhas.length} linha${linhas.length!==1?'s':''}!`, 'success');
+    this.switchTab('orcamento');
+  },
+
+  /** Aplica o modelo permanente ao mês selecionado */
+  async carregarModelo(mesSel) {
+    const modelo  = Storage.getAll(this.STORAGE_KEY_MODELO);
+    if (!modelo.length) { UI.toast('Nenhum modelo salvo ainda. Crie linhas e clique em "💾 Salvar Modelo".', 'info'); return; }
+
+    const existentes = Storage.getAll(this.STORAGE_KEY_ORC).filter(o => o.periodo === mesSel);
+    if (existentes.length) {
+      const ok = await UI.confirm(
+        `Substituir as ${existentes.length} linhas existentes de ${this._formatMesLabel(mesSel)} pelo modelo (${modelo.length} linhas)?`,
+        'Carregar Modelo'
+      );
+      if (!ok) return;
+      existentes.forEach(e => Storage.delete(this.STORAGE_KEY_ORC, e.id));
+    }
+
+    modelo.forEach(m => {
+      Storage.create(this.STORAGE_KEY_ORC, {
+        periodo:   mesSel,
+        tipo:      m.tipo,
+        catId:     m.catId,
+        categoria: m.categoria,
+        valor:     parseFloat(m.valor),
+        obs:       m.obs || '',
+      });
+    });
+
+    UI.toast(`✅ Modelo aplicado: ${modelo.length} linha${modelo.length!==1?'s':''} criada${modelo.length!==1?'s':''} em ${this._formatMesLabel(mesSel)}.`, 'success');
     this.switchTab('orcamento');
   },
 
