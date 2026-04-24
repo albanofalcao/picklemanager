@@ -298,6 +298,7 @@ const ManutencaoModule = {
     const sla      = this._slaStatus(m);
     const materiais= Array.isArray(m.materiais) ? m.materiais : [];
     const historico= Array.isArray(m.historico) ? m.historico : [];
+    const evolucao = Array.isArray(m.evolucao)  ? m.evolucao  : [];
     const ativo    = !['concluido','cancelado'].includes(m.status);
 
     const custoMat = materiais.reduce((s,mt)=>s+(parseFloat(mt.custoUnit||0)*(parseInt(mt.qtd)||1)),0);
@@ -337,6 +338,56 @@ const ManutencaoModule = {
           <button class="btn btn-secondary btn-sm" onclick="UI.closeModal();setTimeout(()=>ManutencaoModule.openModalChamado('${id}'),200)">✏️ Editar</button>
           <button class="btn btn-ghost btn-sm danger" onclick="ManutencaoModule.cancelar('${id}')">❌ Cancelar</button>
         </div>`:''}
+
+        <!-- EVOLUÇÃO DA EXECUÇÃO -->
+        ${(()=>{
+          const totalHrs    = evolucao.reduce((s,e)=>s+(parseFloat(e.hrsGastas)||0),0);
+          const ultimoPct   = evolucao.length ? (evolucao[evolucao.length-1].pctConcluido||0) : 0;
+          const pct         = Math.min(100, Math.max(0, ultimoPct));
+          const barColor    = pct>=100?'#22c55e':pct>=50?'#3b9e8f':'#f59e0b';
+          const tipoIcons   = { inicio:'🚀', progresso:'🔄', pausa:'⏸️', retomada:'▶️', conclusao:'✅' };
+          const tipoLabels  = { inicio:'Início dos Trabalhos', progresso:'Progresso', pausa:'Pausa', retomada:'Retomada', conclusao:'Conclusão' };
+          return `
+        <div style="margin-bottom:20px;border:1px solid var(--card-border);border-radius:12px;padding:16px;background:var(--bg-secondary);">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+            <h4 style="font-size:13px;font-weight:700;margin:0;">🛠️ Evolução da Execução</h4>
+            ${ativo?`<button class="btn btn-primary btn-sm" onclick="ManutencaoModule.abrirModalEvolucao('${id}')">+ Registrar Progresso</button>`:''}
+          </div>
+
+          <!-- Barra de Progresso -->
+          <div style="margin-bottom:12px;">
+            <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-muted);margin-bottom:4px;">
+              <span>Progresso geral</span>
+              <span style="font-weight:700;color:${barColor}">${pct}%</span>
+            </div>
+            <div style="height:10px;background:var(--card-border);border-radius:99px;overflow:hidden;">
+              <div style="height:100%;width:${pct}%;background:${barColor};border-radius:99px;transition:width .4s ease;"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);margin-top:4px;">
+              <span>${evolucao.length} registro${evolucao.length!==1?'s':''}</span>
+              <span>⏱ ${totalHrs.toFixed(1)}h trabalhadas</span>
+            </div>
+          </div>
+
+          <!-- Registros de Evolução -->
+          ${evolucao.length?`
+          <div class="manut-evol-list">
+            ${[...evolucao].reverse().map(e=>`
+              <div class="manut-evol-item">
+                <div class="manut-evol-dot" style="background:${e.tipo==='conclusao'?'#22c55e':e.tipo==='pausa'?'#f59e0b':e.tipo==='inicio'?'#3b9e8f':'var(--color-primary)'}"></div>
+                <div class="manut-evol-body">
+                  <div class="manut-evol-header">
+                    <span class="manut-evol-tipo">${tipoIcons[e.tipo]||'📝'} ${tipoLabels[e.tipo]||e.tipo}</span>
+                    <span class="manut-evol-meta">${e.pctConcluido!=null?`<span class="badge badge-success" style="font-size:10px;">✓ ${e.pctConcluido}%</span> `:''}${e.hrsGastas?`<span class="badge badge-blue" style="font-size:10px;">⏱ ${parseFloat(e.hrsGastas).toFixed(1)}h</span> `:''}${UI.formatDate(e.data)} ${new Date(e.data).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</span>
+                  </div>
+                  ${e.descricao?`<div class="manut-evol-desc">${UI.escape(e.descricao)}</div>`:''}
+                  <div class="manut-evol-user">👤 ${UI.escape(e.usuarioNome||'—')}</div>
+                </div>
+              </div>`).join('')}
+          </div>`
+          :`<div style="color:var(--text-muted);font-size:13px;text-align:center;padding:8px 0;">Nenhum registro de execução ainda.${ativo?' Clique em "+ Registrar Progresso" para começar.':''}</div>`}
+        </div>`;
+        })()}
 
         <!-- MATERIAIS -->
         <div style="margin-bottom:20px;">
@@ -413,6 +464,115 @@ const ManutencaoModule = {
     inp.value = '';
     UI.toast('Observação registrada.', 'success');
     this.abrirDetalhe(id);
+  },
+
+  /* ── EVOLUÇÃO DA EXECUÇÃO ─────────────────────────────────── */
+  abrirModalEvolucao(chamadoId) {
+    const m = Storage.getById(this.SK, chamadoId);
+    if (!m) return;
+    const evolucao   = Array.isArray(m.evolucao) ? m.evolucao : [];
+    const ultimoPct  = evolucao.length ? (evolucao[evolucao.length-1].pctConcluido||0) : 0;
+    const totalHrs   = evolucao.reduce((s,e)=>s+(parseFloat(e.hrsGastas)||0),0);
+    const temInicio  = evolucao.some(e=>e.tipo==='inicio');
+
+    UI.openModal({
+      title: '🛠️ Registrar Progresso da Execução',
+      wide: false,
+      content: `
+        <div class="form-grid">
+
+          <div class="form-group">
+            <label class="form-label">Tipo de registro <span class="required-star">*</span></label>
+            <select id="evol-tipo" class="form-select">
+              ${!temInicio?`<option value="inicio" selected>🚀 Início dos Trabalhos</option>`:''}
+              <option value="progresso" ${temInicio?'selected':''}>🔄 Progresso</option>
+              <option value="pausa">⏸️ Pausa</option>
+              <option value="retomada">▶️ Retomada</option>
+              <option value="conclusao">✅ Conclusão</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Descrição <span class="required-star">*</span></label>
+            <textarea id="evol-desc" class="form-textarea" rows="3"
+              placeholder="O que foi feito? Qual a situação atual?"></textarea>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="form-group">
+              <label class="form-label">Horas trabalhadas nesta etapa</label>
+              <input id="evol-hrs" type="number" class="form-input" min="0" step="0.25" value="1"
+                placeholder="ex: 1.5" />
+              <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">
+                Total acumulado: <strong>${totalHrs.toFixed(1)}h</strong>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" id="evol-pct-label">% Concluído: <strong id="evol-pct-val">${ultimoPct}%</strong></label>
+              <input id="evol-pct" type="range" min="0" max="100" step="5" value="${ultimoPct}"
+                oninput="document.getElementById('evol-pct-val').textContent=this.value+'%'"
+                style="width:100%;margin-top:8px;accent-color:var(--color-primary);" />
+              <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);">
+                <span>0%</span><span>50%</span><span>100%</span>
+              </div>
+            </div>
+          </div>
+
+        </div>`,
+      confirmLabel: 'Salvar Registro',
+      onConfirm: () => this._salvarEvolucao(chamadoId),
+    });
+  },
+
+  _salvarEvolucao(chamadoId) {
+    const tipo = document.getElementById('evol-tipo')?.value;
+    const desc = document.getElementById('evol-desc')?.value.trim();
+    if (!desc) { UI.toast('Descreva o que foi realizado.', 'warning'); return false; }
+
+    const m     = Storage.getById(this.SK, chamadoId);
+    if (!m) return;
+    const evol  = Array.isArray(m.evolucao) ? [...m.evolucao] : [];
+    const user  = Auth.getCurrentUser();
+    const hrs   = parseFloat(document.getElementById('evol-hrs')?.value)||0;
+    const pct   = parseInt(document.getElementById('evol-pct')?.value)||0;
+    const now   = new Date().toISOString();
+
+    evol.push({
+      id:           Storage.generateId(),
+      tipo,
+      descricao:    desc,
+      hrsGastas:    hrs,
+      pctConcluido: pct,
+      data:         now,
+      usuarioNome:  user?.nome || user?.login || '—',
+    });
+
+    const changes = { evolucao: evol };
+
+    // Auto-avança status se necessário
+    if (tipo === 'inicio' && m.status === 'atribuido') {
+      changes.status = 'em_execucao';
+    }
+    if (pct >= 100 && !['concluido','cancelado'].includes(m.status)) {
+      changes.status      = 'concluido';
+      changes.dataConclusao = now.slice(0,10);
+    }
+    if (tipo === 'pausa' && m.status === 'em_execucao') {
+      changes.status = 'aguardando_material';
+    }
+    if (tipo === 'retomada' && m.status !== 'em_execucao') {
+      changes.status = 'em_execucao';
+    }
+
+    Storage.update(this.SK, chamadoId, changes);
+
+    const tipoLabel = { inicio:'Início dos trabalhos', progresso:'Progresso registrado', pausa:'Execução pausada', retomada:'Execução retomada', conclusao:'Trabalho concluído' };
+    this._addHistorico(chamadoId, tipoLabel[tipo]||tipo, `${pct}% concluído — ${hrs.toFixed(1)}h`, m.status, changes.status||m.status);
+
+    UI.toast('Progresso registrado!', 'success');
+    UI.closeModal();
+    this.abrirDetalhe(chamadoId);
+    this.render();
   },
 
   /* ── STATUS ACTIONS ───────────────────────────────────────── */
