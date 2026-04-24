@@ -109,6 +109,7 @@ const UI = {
 
     overlay.classList.add('open');
     overlay.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
 
     // Focus first focusable element inside modal
     requestAnimationFrame(() => {
@@ -123,6 +124,7 @@ const UI = {
     if (!overlay) return;
     overlay.classList.remove('open');
     overlay.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
     // Clear after animation — guardamos o ID para cancelar se um openModal vier logo depois
     this._clearTimer = setTimeout(() => {
       this._clearTimer = null;
