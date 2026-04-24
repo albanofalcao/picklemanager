@@ -277,10 +277,16 @@ const ManutencaoModule = {
           ${areas.map(a=>`<option value="${a.id}" ${this._state.filterArea===a.id?'selected':''}>${UI.escape(a.nome)}</option>`).join('')}
         </select>
         <span class="results-count">${filtered.length} chamado${filtered.length!==1?'s':''}</span>
+        <div class="view-toggle-btn">
+          <button class="btn btn-icon ${this._getViewMode()==='card'?'view-toggle-active':''}"
+            onclick="ManutencaoModule._setViewMode('card')" title="Visualização em cards">⊞</button>
+          <button class="btn btn-icon ${this._getViewMode()==='lista'?'view-toggle-active':''}"
+            onclick="ManutencaoModule._setViewMode('lista')" title="Visualização em lista">☰</button>
+        </div>
       </div>
 
-      <div class="manut-list" id="manutencao-grid">
-        ${filtered.length ? filtered.map(m=>this._renderRow(m)).join('') : this._renderEmpty()}
+      <div id="manutencao-grid">
+        ${this._renderGrid(filtered)}
       </div>`;
   },
 
@@ -2059,9 +2065,73 @@ const ManutencaoModule = {
   _reRenderCards() {
     const f   = this.getFiltered();
     const g   = document.getElementById('manutencao-grid');
-    if (g) g.innerHTML = f.length?f.map(m=>this._renderRow(m)).join(''):this._renderEmpty();
+    if (g) g.innerHTML = this._renderGrid(f);
     const cnt = document.querySelector('.results-count');
     if (cnt) cnt.textContent=`${f.length} chamado${f.length!==1?'s':''}`;
+  },
+
+  /* ── View mode toggle ───────────────────────────────────────── */
+  _VIEW_KEY: 'viewMode_manut_chamados',
+
+  _getViewMode() {
+    return localStorage.getItem(this._VIEW_KEY) || 'card';
+  },
+
+  _setViewMode(mode) {
+    localStorage.setItem(this._VIEW_KEY, mode);
+    // Atualiza estilo dos botões do toggle
+    document.querySelectorAll('.view-toggle-btn .btn-icon').forEach((btn, i) => {
+      btn.classList.toggle('view-toggle-active', (i === 0 && mode === 'card') || (i === 1 && mode === 'lista'));
+    });
+    this._reRenderCards();
+  },
+
+  _renderGrid(filtered) {
+    if (!filtered.length) return this._renderEmpty();
+    if (this._getViewMode() === 'lista') return this._renderTabela(filtered);
+    return `<div class="manut-list">${filtered.map(m => this._renderRow(m)).join('')}</div>`;
+  },
+
+  _renderTabela(filtered) {
+    const areas   = this.getAreas();
+    const grupos  = this.getGrupos();
+    const rows = filtered.map(m => {
+      const status   = this.STATUS[m.status]     || { label: m.status,    badge: 'badge-gray',  icon: '?' };
+      const urgencia = this.URGENCIA[m.urgencia] || { label: 'Normal',    badge: 'badge-gray',  icon: '🟢' };
+      const tipo     = this.TIPO[m.tipo]         || { label: 'Corretiva', icon: '🔧' };
+      const sla      = this._slaStatus(m);
+      const area     = areas.find(a => a.id === m.areaId);
+      const grupo    = grupos.find(g => g.id === m.grupoId);
+
+      return `
+        <tr style="cursor:pointer;" onclick="ManutencaoModule.abrirDetalhe('${m.id}')">
+          <td style="font-weight:700;color:var(--text-muted);white-space:nowrap;">#${String(m.numero||'?').padStart(4,'0')}</td>
+          <td>${tipo.icon}</td>
+          <td style="font-weight:600;max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${UI.escape(m.titulo)}</td>
+          <td style="font-size:12px;color:var(--text-muted);">${area ? UI.escape(area.nome) : '—'}</td>
+          <td style="font-size:12px;color:var(--text-muted);">${grupo ? UI.escape(grupo.nome) : (m.responsavelNome ? UI.escape(m.responsavelNome) : '—')}</td>
+          <td><span class="badge ${urgencia.badge}" style="font-size:10px;">${urgencia.icon} ${urgencia.label}</span></td>
+          <td><span class="badge ${status.badge}" style="font-size:10px;">${status.icon} ${status.label}</span></td>
+          <td>${sla ? `<span class="manut-sla ${sla.css}" style="font-size:10px;">⏱ ${sla.label}</span>` : '—'}</td>
+          <td style="white-space:nowrap;" onclick="event.stopPropagation()">
+            ${m.status==='aberto' ? `<button class="btn btn-sm btn-secondary" onclick="ManutencaoModule.assumir('${m.id}')">Assumir</button>` : ''}
+            ${!['concluido','cancelado'].includes(m.status) ? `<button class="btn btn-sm btn-ghost" title="Avançar" onclick="ManutencaoModule.avancarStatus('${m.id}')">▶</button>` : ''}
+          </td>
+        </tr>`;
+    }).join('');
+
+    return `
+      <div class="table-card">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>#</th><th>Tipo</th><th>Título</th><th>Área</th>
+              <th>Resp.</th><th>Urgência</th><th>Status</th><th>SLA</th><th></th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
   },
 
   _renderEmpty() {

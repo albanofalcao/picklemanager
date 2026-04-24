@@ -1355,6 +1355,21 @@ tr.tarefa-concluida td { opacity: .6; }
 .arena-card[data-prior="media"]   { border-left-color: #3b82f6; }
 .arena-card[data-prior="baixa"]   { border-left-color: #a8c5be; }
 
+/* ── View toggle (Cards / Lista) ── */
+.view-toggle-btn {
+  display:flex; gap:2px; margin-left:auto;
+  background:var(--bg-secondary); border-radius:8px; padding:3px;
+  border:1px solid var(--card-border);
+}
+.view-toggle-btn .btn-icon {
+  width:30px; height:30px; border-radius:6px; font-size:14px;
+  color:var(--text-muted); background:transparent; transition:all .15s;
+}
+.view-toggle-btn .btn-icon.view-toggle-active {
+  background:var(--card-bg); color:var(--color-primary,#3b9e8f);
+  box-shadow:0 1px 3px rgba(0,0,0,.12);
+}
+
 /* ── Manutenção v2 ── */
 .manut-list { display:flex; flex-direction:column; gap:8px; }
 
