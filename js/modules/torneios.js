@@ -421,9 +421,9 @@ const TorneioModule = {
     const emUso = Storage.getAll(this.SK_CAT).filter(x => x.catTipoId === c.id).length;
     return `<tr>
       <td><strong>${UI.escape(c.nome)}</strong></td>
-      <td>${this.TIPO_PART[c.tipoParticipacao] || <span style="color:var(--text-muted)">—</span>}</td>
-      <td>${this.SEXO[c.sexo]   || '<span style="color:var(--text-muted)">—</span>'}</td>
-      <td>${this.NIVEL[c.nivel] || '<span style="color:var(--text-muted)">—</span>'}</td>
+      <td>${this.TIPO_PART[c.tipoParticipacao] || '—'}</td>
+      <td>${this.SEXO[c.sexo]   || '—'}</td>
+      <td>${this.NIVEL[c.nivel] || '—'}</td>
       <td style="color:var(--text-muted);font-size:12px;">${UI.escape(c.descricao || '—')}</td>
       <td class="aluno-row-actions">
         ${emUso ? `<span class="badge badge-gray" style="font-size:11px;">${emUso} torneio${emUso > 1 ? 's' : ''}</span>` : ''}
