@@ -267,13 +267,17 @@ const TorneioModule = {
         </div>
         <div class="torneio-card-info">
           <span>📅 ${UI.formatDate(e.dataInicio)}${e.dataFim && e.dataFim !== e.dataInicio ? ` → ${UI.formatDate(e.dataFim)}` : ''}</span>
+          ${e.horarioInicio ? `<span>⏰ ${e.horarioInicio}${e.horarioFim ? ' → ' + e.horarioFim : ''}</span>` : ''}
           <span>📂 ${cats.length} categoria${cats.length !== 1 ? 's' : ''}</span>
           <span>👤 ${insc.length} inscrito${insc.length !== 1 ? 's' : ''}</span>
         </div>
         ${e.observacoes ? `<div class="torneio-card-obs">${UI.escape(e.observacoes)}</div>` : ''}
         <div class="torneio-card-actions">
+          <button class="btn btn-secondary btn-sm"
+            onclick="TorneioModule.abrirPreCalendario('${e.id}')"
+            title="Ver pré-calendário de partidas">📅 Calendário</button>
           <button class="btn btn-primary btn-sm"
-            onclick="TorneioModule.abrirDetalhe('${e.id}')">📂 Ver Categorias</button>
+            onclick="TorneioModule.abrirDetalhe('${e.id}')">⚙️ Gerenciar</button>
           <button class="btn btn-ghost btn-sm"
             onclick="TorneioModule.openModalEvento('${e.id}')" title="Editar">✏️</button>
           <button class="btn btn-ghost btn-sm danger"
