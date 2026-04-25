@@ -58,6 +58,17 @@ const DB = {
     turmas:            'app_turmas',
     usuarios:          'app_usuarios',
     orcamento:         'app_orcamento',
+    // ── Módulo de Torneios ──────────────────────────────────────────
+    torneios:               'app_torneios',
+    torneio_categorias:     'app_torneio_categorias',
+    torneio_participantes:  'app_torneio_participantes',
+    torneio_inscricoes:     'app_torneio_inscricoes',
+    torneio_duplas:         'app_torneio_duplas',
+    torneio_fases:          'app_torneio_fases',
+    torneio_grupos:         'app_torneio_grupos',
+    torneio_partidas:       'app_torneio_partidas',
+    torneio_sets:           'app_torneio_sets',
+    torneio_pagamentos:     'app_torneio_pagamentos',
   },
 
   // Catálogos que compartilham a tabela app_catalogos
