@@ -526,96 +526,69 @@ const TorneioModule = {
 
   openModalCategoria(eventoId, catId = null) {
     const cat  = catId ? Storage.getById(this.SK_CAT, catId) : null;
-    const v    = (f, fb = '') => cat ? UI.escape(String(cat[f] ?? fb)) : fb;
     const isEd = !!cat;
 
-    const opts = (map, field) => Object.entries(map)
-      .map(([k, l]) => `<option value="${k}" ${(cat?.[field]) === k ? 'selected' : ''}>${l}</option>`)
-      .join('');
+    const pillRow = (group, map, selected) =>
+      `<div class="cat-pill-row">
+        ${Object.entries(map).map(([k, l]) =>
+          `<button type="button"
+            class="cat-pill${selected === k ? ' cat-pill-sel' : ''}"
+            data-group="${group}" data-val="${k}"
+            onclick="TorneioModule._selectPill('${group}','${k}',this)">
+            ${l}
+          </button>`
+        ).join('')}
+      </div>`;
+
+    const nomeInicial = cat ? this._buildNomeCat(cat.sexo, cat.faixaEtaria, cat.nivel, cat.tipoParticipacao) : '';
 
     UI.openModal({
       title:        isEd ? 'Editar Categoria' : 'Nova Categoria',
       confirmLabel: isEd ? 'Salvar'           : 'Criar Categoria',
       onConfirm:    () => this.saveCategoria(eventoId, catId),
+      wide:         true,
       content: `
         <div class="form-grid">
 
-          <div class="aluno-secao-titulo">🔖 Identificação</div>
+          <div class="aluno-secao-titulo">♂♀ Sexo</div>
+          ${pillRow('sexo', this.SEXO, cat?.sexo)}
 
-          <div class="form-group">
-            <label class="form-label">Nome da categoria</label>
-            <input id="tc-nome" type="text" class="form-input"
-              placeholder="Gerado automaticamente se vazio"
-              value="${v('nome')}" autocomplete="off" />
-            <small class="form-hint">Ex: Masculino Adulto Iniciante Duplas</small>
-          </div>
+          <div class="aluno-secao-titulo">🎂 Faixa Etária</div>
+          ${pillRow('faixa', this.FAIXA_ETARIA, cat?.faixaEtaria)}
 
-          <div class="aluno-secao-titulo">⚙️ Definição</div>
+          <div class="aluno-secao-titulo">⭐ Nível</div>
+          ${pillRow('nivel', this.NIVEL, cat?.nivel)}
 
-          <div class="form-grid-2">
-            <div class="form-group">
-              <label class="form-label">Sexo <span class="required-star">*</span></label>
-              <select id="tc-sexo" class="form-select" onchange="TorneioModule._atualizarNomeCat()">
-                <option value="">— Selecionar —</option>
-                ${opts(this.SEXO, 'sexo')}
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Faixa etária <span class="required-star">*</span></label>
-              <select id="tc-faixa" class="form-select" onchange="TorneioModule._atualizarNomeCat()">
-                <option value="">— Selecionar —</option>
-                ${opts(this.FAIXA_ETARIA, 'faixaEtaria')}
-              </select>
-            </div>
-          </div>
+          <div class="aluno-secao-titulo">👥 Tipo de Participação</div>
+          ${pillRow('tipo', this.TIPO_PART, cat?.tipoParticipacao)}
 
-          <div class="form-grid-2">
-            <div class="form-group">
-              <label class="form-label">Nível <span class="required-star">*</span></label>
-              <select id="tc-nivel" class="form-select" onchange="TorneioModule._atualizarNomeCat()">
-                <option value="">— Selecionar —</option>
-                ${opts(this.NIVEL, 'nivel')}
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Tipo de participação <span class="required-star">*</span></label>
-              <select id="tc-tipo" class="form-select" onchange="TorneioModule._atualizarNomeCat()">
-                <option value="">— Selecionar —</option>
-                ${opts(this.TIPO_PART, 'tipoParticipacao')}
-              </select>
-            </div>
-          </div>
+          <div class="aluno-secao-titulo">🎮 Formato</div>
+          ${pillRow('formato', this.FORMATO, cat?.formato)}
 
-          <div class="form-grid-2">
-            <div class="form-group">
-              <label class="form-label">Formato <span class="required-star">*</span></label>
-              <select id="tc-formato" class="form-select">
-                <option value="">— Selecionar —</option>
-                ${opts(this.FORMATO, 'formato')}
-              </select>
+          <!-- Preview do nome gerado -->
+          <div style="background:var(--bg-secondary);border-radius:10px;padding:14px 18px;
+               border:1px solid var(--card-border);margin-top:4px;">
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;
+              letter-spacing:.6px;color:var(--text-muted);margin-bottom:6px;">
+              Categoria gerada
             </div>
-            <div class="form-group">
-              <label class="form-label">Status</label>
-              <select id="tc-status" class="form-select">
-                ${Object.entries(this.STATUS).map(([k, s]) =>
-                  `<option value="${k}" ${(cat?.status || 'rascunho') === k ? 'selected' : ''}>${s.label}</option>`
-                ).join('')}
-              </select>
+            <div id="tc-nome-preview" style="font-size:16px;font-weight:700;
+              color:var(--text-primary);min-height:24px;">
+              ${nomeInicial || '<span style="color:var(--text-muted);font-weight:400;font-size:14px;">— selecione as opções acima —</span>'}
             </div>
           </div>
 
           <div class="aluno-secao-titulo">💰 Financeiro</div>
-
           <div class="form-grid-2">
             <div class="form-group">
               <label class="form-label">Taxa de inscrição (R$/pessoa)</label>
               <input id="tc-taxa" type="number" class="form-input" min="0" step="0.01"
-                placeholder="0.00 = gratuita" value="${v('taxaInscricao', '0')}" />
+                placeholder="0.00 = gratuita" value="${cat?.taxaInscricao ?? '0'}" />
             </div>
             <div class="form-group">
               <label class="form-label">Máx. participantes</label>
-              <input id="tc-max" type="number" class="form-input" min="2" step="1"
-                placeholder="Sem limite" value="${v('maxParticipantes', '')}" />
+              <input id="tc-max" type="number" class="form-input" min="2"
+                placeholder="Sem limite" value="${cat?.maxParticipantes ?? ''}" />
             </div>
           </div>
 
@@ -623,47 +596,63 @@ const TorneioModule = {
     });
   },
 
-  _atualizarNomeCat() {
-    const g   = id => document.getElementById(id)?.value || '';
-    const sx  = this.SEXO[g('tc-sexo')]        || '';
-    const fx  = this.FAIXA_ETARIA[g('tc-faixa')] || '';
-    const nv  = this.NIVEL[g('tc-nivel')]      || '';
-    const tp  = this.TIPO_PART[g('tc-tipo')]   || '';
-    const el  = document.getElementById('tc-nome');
-    if (el && !el.dataset.manual) {
-      el.value = [sx, fx, nv, tp].filter(Boolean).join(' — ');
-    }
+  _selectPill(group, val, el) {
+    document.querySelectorAll(`.cat-pill[data-group="${group}"]`)
+      .forEach(b => b.classList.remove('cat-pill-sel'));
+    el.classList.add('cat-pill-sel');
+    this._updateCatPreview();
+  },
+
+  _getSelectedPill(group) {
+    return document.querySelector(`.cat-pill-sel[data-group="${group}"]`)?.dataset.val || '';
+  },
+
+  _updateCatPreview() {
+    const sexo  = this._getSelectedPill('sexo');
+    const faixa = this._getSelectedPill('faixa');
+    const nivel = this._getSelectedPill('nivel');
+    const tipo  = this._getSelectedPill('tipo');
+    const nome  = this._buildNomeCat(sexo, faixa, nivel, tipo);
+    const el    = document.getElementById('tc-nome-preview');
+    if (el) el.innerHTML = nome
+      ? `<span>${nome}</span>`
+      : `<span style="color:var(--text-muted);font-weight:400;font-size:14px;">— selecione as opções acima —</span>`;
+  },
+
+  _buildNomeCat(sexo, faixa, nivel, tipo) {
+    return [
+      this.SEXO[sexo]           || '',
+      this.FAIXA_ETARIA[faixa]  || '',
+      this.NIVEL[nivel]         || '',
+      this.TIPO_PART[tipo]      || '',
+    ].filter(Boolean).join(' · ');
   },
 
   saveCategoria(eventoId, catId = null) {
-    const g = id => document.getElementById(id);
-    const sexo   = g('tc-sexo')?.value;
-    const faixa  = g('tc-faixa')?.value;
-    const nivel  = g('tc-nivel')?.value;
-    const tipo   = g('tc-tipo')?.value;
-    const fmt    = g('tc-formato')?.value;
+    const g      = id => document.getElementById(id);
+    const sexo   = this._getSelectedPill('sexo');
+    const faixa  = this._getSelectedPill('faixa');
+    const nivel  = this._getSelectedPill('nivel');
+    const tipo   = this._getSelectedPill('tipo');
+    const fmt    = this._getSelectedPill('formato');
 
-    if (!sexo)  { UI.toast('Selecione o sexo',              'error'); return; }
-    if (!faixa) { UI.toast('Selecione a faixa etária',      'error'); return; }
-    if (!nivel) { UI.toast('Selecione o nível',             'error'); return; }
+    if (!sexo)  { UI.toast('Selecione o sexo',               'error'); return; }
+    if (!faixa) { UI.toast('Selecione a faixa etária',       'error'); return; }
+    if (!nivel) { UI.toast('Selecione o nível',              'error'); return; }
     if (!tipo)  { UI.toast('Selecione o tipo de participação','error'); return; }
-    if (!fmt)   { UI.toast('Selecione o formato',           'error'); return; }
-
-    const sx  = this.SEXO[sexo]          || sexo;
-    const fx  = this.FAIXA_ETARIA[faixa] || faixa;
-    const nv  = this.NIVEL[nivel]        || nivel;
-    const tp  = this.TIPO_PART[tipo]     || tipo;
-    const nomeAuto = [sx, fx, nv, tp].filter(Boolean).join(' — ');
+    if (!fmt)   { UI.toast('Selecione o formato',            'error'); return; }
 
     const data = {
       eventoId,
-      nome:             g('tc-nome')?.value.trim()    || nomeAuto,
-      sexo, faixaEtaria: faixa, nivel,
+      nome:             this._buildNomeCat(sexo, faixa, nivel, tipo),
+      sexo,
+      faixaEtaria:      faixa,
+      nivel,
       tipoParticipacao: tipo,
       formato:          fmt,
-      status:           g('tc-status')?.value         || 'rascunho',
+      status:           'rascunho',
       taxaInscricao:    parseFloat(g('tc-taxa')?.value) || 0,
-      maxParticipantes: parseInt(g('tc-max')?.value)  || null,
+      maxParticipantes: parseInt(g('tc-max')?.value)    || null,
     };
 
     if (catId) {

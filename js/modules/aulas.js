@@ -157,6 +157,9 @@ const AulaModule = {
         <span class="results-count">
           ${filtered.length} aula${filtered.length !== 1 ? 's' : ''}
         </span>
+        <button class="btn btn-secondary btn-sm" onclick="AulaModule._exportExcel()" title="Exportar para Excel">
+          ⬇ Excel
+        </button>
       </div>
 
       <div class="alunos-table-wrap" id="aulas-list">
@@ -569,5 +572,30 @@ const AulaModule = {
     const [y, m, d] = iso.split('-');
     const date = new Date(+y, +m - 1, +d);
     return date.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' });
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Exportar para Excel                                                 */
+  /* ------------------------------------------------------------------ */
+
+  _exportExcel() {
+    const filtered = this._getFiltered();
+    if (!filtered.length) { UI.toast('Nenhuma aula para exportar', 'warning'); return; }
+
+    const headers = ['Título', 'Data', 'Início', 'Fim', 'Tipo', 'Nível', 'Professor', 'Arena', 'Vagas', 'Status'];
+    const rows = filtered.map(a => [
+      a.titulo          || '',
+      ExportService.fmtData(a.data),
+      a.horarioInicio   || '',
+      a.horarioFim      || '',
+      a.tipo            || '',
+      a.nivel           || '',
+      a.professorNome   || '',
+      a.arenaNome       || '',
+      a.vagas           ?? '',
+      a.status          || '',
+    ]);
+
+    ExportService.toXLSX('picklemanager_aulas', headers, rows, 'Aulas');
   },
 };

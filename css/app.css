@@ -4965,3 +4965,186 @@ tr.tarefa-concluida td { opacity: .6; }
   }
   .modal-dialog.modal-xl { max-width: 100%; }
 }
+
+/* ================================================================
+   Torneios — Pill Selectors (categoria)
+   ================================================================ */
+.cat-pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.cat-pill {
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1.5px solid var(--card-border);
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.cat-pill:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: var(--bg-primary);
+}
+
+.cat-pill-sel {
+  background: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
+  color: #fff !important;
+  font-weight: 600;
+}
+
+/* ================================================================
+   Torneios — Event cards grid
+   ================================================================ */
+.torneio-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.torneio-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+  padding: 20px;
+  cursor: pointer;
+  transition: box-shadow .18s, transform .18s;
+}
+
+.torneio-card:hover {
+  box-shadow: 0 4px 18px rgba(0,0,0,.10);
+  transform: translateY(-2px);
+}
+
+.torneio-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.torneio-card-icon {
+  font-size: 28px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.torneio-card-nome {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  flex: 1;
+  line-height: 1.35;
+}
+
+.torneio-card-esporte {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.torneio-card-meta,
+.torneio-card-info {
+  font-size: 12px;
+  color: var(--text-muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.torneio-card-obs {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+  margin-bottom: 10px;
+  border-top: 1px solid var(--card-border);
+  padding-top: 8px;
+}
+
+.torneio-card-footer {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  border-top: 1px solid var(--card-border);
+  padding-top: 10px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.torneio-card-actions {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+
+/* Detalhe do torneio */
+.torneio-detalhe-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.torneio-detalhe-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+.torneio-cat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.torneio-cat-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  padding: 16px 18px;
+  cursor: pointer;
+  transition: box-shadow .15s;
+}
+
+.torneio-cat-card:hover {
+  box-shadow: 0 3px 12px rgba(0,0,0,.09);
+}
+
+.torneio-cat-nome {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.torneio-cat-stats {
+  display: flex;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+@media (max-width: 600px) {
+  .torneio-cards-grid { grid-template-columns: 1fr; }
+  .torneio-cat-grid   { grid-template-columns: 1fr; }
+}
