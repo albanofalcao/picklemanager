@@ -90,10 +90,59 @@ const TorneioModule = {
   },
 
   /* ------------------------------------------------------------------ */
+  /*  Seed de categorias padrão (roda uma vez se o catálogo estiver      */
+  /*  vazio)                                                              */
+  /* ------------------------------------------------------------------ */
+
+  SEED_CAT_TIPOS: [
+    // ── Singles ──────────────────────────────────────────────────────
+    { nome: 'Masculino A',      tipoParticipacao: 'singles', sexo: 'masculino', nivel: 'elite',         descricao: 'Singles masculino nível elite' },
+    { nome: 'Masculino B',      tipoParticipacao: 'singles', sexo: 'masculino', nivel: 'avancado',      descricao: 'Singles masculino nível avançado' },
+    { nome: 'Masculino C',      tipoParticipacao: 'singles', sexo: 'masculino', nivel: 'intermediario', descricao: 'Singles masculino nível intermediário' },
+    { nome: 'Masculino D',      tipoParticipacao: 'singles', sexo: 'masculino', nivel: 'iniciante',     descricao: 'Singles masculino nível iniciante' },
+    { nome: 'Feminino A',       tipoParticipacao: 'singles', sexo: 'feminino',  nivel: 'elite',         descricao: 'Singles feminino nível elite' },
+    { nome: 'Feminino B',       tipoParticipacao: 'singles', sexo: 'feminino',  nivel: 'avancado',      descricao: 'Singles feminino nível avançado' },
+    { nome: 'Feminino C',       tipoParticipacao: 'singles', sexo: 'feminino',  nivel: 'intermediario', descricao: 'Singles feminino nível intermediário' },
+    { nome: 'Feminino D',       tipoParticipacao: 'singles', sexo: 'feminino',  nivel: 'iniciante',     descricao: 'Singles feminino nível iniciante' },
+    // ── Duplas ───────────────────────────────────────────────────────
+    { nome: 'Duplas Masc A',    tipoParticipacao: 'duplas',  sexo: 'masculino', nivel: 'elite',         descricao: 'Duplas masculinas nível elite' },
+    { nome: 'Duplas Masc B',    tipoParticipacao: 'duplas',  sexo: 'masculino', nivel: 'avancado',      descricao: 'Duplas masculinas nível avançado' },
+    { nome: 'Duplas Masc C',    tipoParticipacao: 'duplas',  sexo: 'masculino', nivel: 'intermediario', descricao: 'Duplas masculinas nível intermediário' },
+    { nome: 'Duplas Masc D',    tipoParticipacao: 'duplas',  sexo: 'masculino', nivel: 'iniciante',     descricao: 'Duplas masculinas nível iniciante' },
+    { nome: 'Duplas Fem A',     tipoParticipacao: 'duplas',  sexo: 'feminino',  nivel: 'elite',         descricao: 'Duplas femininas nível elite' },
+    { nome: 'Duplas Fem B',     tipoParticipacao: 'duplas',  sexo: 'feminino',  nivel: 'avancado',      descricao: 'Duplas femininas nível avançado' },
+    { nome: 'Duplas Fem C',     tipoParticipacao: 'duplas',  sexo: 'feminino',  nivel: 'intermediario', descricao: 'Duplas femininas nível intermediário' },
+    { nome: 'Duplas Fem D',     tipoParticipacao: 'duplas',  sexo: 'feminino',  nivel: 'iniciante',     descricao: 'Duplas femininas nível iniciante' },
+    { nome: 'Duplas Mistas A',  tipoParticipacao: 'duplas',  sexo: 'misto',     nivel: 'elite',         descricao: 'Duplas mistas nível elite' },
+    { nome: 'Duplas Mistas B',  tipoParticipacao: 'duplas',  sexo: 'misto',     nivel: 'avancado',      descricao: 'Duplas mistas nível avançado' },
+    { nome: 'Duplas Mistas C',  tipoParticipacao: 'duplas',  sexo: 'misto',     nivel: 'intermediario', descricao: 'Duplas mistas nível intermediário' },
+    { nome: 'Duplas Mistas D',  tipoParticipacao: 'duplas',  sexo: 'misto',     nivel: 'iniciante',     descricao: 'Duplas mistas nível iniciante' },
+    // ── Faixas etárias ───────────────────────────────────────────────
+    { nome: 'Sub-12',           tipoParticipacao: '',        sexo: 'aberto',    nivel: 'aberto',        descricao: 'Categoria para até 12 anos' },
+    { nome: 'Sub-15',           tipoParticipacao: '',        sexo: 'aberto',    nivel: 'aberto',        descricao: 'Categoria para até 15 anos' },
+    { nome: 'Sub-18',           tipoParticipacao: '',        sexo: 'aberto',    nivel: 'aberto',        descricao: 'Categoria para até 18 anos' },
+    { nome: '50+ Masculino',    tipoParticipacao: '',        sexo: 'masculino', nivel: 'aberto',        descricao: 'Masculino a partir de 50 anos' },
+    { nome: '50+ Feminino',     tipoParticipacao: '',        sexo: 'feminino',  nivel: 'aberto',        descricao: 'Feminino a partir de 50 anos' },
+    { nome: '60+ Masculino',    tipoParticipacao: '',        sexo: 'masculino', nivel: 'aberto',        descricao: 'Masculino a partir de 60 anos' },
+    { nome: '60+ Feminino',     tipoParticipacao: '',        sexo: 'feminino',  nivel: 'aberto',        descricao: 'Feminino a partir de 60 anos' },
+    { nome: 'Open',             tipoParticipacao: '',        sexo: 'aberto',    nivel: 'aberto',        descricao: 'Categoria aberta sem restrição' },
+  ],
+
+  _seedCatTipos() {
+    if (Storage.getAll(this.SK_CAT_TIPO).length > 0) return;
+    const now = new Date().toISOString();
+    this.SEED_CAT_TIPOS.forEach(cat => {
+      Storage.create(this.SK_CAT_TIPO, cat);
+    });
+    console.log('[TorneioModule] Categorias padrão criadas:', this.SEED_CAT_TIPOS.length);
+  },
+
+  /* ------------------------------------------------------------------ */
   /*  Render principal                                                    */
   /* ------------------------------------------------------------------ */
 
   render() {
+    this._seedCatTipos();
     const area = document.getElementById('content-area');
     if (!area) return;
     area.innerHTML = `
