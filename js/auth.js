@@ -94,7 +94,15 @@ const Auth = {
     const session = this.getSession();
     if (!session) return false;
     const perfil = PERFIS[session.perfil];
-    return perfil ? perfil.modulos.includes(route) : false;
+    if (perfil && perfil.modulos.includes(route)) return true;
+
+    // Fallback: verifica o SEED_PERFIS do app (cobre rotas novas ainda não
+    // gravadas no banco — evita ter de fazer UPDATE manual toda vez)
+    if (typeof App !== 'undefined' && Array.isArray(App.SEED_PERFIS)) {
+      const seed = App.SEED_PERFIS.find(p => p.key === session.perfil);
+      if (seed && Array.isArray(seed.modulos)) return seed.modulos.includes(route);
+    }
+    return false;
   },
 
   tryLogin(loginStr, senha) {
