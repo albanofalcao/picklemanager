@@ -60,6 +60,7 @@ const DB = {
     orcamento:         'app_orcamento',
     // ── Módulo de Torneios ──────────────────────────────────────────
     torneios:               'app_torneios',
+    torneio_cat_tipos:      'app_torneio_cat_tipos',
     torneio_categorias:     'app_torneio_categorias',
     torneio_participantes:  'app_torneio_participantes',
     torneio_inscricoes:     'app_torneio_inscricoes',

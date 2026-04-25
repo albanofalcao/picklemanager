@@ -769,9 +769,11 @@ tr.tarefa-concluida td { opacity: .6; }
 /* ---------- Form Components ---------- */
 .form-grid   { display: flex; flex-direction: column; gap: 16px; }
 .form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.form-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
 
 @media (max-width: 500px) {
   .form-grid-2 { grid-template-columns: 1fr; }
+  .form-grid-3 { grid-template-columns: 1fr; }
 }
 
 .form-group { display: flex; flex-direction: column; gap: 5px; }
@@ -5147,4 +5149,50 @@ tr.tarefa-concluida td { opacity: .6; }
 @media (max-width: 600px) {
   .torneio-cards-grid { grid-template-columns: 1fr; }
   .torneio-cat-grid   { grid-template-columns: 1fr; }
+}
+
+/* ================================================================
+   Torneios — Modal de seleção de categorias
+   ================================================================ */
+.torneio-add-cat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.torneio-add-cat-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1.5px solid var(--card-border);
+  background: var(--bg-primary);
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+
+.torneio-add-cat-item:hover {
+  border-color: var(--color-primary);
+  background: var(--bg-secondary);
+}
+
+.torneio-add-cat-item input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
+.torneio-add-cat-used {
+  opacity: .65;
+  cursor: default;
+}
+
+.torneio-add-cat-used:hover {
+  border-color: var(--card-border);
+  background: var(--bg-primary);
 }
