@@ -392,6 +392,7 @@ const TorneioModule = {
         <div class="torneio-cat-stats">
           ${tipo ? `<span>👥 ${tipo}</span>` : ''}
           ${fmt  ? `<span>🎮 ${fmt}</span>`  : '<span style="color:var(--color-warning);">⚠️ Formato não definido</span>'}
+          <span>🎾 ${cat.numSets === 'melhor_de_3' ? 'Melhor de 3' : '1 Set'}</span>
           ${cat.taxaInscricao > 0
             ? `<span>💰 R$ ${(+cat.taxaInscricao).toLocaleString('pt-BR',{minimumFractionDigits:2})}/pessoa</span>`
             : '<span style="color:var(--color-success);">Gratuita</span>'}
@@ -402,10 +403,7 @@ const TorneioModule = {
         <div class="torneio-est-bar">
           <span title="Partidas estimadas">🎯 ${est.partidas} partidas</span>
           <span title="Duração estimada com ${evento.quadrasDisponiveis || 1} quadra(s)">⏱ ~${est.duracaoStr}</span>
-          <span title="Tempo por partida">${cat.tempoPartidaMin || 30} min/jogo</span>
-          <span class="torneio-est-badge ${est.viavel ? 'torneio-est-ok' : 'torneio-est-warn'}">
-            ${est.viavel ? '✓ Viável' : '⚠️ Revisar'}
-          </span>
+          <span title="Tempo por partida">${cat.tempoPartidaMin || 25} min/jogo</span>
         </div>` : `
         <div class="torneio-est-bar" style="color:var(--text-muted);font-style:italic;">
           Configure formato e máx. participantes para ver a estimativa
@@ -720,6 +718,11 @@ const TorneioModule = {
   /*  MODAL — Configurar categoria no torneio (taxa, formato, max)        */
   /* ================================================================== */
 
+  // Tempo sugerido (min) por formato de sets
+  _tempoSugeridoPorSets(numSets) {
+    return numSets === 'melhor_de_3' ? 50 : 25;
+  },
+
   openModalConfigCat(catId, eventoId) {
     const cat = Storage.getById(this.SK_CAT, catId);
     if (!cat) return;
@@ -729,13 +732,42 @@ const TorneioModule = {
       .map(([k, l]) => `<option value="${k}" ${cat.formato === k ? 'selected' : ''}>${l}</option>`)
       .join('');
 
+    const numSetsVal = cat.numSets || '1_set';
+
     UI.openModal({
       title:        `⚙️ ${UI.escape(cat.nome)}`,
       confirmLabel: 'Salvar',
       onConfirm:    () => this.saveConfigCat(catId, eventoId),
       content: `
         <div class="form-grid">
-          <div class="form-grid-3">
+
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Formato de sets</label>
+              <select id="cc-sets" class="form-select"
+                onchange="TorneioModule._atualizarTempoSugerido()">
+                <option value="1_set"       ${numSetsVal === '1_set'       ? 'selected' : ''}>1 Set</option>
+                <option value="melhor_de_3" ${numSetsVal === 'melhor_de_3' ? 'selected' : ''}>Melhor de 3</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Tempo por partida (min)
+                <span id="cc-tempo-hint" style="font-weight:400;color:var(--text-muted);font-size:11px;"></span>
+              </label>
+              <input id="cc-tempo" type="number" class="form-input" min="5" max="180"
+                placeholder="ex: 25" value="${v('tempoPartidaMin', this._tempoSugeridoPorSets(numSetsVal))}" />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Formato de disputa</label>
+            <select id="cc-formato" class="form-select">
+              <option value="">— Definir depois —</option>
+              ${fmtOpts}
+            </select>
+          </div>
+
+          <div class="form-grid-2">
             <div class="form-group">
               <label class="form-label">Máx. participantes</label>
               <input id="cc-max" type="number" class="form-input" min="2"
@@ -746,21 +778,34 @@ const TorneioModule = {
               <input id="cc-taxa" type="number" class="form-input" min="0" step="0.01"
                 placeholder="0.00 = gratuita" value="${v('taxaInscricao', '0')}" />
             </div>
-            <div class="form-group">
-              <label class="form-label">Tempo por partida (min)</label>
-              <input id="cc-tempo" type="number" class="form-input" min="5" max="180"
-                placeholder="30" value="${v('tempoPartidaMin', '30')}" />
-            </div>
           </div>
-          <div class="form-group">
-            <label class="form-label">Formato de disputa</label>
-            <select id="cc-formato" class="form-select">
-              <option value="">— Definir depois —</option>
-              ${fmtOpts}
-            </select>
-          </div>
+
         </div>`,
     });
+
+    // Inicializa o hint assim que o modal abre
+    setTimeout(() => this._atualizarTempoSugerido(true), 80);
+  },
+
+  _atualizarTempoSugerido(apenasHint = false) {
+    const sel    = document.getElementById('cc-sets');
+    const input  = document.getElementById('cc-tempo');
+    const hint   = document.getElementById('cc-tempo-hint');
+    if (!sel) return;
+
+    const sugerido = this._tempoSugeridoPorSets(sel.value);
+    const label    = sel.value === 'melhor_de_3' ? 'Melhor de 3 · sugestão: 50 min' : '1 Set · sugestão: 25 min';
+
+    if (hint) hint.textContent = `(${label})`;
+
+    // Só preenche automaticamente se o usuário não digitou nada (ou se é init)
+    if (!apenasHint && input && (!input.value || input.dataset.auto === 'true')) {
+      input.value = sugerido;
+      input.dataset.auto = 'true';
+    }
+    if (input) {
+      input.addEventListener('input', () => { input.dataset.auto = 'false'; }, { once: true });
+    }
   },
 
   saveConfigCat(catId, eventoId) {
@@ -768,7 +813,8 @@ const TorneioModule = {
     Storage.update(this.SK_CAT, catId, {
       taxaInscricao:    parseFloat(g('cc-taxa')?.value)   || 0,
       maxParticipantes: parseInt(g('cc-max')?.value)      || null,
-      tempoPartidaMin:  parseInt(g('cc-tempo')?.value)    || 30,
+      numSets:          g('cc-sets')?.value               || '1_set',
+      tempoPartidaMin:  parseInt(g('cc-tempo')?.value)    || 25,
       formato:          g('cc-formato')?.value            || '',
     });
     UI.toast('Configuração salva!', 'success');
@@ -1122,13 +1168,19 @@ const TorneioModule = {
   },
 
   /* ================================================================== */
-  /*  Gerenciar Categoria (Fase 3 — placeholder)                         */
+  /*  Inscrições por Categoria                                           */
   /* ================================================================== */
 
   abrirCategoria(catId, eventoId) {
     const cat    = Storage.getById(this.SK_CAT, catId);
     const evento = Storage.getById(this.SK, eventoId);
     if (!cat || !evento) return;
+
+    const inscs = Storage.getAll(this.SK_INSC).filter(i => i.categoriaId === catId);
+    const link  = this._gerarLinkInscricao(evento.id, catId);
+    const vagasTotal = cat.maxParticipantes || null;
+    const vagasUsadas = inscs.filter(i => i.status !== 'cancelado').length;
+    const vagasRestantes = vagasTotal ? vagasTotal - vagasUsadas : null;
 
     const area = document.getElementById('content-area');
     area.innerHTML = `
@@ -1139,14 +1191,299 @@ const TorneioModule = {
             ← ${UI.escape(evento.nome)}
           </button>
           <h2>📂 ${UI.escape(cat.nome)}</h2>
-          <p>Inscrições, chave e resultados</p>
+          <p>${inscs.length} inscrito${inscs.length !== 1 ? 's' : ''}
+            ${vagasRestantes !== null
+              ? ` · <span style="color:${vagasRestantes <= 0 ? 'var(--color-danger)' : 'var(--color-success)'};">
+                  ${vagasRestantes <= 0 ? '🚫 Esgotada' : vagasRestantes + ' vaga' + (vagasRestantes > 1 ? 's' : '') + ' restante' + (vagasRestantes > 1 ? 's' : '')}
+                </span>`
+              : ''}</p>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-secondary btn-sm"
+            onclick="TorneioModule._copiarLink('${link}')">🔗 Copiar Link de Inscrição</button>
+          <button class="btn btn-primary btn-sm"
+            onclick="TorneioModule.openModalAdicionarInscricao('${catId}','${eventoId}')">
+            ➕ Inscrever pela Secretaria</button>
         </div>
       </div>
-      <div class="empty-state" style="margin-top:40px;">
-        <div class="empty-icon">🚧</div>
-        <div class="empty-title">Em desenvolvimento</div>
-        <div class="empty-desc">Inscrições, geração de chaves e lançamento de resultados estão na próxima fase.</div>
+
+      <!-- Caixa do link público -->
+      <div class="torneio-viab-banner torneio-viab-info" style="margin-bottom:20px;gap:10px;align-items:center;">
+        <span style="font-size:13px;font-weight:600;white-space:nowrap;">🔗 Link público:</span>
+        <input type="text" value="${link}" readonly id="link-insc-input"
+          style="flex:1;background:var(--bg-primary);border:1px solid var(--card-border);
+            border-radius:6px;padding:5px 10px;font-size:12px;font-family:monospace;
+            color:var(--text-secondary);min-width:0;" />
+        <button class="btn btn-ghost btn-sm" style="white-space:nowrap;"
+          onclick="TorneioModule._copiarLink('${link}')">📋 Copiar</button>
+      </div>
+
+      <div id="inscricoes-list">
+        ${this._renderInscricoesList(catId, eventoId, inscs)}
+      </div>
+    `;
+  },
+
+  _gerarLinkInscricao(eventoId, catId = null) {
+    const url  = new URL(window.location.href);
+    const base = url.origin + url.pathname.replace(/[^/]*$/, '');
+    const tk   = typeof getActiveTenantKey === 'function' ? getActiveTenantKey() : '';
+    let link   = `${base}inscricao.html?t=${eventoId}`;
+    if (tk)    link += `&tk=${tk}`;
+    if (catId) link += `&c=${catId}`;
+    return link;
+  },
+
+  _copiarLink(link) {
+    navigator.clipboard.writeText(link)
+      .then(() => UI.toast('Link copiado!', 'success'))
+      .catch(() => {
+        // Fallback: seleciona o input
+        const el = document.getElementById('link-insc-input');
+        if (el) { el.select(); document.execCommand('copy'); }
+        UI.toast('Link copiado!', 'success');
+      });
+  },
+
+  _renderInscricoesList(catId, eventoId, inscs) {
+    if (!inscs.length) {
+      return `
+        <div class="empty-state" style="padding:40px 0;">
+          <div class="empty-icon">👤</div>
+          <div class="empty-title">Nenhuma inscrição ainda</div>
+          <div class="empty-desc">Compartilhe o link acima ou inscreva participantes pela secretaria.</div>
+        </div>`;
+    }
+
+    const pago    = inscs.filter(i => i.statusPagamento === 'pago').length;
+    const pend    = inscs.filter(i => i.statusPagamento === 'pendente').length;
+    const canc    = inscs.filter(i => i.status === 'cancelado').length;
+
+    const rows = inscs.map(i => {
+      const part = Storage.getById(this.SK_PART, i.participanteId);
+      const nome = part?.nome || i.nomeParticipante || '—';
+
+      const stPag = {
+        pago:      { label: 'Pago',     badge: 'badge-success' },
+        pendente:  { label: 'Pendente', badge: 'badge-warning' },
+        cancelado: { label: 'Cancelado',badge: 'badge-error'   },
+      }[i.statusPagamento] || { label: i.statusPagamento, badge: 'badge-gray' };
+
+      const origem = i.origem === 'secretaria'
+        ? '<span style="font-size:11px;color:var(--text-muted);">🏢 Secretaria</span>'
+        : '<span style="font-size:11px;color:var(--text-muted);">🌐 Online</span>';
+
+      return `<tr>
+        <td>
+          <strong>${UI.escape(nome)}</strong><br>
+          <span style="font-size:11px;color:var(--text-muted);">${UI.escape(part?.email || i.email || '')}</span>
+        </td>
+        <td style="font-size:12px;">${UI.escape(part?.telefone || i.telefone || '—')}</td>
+        <td>${origem}</td>
+        <td><span class="badge ${stPag.badge}">${stPag.label}</span></td>
+        <td class="aluno-row-actions">
+          ${i.statusPagamento !== 'pago' && i.status !== 'cancelado' ? `
+          <button class="btn btn-ghost btn-sm" title="Confirmar pagamento"
+            onclick="TorneioModule._confirmarPagamento('${i.id}','${catId}','${eventoId}')">✅ Pago</button>` : ''}
+          ${i.status !== 'cancelado' ? `
+          <button class="btn btn-ghost btn-sm danger" title="Cancelar inscrição"
+            onclick="TorneioModule._cancelarInscricao('${i.id}','${catId}','${eventoId}')">✕</button>` : ''}
+        </td>
+      </tr>`;
+    }).join('');
+
+    return `
+      <div class="filters-bar" style="margin-bottom:12px;padding:10px 16px;
+        background:var(--bg-secondary);border-radius:10px;border:1px solid var(--card-border);">
+        <span>👤 <strong>${inscs.length}</strong> inscrito${inscs.length > 1 ? 's' : ''}</span>
+        ${pago  ? `<span style="color:var(--color-success);">✅ ${pago} pago${pago > 1 ? 's' : ''}</span>` : ''}
+        ${pend  ? `<span style="color:var(--color-warning);">⏳ ${pend} pendente${pend > 1 ? 's' : ''}</span>` : ''}
+        ${canc  ? `<span style="color:var(--text-muted);">✕ ${canc} cancelado${canc > 1 ? 's' : ''}</span>` : ''}
+      </div>
+      <div class="table-card">
+        <table class="data-table">
+          <thead><tr>
+            <th>Participante</th><th>Telefone</th><th>Origem</th><th>Pagamento</th><th></th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
       </div>`;
+  },
+
+  _confirmarPagamento(inscId, catId, eventoId) {
+    Storage.update(this.SK_INSC, inscId, { statusPagamento: 'pago' });
+    UI.toast('Pagamento confirmado!', 'success');
+    this.abrirCategoria(catId, eventoId);
+  },
+
+  _cancelarInscricao(inscId, catId, eventoId) {
+    UI.confirm('Cancelar esta inscrição?', 'Confirmar', 'Cancelar Inscrição')
+      .then(ok => {
+        if (!ok) return;
+        Storage.update(this.SK_INSC, inscId, { status: 'cancelado', statusPagamento: 'cancelado' });
+        UI.toast('Inscrição cancelada.', 'success');
+        this.abrirCategoria(catId, eventoId);
+      });
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Modal — Inscrever pela Secretaria                                   */
+  /* ------------------------------------------------------------------ */
+
+  openModalAdicionarInscricao(catId, eventoId) {
+    const cat = Storage.getById(this.SK_CAT, catId);
+    if (!cat) return;
+
+    const alunos = Storage.getAll('alunos').filter(a => a.status === 'ativo')
+      .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+    const alunoOpts = alunos
+      .map(a => `<option value="${a.id}">${UI.escape(a.nome)}</option>`)
+      .join('');
+    const nivelOpts = Object.entries(this.NIVEL)
+      .map(([k, l]) => `<option value="${k}">${l}</option>`)
+      .join('');
+
+    UI.openModal({
+      title:        `➕ Inscrever em ${UI.escape(cat.nome)}`,
+      confirmLabel: 'Inscrever',
+      onConfirm:    () => this._salvarInscricaoSecretaria(catId, eventoId),
+      content: `
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Tipo de participante</label>
+            <div style="display:flex;gap:20px;padding:4px 0;">
+              <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:14px;">
+                <input type="radio" name="insc-tipo" value="aluno" checked
+                  onchange="TorneioModule._toggleTipoInsc('aluno')" /> Aluno da arena
+              </label>
+              <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:14px;">
+                <input type="radio" name="insc-tipo" value="externo"
+                  onchange="TorneioModule._toggleTipoInsc('externo')" /> Participante externo
+              </label>
+            </div>
+          </div>
+
+          <div id="insc-aluno-sec">
+            <div class="form-group">
+              <label class="form-label">Selecionar aluno <span class="required-star">*</span></label>
+              <select id="insc-aluno-id" class="form-select">
+                <option value="">— Selecionar —</option>
+                ${alunoOpts}
+              </select>
+            </div>
+          </div>
+
+          <div id="insc-ext-sec" style="display:none;">
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label class="form-label">Nome <span class="required-star">*</span></label>
+                <input id="insc-nome" type="text" class="form-input" autocomplete="off" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">E-mail</label>
+                <input id="insc-email" type="email" class="form-input" />
+              </div>
+            </div>
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label class="form-label">Telefone</label>
+                <input id="insc-tel" type="tel" class="form-input" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Nível</label>
+                <select id="insc-nivel" class="form-select">
+                  <option value="">—</option>
+                  ${nivelOpts}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Pagamento</label>
+            <select id="insc-pag" class="form-select">
+              <option value="pendente">Pendente</option>
+              <option value="pago">Pago (já recebido)</option>
+            </select>
+          </div>
+        </div>`,
+    });
+  },
+
+  _toggleTipoInsc(tipo) {
+    const a = document.getElementById('insc-aluno-sec');
+    const e = document.getElementById('insc-ext-sec');
+    if (a) a.style.display = tipo === 'aluno'   ? '' : 'none';
+    if (e) e.style.display = tipo === 'externo' ? '' : 'none';
+  },
+
+  _salvarInscricaoSecretaria(catId, eventoId) {
+    const g    = id => document.getElementById(id);
+    const tipo = document.querySelector('input[name="insc-tipo"]:checked')?.value || 'aluno';
+    const pag  = g('insc-pag')?.value || 'pendente';
+
+    let participanteId, nomeParticipante;
+
+    if (tipo === 'aluno') {
+      const alunoId = g('insc-aluno-id')?.value;
+      if (!alunoId) { UI.toast('Selecione um aluno', 'error'); return; }
+      const aluno = Storage.getById('alunos', alunoId);
+      if (!aluno)  { UI.toast('Aluno não encontrado', 'error'); return; }
+
+      // Reutiliza participante existente vinculado ao aluno, ou cria
+      let part = Storage.getAll(this.SK_PART).find(p => p.alunoId === alunoId);
+      if (!part) {
+        part = Storage.create(this.SK_PART, {
+          alunoId,
+          nome:           aluno.nome,
+          sexo:           aluno.sexo           || '',
+          dataNascimento: aluno.dataNascimento  || '',
+          nivel:          aluno.nivel           || '',
+          telefone:       aluno.telefone        || '',
+          email:          aluno.email           || '',
+        });
+      }
+      participanteId   = part.id;
+      nomeParticipante = aluno.nome;
+
+    } else {
+      const nome = g('insc-nome')?.value.trim();
+      if (!nome) { UI.toast('Informe o nome do participante', 'error'); return; }
+      const part = Storage.create(this.SK_PART, {
+        alunoId:        null,
+        nome,
+        email:          g('insc-email')?.value.trim() || '',
+        telefone:       g('insc-tel')?.value.trim()   || '',
+        nivel:          g('insc-nivel')?.value        || '',
+        sexo:           '',
+        dataNascimento: '',
+      });
+      participanteId   = part.id;
+      nomeParticipante = nome;
+    }
+
+    // Evita duplicidade na mesma categoria
+    const jaInscrito = Storage.getAll(this.SK_INSC).find(
+      i => i.categoriaId === catId && i.participanteId === participanteId && i.status !== 'cancelado'
+    );
+    if (jaInscrito) {
+      UI.toast('Este participante já está inscrito nesta categoria.', 'error');
+      return;
+    }
+
+    Storage.create(this.SK_INSC, {
+      categoriaId:      catId,
+      eventoId,
+      participanteId,
+      nomeParticipante,
+      statusPagamento:  pag,
+      status:           'confirmado',
+      origem:           'secretaria',
+    });
+
+    UI.toast('Inscrição realizada!', 'success');
+    UI.closeModal();
+    this.abrirCategoria(catId, eventoId);
   },
 
   /* ================================================================== */
@@ -1213,93 +1550,226 @@ const TorneioModule = {
 
   /**
    * Avalia a viabilidade global do evento:
-   * soma os court-minutes necessários e compara com os disponíveis.
+   * soma os minutos-quadra necessários de todas as categorias
+   * e compara com os minutos-quadra disponíveis (dias × quadras × janela/dia).
    */
   _calcViabilidade(evento, cats) {
     const quadras = evento.quadrasDisponiveis;
     const hIni    = evento.horarioInicio;
     const hFim    = evento.horarioFim;
 
-    if (!quadras || !hIni || !hFim) return null;
+    if (!quadras || !hIni || !hFim || !evento.dataInicio) return null;
 
     const [hh1, mm1] = hIni.split(':').map(Number);
     const [hh2, mm2] = hFim.split(':').map(Number);
     const janela = (hh2 * 60 + mm2) - (hh1 * 60 + mm1);
     if (janela <= 0) return null;
 
-    // Minutos-quadra disponíveis no evento
-    const disponivelMin = quadras * janela;
+    // Número de dias do evento
+    const numDias = this._getDias(evento.dataInicio, evento.dataFim || evento.dataInicio).length;
 
-    // Minutos-quadra necessários (soma de todas as categorias)
+    // Minutos-quadra disponíveis no evento (todos os dias)
+    const disponivelMin = quadras * janela * numDias;
+
+    // Minutos-quadra necessários por categoria (1 quadra = tempo bruto)
     let necessarioMin = 0;
     let totalPartidas = 0;
-    let catsComDados  = 0;
+    const catDetalhe  = [];
 
     cats.forEach(cat => {
-      const est = this._calcEstimativa(cat, 1); // 1 quadra → partidas × tempo por jogo
+      const est = this._calcEstimativa(cat, 1);
       if (est) {
-        necessarioMin += est.partidas * (cat.tempoPartidaMin || 30);
+        const minCat = est.partidas * (cat.tempoPartidaMin || 30);
+        necessarioMin += minCat;
         totalPartidas += est.partidas;
-        catsComDados++;
+        catDetalhe.push({
+          id:       cat.id,
+          eventoId: cat.eventoId,
+          nome:     cat.nome,
+          partidas: est.partidas,
+          minutos:  minCat,
+          tempo:    cat.tempoPartidaMin || 30,
+          formato:  cat.formato,
+          maxP:     cat.maxParticipantes,
+        });
       }
     });
 
-    if (catsComDados === 0) return null;
+    if (!catDetalhe.length) return null;
 
-    const ocupacao   = Math.round(necessarioMin / disponivelMin * 100);
-    const hJanela    = Math.floor(janela / 60);
-    const mJanela    = janela % 60;
-    const janelaStr  = `${hJanela}h${mJanela > 0 ? mJanela + 'min' : ''}`;
+    const catsSemDados = cats.filter(c => !this._calcEstimativa(c, 1));
+    const ocupacao     = Math.round(necessarioMin / disponivelMin * 100);
+    const folgaMin     = disponivelMin - necessarioMin;
 
-    let status, badge, cor;
+    const hJanela  = Math.floor(janela / 60);
+    const mJanela  = janela % 60;
+    const janelaStr = `${hJanela}h${mJanela > 0 ? mJanela + 'min' : ''}`;
+
+    let status, mensagem, badge, cor;
     if (ocupacao <= 75) {
-      status = '✅ Viável'; badge = 'badge-success'; cor = 'var(--color-success)';
+      status   = '✅ Os jogos cabem no período';
+      mensagem = `Folga de ${this._minToHStr(folgaMin)} (${100 - ocupacao}% do tempo livre)`;
+      badge = 'badge-success'; cor = 'var(--color-success)';
     } else if (ocupacao <= 100) {
-      status = '⚠️ Apertado — revise os parâmetros'; badge = 'badge-warning'; cor = 'var(--color-warning)';
+      status   = '⚠️ Os jogos cabem, mas com pouca margem';
+      mensagem = `Sobram apenas ${this._minToHStr(folgaMin)} — considere mais quadras ou dias`;
+      badge = 'badge-warning'; cor = 'var(--color-warning)';
     } else {
-      status = '❌ Inviável — estouro de tempo'; badge = 'badge-danger'; cor = 'var(--color-danger,#ef4444)';
+      status   = '❌ Os jogos NÃO cabem no período';
+      mensagem = `Faltam ${this._minToHStr(-folgaMin)} — adicione dias, quadras ou reduza categorias`;
+      badge = 'badge-danger'; cor = 'var(--color-danger,#ef4444)';
     }
 
     return {
-      quadras, janela, janelaStr, disponivelMin, necessarioMin,
-      totalPartidas, ocupacao, catsComDados,
-      status, badge, cor,
+      quadras, numDias, janela, janelaStr,
+      disponivelMin, necessarioMin, folgaMin,
+      totalPartidas, ocupacao,
+      catDetalhe, catsSemDados,
+      status, mensagem, badge, cor,
     };
+  },
+
+  /** Converte minutos em string legível: 125 → "2h5min" */
+  _minToHStr(min) {
+    const m = Math.abs(Math.round(min));
+    const h = Math.floor(m / 60);
+    const r = m % 60;
+    if (h > 0 && r > 0) return `${h}h${r}min`;
+    if (h > 0)          return `${h}h`;
+    return `${r}min`;
   },
 
   _renderViabilidadeBanner(evento, cats) {
     const v = this._calcViabilidade(evento, cats);
+
     if (!v) {
-      // Dados insuficientes — mostra orientação
       const semQuadras = !evento.quadrasDisponiveis;
       const semHora    = !evento.horarioInicio || !evento.horarioFim;
       if (semQuadras || semHora) {
         return `
           <div class="torneio-viab-banner torneio-viab-info">
-            ℹ️ Para ativar o simulador de viabilidade, edite o torneio e informe
+            ℹ️ Para ativar o simulador, edite o torneio e informe
             ${semQuadras ? '<strong>quadras disponíveis</strong>' : ''}
             ${semQuadras && semHora ? ' e ' : ''}
-            ${semHora ? '<strong>horário de início e fim</strong>' : ''}.
+            ${semHora ? '<strong>horário início → fim</strong>' : ''}.
             <button class="btn btn-ghost btn-sm" style="margin-left:auto;"
-              onclick="TorneioModule.openModalEvento('${evento.id}')">✏️ Editar torneio</button>
+              onclick="TorneioModule.openModalEvento('${evento.id}')">✏️ Editar</button>
           </div>`;
       }
       return `
         <div class="torneio-viab-banner torneio-viab-info">
-          ℹ️ Configure <strong>formato</strong> e <strong>máx. participantes</strong> nas categorias para ver a estimativa de viabilidade.
+          ℹ️ Configure <strong>formato</strong> e <strong>máx. participantes</strong>
+          nas categorias para ver a simulação.
         </div>`;
     }
 
+    const dispHStr = this._minToHStr(v.disponivelMin);
+    const necHStr  = this._minToHStr(v.necessarioMin);
+    const barPct   = Math.min(v.ocupacao, 100);
+
+    // Detalhamento por categoria — ordenado do que mais consome para o menos
+    const sortedCats = [...v.catDetalhe].sort((a, b) => b.minutos - a.minutos);
+    const catRows = sortedCats.map((c, idx) => {
+      const pct    = Math.round(c.minutos / v.necessarioMin * 100);
+      const hStr   = this._minToHStr(c.minutos);
+      // Sugestões de ajuste quando o evento está apertado/inviável
+      const dicas  = [];
+      if (v.ocupacao > 75) {
+        if (c.formato === 'round_robin')     dicas.push('trocar para Eliminatória reduz muito');
+        if (c.formato === 'eliminatoria_dupla') dicas.push('Eliminatória Simples usa metade do tempo');
+        if (c.maxP > 8)                      dicas.push(`reduzir máx. participantes (${c.maxP} → ${Math.ceil(c.maxP * 0.75)})`);
+        if (c.tempo > 30)                    dicas.push(`reduzir tempo/jogo (${c.tempo} → ${c.tempo - 5} min)`);
+      }
+      const dicaHtml = dicas.length ? `
+        <div style="font-size:11px;color:var(--color-warning,#f59e0b);margin-top:3px;">
+          💡 ${dicas[0]}
+        </div>` : '';
+
+      return `
+        <div style="padding:8px 0;border-bottom:1px solid var(--card-border);">
+          <div style="display:flex;align-items:center;gap:8px;font-size:12px;">
+            <span style="min-width:18px;color:var(--text-muted);font-size:11px;">${idx + 1}.</span>
+            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+              font-weight:600;">${UI.escape(c.nome)}</span>
+            <span style="color:var(--text-muted);white-space:nowrap;">${c.partidas} jogos</span>
+            <span style="color:var(--text-muted);white-space:nowrap;">${c.tempo} min/jogo</span>
+            <strong style="white-space:nowrap;color:${v.cor};">~${hStr}</strong>
+            <div style="width:44px;background:var(--card-border);border-radius:4px;height:5px;
+              overflow:hidden;flex-shrink:0;">
+              <div style="height:100%;width:${pct}%;background:${v.cor};border-radius:4px;"></div>
+            </div>
+            <button class="btn btn-ghost btn-sm" style="padding:2px 8px;font-size:11px;flex-shrink:0;"
+              onclick="TorneioModule.openModalConfigCat('${c.id}','${c.eventoId}')"
+              title="Ajustar configuração desta categoria">⚙️</button>
+          </div>
+          ${dicaHtml}
+        </div>`;
+    }).join('');
+
+    const semDadosAviso = v.catsSemDados.length ? `
+      <div style="font-size:11px;color:var(--text-muted);margin-top:10px;">
+        ⚠️ ${v.catsSemDados.length} categoria${v.catsSemDados.length > 1 ? 's' : ''}
+        sem configuração completa não foram incluídas no cálculo.
+      </div>` : '';
+
     return `
-      <div class="torneio-viab-banner" style="border-color:${v.cor}20;background:${v.cor}10;">
-        <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
-          <span class="badge ${v.badge}" style="font-size:13px;padding:6px 12px;">${v.status}</span>
-          <span>🎯 ${v.totalPartidas} partidas totais</span>
-          <span>⏱ ${Math.floor(v.necessarioMin/60)}h${v.necessarioMin%60>0?v.necessarioMin%60+'min':''} necessários</span>
-          <span>🏟️ ${v.quadras} quadra${v.quadras>1?'s':''} · janela ${v.janelaStr}</span>
-          <span style="font-weight:700;color:${v.cor};">${v.ocupacao}% de ocupação</span>
+      <div class="card" style="margin-bottom:20px;border-left:4px solid ${v.cor};padding:20px 20px 16px;">
+
+        <!-- Status principal -->
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;
+          flex-wrap:wrap;gap:10px;margin-bottom:16px;">
+          <div>
+            <span class="badge ${v.badge}" style="font-size:13px;padding:6px 14px;">${v.status}</span>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:7px;">${v.mensagem}</div>
+          </div>
+          <button class="btn btn-ghost btn-sm"
+            onclick="TorneioModule.openModalEvento('${evento.id}')">✏️ Ajustar</button>
         </div>
-        <button class="btn btn-ghost btn-sm" onclick="TorneioModule.openModalEvento('${evento.id}')">✏️ Ajustar</button>
+
+        <!-- Capacidade disponível -->
+        <div style="background:var(--bg-secondary);border-radius:8px;padding:12px 14px;
+          margin-bottom:14px;font-size:13px;">
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+            <span>📅 ${v.numDias} dia${v.numDias > 1 ? 's' : ''}</span>
+            <span style="color:var(--text-muted);">×</span>
+            <span>🏟️ ${v.quadras} quadra${v.quadras > 1 ? 's' : ''}</span>
+            <span style="color:var(--text-muted);">×</span>
+            <span>⏰ ${v.janelaStr}/dia</span>
+            <span style="color:var(--text-muted);">=</span>
+            <strong>${dispHStr} disponíveis</strong>
+          </div>
+          <!-- Barra de ocupação -->
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div style="flex:1;background:var(--card-border);border-radius:6px;height:10px;overflow:hidden;">
+              <div style="height:100%;width:${barPct}%;background:${v.cor};
+                border-radius:6px;transition:width .4s;"></div>
+            </div>
+            <span style="font-size:13px;font-weight:700;color:${v.cor};white-space:nowrap;">
+              ${necHStr} / ${dispHStr}
+            </span>
+          </div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:5px;">
+            🎯 ${v.totalPartidas} partidas · ${v.ocupacao}% da capacidade utilizada
+          </div>
+        </div>
+
+        <!-- Detalhamento por categoria (expansível) -->
+        <details>
+          <summary style="font-size:12px;font-weight:700;color:var(--text-muted);
+            text-transform:uppercase;letter-spacing:.5px;cursor:pointer;
+            list-style:none;display:flex;align-items:center;gap:6px;outline:none;">
+            <span style="font-size:10px;">▶</span>
+            Detalhamento por categoria
+            <span style="font-weight:400;text-transform:none;letter-spacing:0;">
+              (${sortedCats.length} categorias)
+            </span>
+          </summary>
+          <div style="margin-top:10px;">
+            ${catRows}
+            ${semDadosAviso}
+          </div>
+        </details>
+
       </div>`;
   },
 
@@ -1350,14 +1820,37 @@ const TorneioModule = {
         </div>`;
     }
 
-    const catsValidas = cats.filter(c => c.maxParticipantes && c.formato);
+    const catsValidas   = cats.filter(c => c.maxParticipantes && c.formato);
+    const catsPendentes = cats.filter(c => !c.maxParticipantes || !c.formato);
+
+    // Bloco de aviso para categorias sem configuração completa
+    const avisoPendentes = catsPendentes.length ? `
+      <div class="torneio-viab-banner" style="border-color:#f59e0b33;background:#fef3c780;margin-bottom:20px;flex-direction:column;align-items:flex-start;gap:8px;">
+        <div style="display:flex;align-items:center;gap:8px;font-weight:700;color:#92400e;">
+          ⚠️ ${catsPendentes.length} categoria${catsPendentes.length > 1 ? 's' : ''} sem configuração completa
+          — não aparecem no calendário
+        </div>
+        <ul style="margin:0;padding-left:20px;font-size:13px;color:var(--text-secondary);line-height:1.8;">
+          ${catsPendentes.map(c => {
+            const falta = [];
+            if (!c.formato)          falta.push('formato');
+            if (!c.maxParticipantes) falta.push('máx. participantes');
+            return `<li><strong>${UI.escape(c.nome)}</strong> — falta: ${falta.join(' e ')}</li>`;
+          }).join('')}
+        </ul>
+        <div style="font-size:12px;color:var(--text-muted);">
+          Configure via <strong>⚙️ Gerenciar → botão ⚙️</strong> em cada categoria.
+        </div>
+      </div>` : '';
+
     if (!catsValidas.length) {
       return `
+        ${avisoPendentes}
         <div class="empty-state">
-          <div class="empty-icon">📂</div>
-          <div class="empty-title">Configure as categorias</div>
-          <div class="empty-desc">Defina <strong>formato</strong> e <strong>máx. participantes</strong>
-            em cada categoria usando o botão ⚙️.</div>
+          <div class="empty-icon">📅</div>
+          <div class="empty-title">Nenhuma categoria pronta para o calendário</div>
+          <div class="empty-desc">Configure <strong>formato</strong> e <strong>máx. participantes</strong>
+            nas categorias listadas acima para gerar o pré-calendário.</div>
         </div>`;
     }
 
@@ -1468,12 +1961,14 @@ const TorneioModule = {
       </div>`).join('');
 
     return `
+      ${avisoPendentes}
+
       <div class="card precal-resumo">
         <div class="precal-resumo-items">
           <span>📅 ${diasUsados.length} dia${diasUsados.length > 1 ? 's' : ''}</span>
           <span>🏟️ ${quadras} quadra${quadras > 1 ? 's' : ''}</span>
           <span>⏰ ${hIni} → ${hFim}</span>
-          <span>📂 ${catData.length} categorias</span>
+          <span>📂 ${catData.length} categoria${catData.length > 1 ? 's' : ''} no calendário${catsPendentes.length ? ` · ⚠️ ${catsPendentes.length} pendente${catsPendentes.length > 1 ? 's' : ''}` : ''}</span>
           <span>🎯 ${totalPartidas} partidas no total</span>
         </div>
       </div>

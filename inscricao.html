@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Inscrição · PickleManager</title>
+  <link rel="stylesheet" href="css/app.css" />
+  <style>
+    body {
+      background: var(--bg-secondary, #f0ede6);
+      min-height: 100vh;
+      margin: 0;
+    }
+    .insc-wrap {
+      max-width: 580px;
+      margin: 0 auto;
+      padding: 28px 16px 80px;
+    }
+    .insc-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .insc-brand-name {
+      font-size: 13px;
+      font-weight: 800;
+      color: var(--color-primary, #3b9e8f);
+      letter-spacing: .6px;
+      text-transform: uppercase;
+    }
+    .insc-brand-sub {
+      font-size: 11px;
+      color: var(--text-muted, #8aab9f);
+    }
+    .insc-evento-titulo {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--text-primary, #1a2e25);
+      margin: 0 0 6px;
+    }
+    .insc-evento-sub {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin: 0 0 28px;
+    }
+    .insc-section-title {
+      font-size: 15px;
+      font-weight: 700;
+      margin: 0 0 16px;
+      color: var(--text-primary);
+    }
+    .insc-cat-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 14px 16px;
+      border: 2px solid var(--card-border, #e8dfc8);
+      border-radius: 10px;
+      cursor: pointer;
+      margin-bottom: 8px;
+      transition: border-color .15s, background .15s;
+      background: var(--bg-primary, #fff);
+    }
+    .insc-cat-item:hover:not(.insc-cat-lotada) {
+      border-color: var(--color-primary, #3b9e8f);
+    }
+    .insc-cat-item input[type=radio] {
+      margin-top: 3px;
+      flex-shrink: 0;
+      accent-color: var(--color-primary, #3b9e8f);
+      width: 16px;
+      height: 16px;
+    }
+    .insc-cat-item.insc-cat-compat {
+      border-color: var(--color-primary, #3b9e8f);
+      background: color-mix(in srgb, var(--color-primary, #3b9e8f) 6%, transparent);
+    }
+    .insc-cat-lotada {
+      opacity: .55;
+      cursor: not-allowed;
+      background: var(--bg-secondary);
+    }
+    .insc-cat-nome {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+    .insc-cat-info {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 3px;
+    }
+    .insc-cat-vagas {
+      font-size: 12px;
+      margin-top: 5px;
+      font-weight: 600;
+    }
+    .insc-secao-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .6px;
+      color: var(--text-muted);
+      margin: 16px 0 8px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid var(--card-border);
+    }
+    .insc-submit {
+      width: 100%;
+      height: 52px;
+      font-size: 16px;
+      font-weight: 700;
+      border-radius: 12px;
+      margin-top: 24px;
+    }
+    .insc-loading {
+      text-align: center;
+      padding: 80px 20px;
+      color: var(--text-muted);
+      font-size: 15px;
+    }
+    .insc-erro {
+      text-align: center;
+      padding: 60px 20px;
+    }
+    .insc-sucesso {
+      text-align: center;
+      padding: 40px 20px;
+    }
+    .insc-toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 12px 22px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      box-shadow: 0 4px 16px rgba(0,0,0,.15);
+      z-index: 9999;
+      max-width: 90vw;
+      text-align: center;
+      animation: fadeInUp .2s ease;
+    }
+    @keyframes fadeInUp {
+      from { opacity:0; transform:translateX(-50%) translateY(8px); }
+      to   { opacity:1; transform:translateX(-50%) translateY(0); }
+    }
+  </style>
+</head>
+<body>
+  <div class="insc-wrap" id="insc-wrap">
+    <div class="insc-loading">
+      <div style="font-size:36px;margin-bottom:12px;">⏳</div>
+      Carregando…
+    </div>
+  </div>
+
+  <script src="js/supabase.min.js"></script>
+  <script src="js/supabase-config.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/db.js"></script>
+  <script src="js/inscricao.js"></script>
+</body>
+</html>
