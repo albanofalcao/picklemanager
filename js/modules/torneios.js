@@ -270,7 +270,7 @@ const TorneioModule = {
         ${e.observacoes ? `<div class="torneio-card-obs">${UI.escape(e.observacoes)}</div>` : ''}
         <div class="torneio-card-actions">
           <button class="btn btn-primary btn-sm"
-            onclick="TorneioModule.abrirDetalhe('${e.id}')">Gerenciar →</button>
+            onclick="TorneioModule.abrirDetalhe('${e.id}')">📂 Ver Categorias</button>
           <button class="btn btn-ghost btn-sm"
             onclick="TorneioModule.openModalEvento('${e.id}')" title="Editar">✏️</button>
           <button class="btn btn-ghost btn-sm danger"
@@ -390,7 +390,7 @@ const TorneioModule = {
           ${pago ? `<span style="color:var(--color-success);">✓ ${pago} pagos</span>` : ''}
           ${pend ? `<span style="color:var(--color-warning);">⏳ ${pend} pendentes</span>` : ''}
           <button class="btn btn-primary btn-sm" style="margin-left:auto;"
-            onclick="TorneioModule.abrirCategoria('${cat.id}','${evento.id}')">Gerenciar →</button>
+            onclick="TorneioModule.abrirCategoria('${cat.id}','${evento.id}')">👤 Inscrições</button>
         </div>
       </div>`;
   },
