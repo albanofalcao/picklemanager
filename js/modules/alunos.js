@@ -152,6 +152,9 @@ const AlunoModule = {
         <span class="results-count">
           ${filtered.length} aluno${filtered.length !== 1 ? 's' : ''}
         </span>
+        <button class="btn btn-secondary btn-sm" onclick="AlunoModule._exportExcel()" title="Exportar para Excel">
+          ⬇ Excel
+        </button>
       </div>
 
       <div class="alunos-table-wrap" id="alunos-list">
@@ -1072,5 +1075,29 @@ const AlunoModule = {
     };
     return calc(digits, 9)  === parseInt(digits[9]) &&
            calc(digits, 10) === parseInt(digits[10]);
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Exportar para Excel                                                 */
+  /* ------------------------------------------------------------------ */
+
+  _exportExcel() {
+    const filtered = this._getFiltered();
+    if (!filtered.length) { UI.toast('Nenhum aluno para exportar', 'warning'); return; }
+
+    const headers = ['Nome', 'CPF', 'E-mail', 'Telefone', 'Nascimento', 'Nível', 'Status', 'Instagram', 'Cadastro'];
+    const rows = filtered.map(a => [
+      a.nome                                          || '',
+      a.cpf                                           || '',
+      a.email                                         || '',
+      a.telefone                                      || '',
+      ExportService.fmtData(a.dataNascimento),
+      a.nivel                                         || '',
+      a.status                                        || '',
+      a.rsInstagram                                   || '',
+      ExportService.fmtData(a.createdAt),
+    ]);
+
+    ExportService.toXLSX('picklemanager_alunos', headers, rows, 'Alunos');
   },
 };

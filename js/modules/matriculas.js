@@ -153,6 +153,9 @@ const MatriculaModule = {
         <span class="results-count">
           ${filtered.length} matrícula${filtered.length !== 1 ? 's' : ''}
         </span>
+        <button class="btn btn-secondary btn-sm" onclick="MatriculaModule._exportExcel()" title="Exportar para Excel">
+          ⬇ Excel
+        </button>
       </div>
 
       <div class="alunos-table-wrap" id="matriculas-list">
@@ -1261,5 +1264,28 @@ const MatriculaModule = {
     const d1 = new Date(hoje  + 'T00:00:00');
     const d2 = new Date(dataFim + 'T00:00:00');
     return Math.ceil((d2 - d1) / 86400000);
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Exportar para Excel                                                 */
+  /* ------------------------------------------------------------------ */
+
+  _exportExcel() {
+    const filtered = this._getFiltered();
+    if (!filtered.length) { UI.toast('Nenhuma matrícula para exportar', 'warning'); return; }
+
+    const headers = ['Aluno', 'Plano', 'Início', 'Vencimento', 'Valor Pago (R$)', 'Forma Pgto.', 'Status', 'Observações'];
+    const rows = filtered.map(m => [
+      m.alunoNome       || '',
+      m.planoNome       || '',
+      ExportService.fmtData(m.dataInicio),
+      ExportService.fmtData(m.dataFim),
+      ExportService.fmtMoeda(m.valorPago),
+      m.formaPagamento  || '',
+      m.status          || '',
+      m.observacoes     || '',
+    ]);
+
+    ExportService.toXLSX('picklemanager_matriculas', headers, rows, 'Matrículas');
   },
 };

@@ -241,6 +241,9 @@ const FinanceiroModule = {
         <span class="results-count">
           ${filtered.length} lançamento${filtered.length !== 1 ? 's' : ''}
         </span>
+        <button class="btn btn-secondary btn-sm" onclick="FinanceiroModule._exportExcel()" title="Exportar para Excel">
+          ⬇ Excel
+        </button>
       </div>
 
       <div class="alunos-table-wrap" id="financeiro-list">
@@ -1791,5 +1794,32 @@ const FinanceiroModule = {
     return (tipo === 'receita'
       ? (this.CATEGORIA_RECEITA[cat] || cat)
       : (this.CATEGORIA_DESPESA[cat] || cat));
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Exportar para Excel                                                 */
+  /* ------------------------------------------------------------------ */
+
+  _exportExcel() {
+    const filtered = this._getFiltered();
+    if (!filtered.length) { UI.toast('Nenhum lançamento para exportar', 'warning'); return; }
+
+    const headers = ['Tipo', 'Data', 'Descrição', 'Categoria', 'Valor (R$)', 'Forma Pgto.', 'Status', 'Referência', 'Observações'];
+    const rows = filtered.map(f => [
+      f.tipo                                              || '',
+      f.data                                              || '',
+      f.descricao                                         || '',
+      this._categoriaLabel(f.tipo, f.categoria),
+      ExportService.fmtMoeda(f.valor),
+      f.formaPagamento                                    || '',
+      f.status                                            || '',
+      f.referencia                                        || '',
+      f.observacoes                                       || '',
+    ]);
+
+    const periodo = this._state.filterMes
+      ? `_${this._state.filterMes}`
+      : '';
+    ExportService.toXLSX(`picklemanager_financeiro${periodo}`, headers, rows, 'Lançamentos');
   },
 };

@@ -490,6 +490,9 @@ const TurmasModule = {
       return d !== 0 ? d : (a.horarioInicio || '').localeCompare(b.horarioInicio || '');
     });
 
+    // Guarda para exportação
+    this._aulasFiltered = aulas;
+
     // Opções de turma para o filtro
     const turmas = Storage.getAll(this.SK).sort((a, b) => a.nome.localeCompare(b.nome));
     const minhaLabel = isProfessor ? 'Minhas turmas' : isAluno ? 'Minhas turmas' : '';
@@ -640,6 +643,9 @@ const TurmasModule = {
           ${statusOpts}
         </select>
         <span class="results-count">${aulas.length} aula${aulas.length !== 1 ? 's' : ''}</span>
+        <button class="btn btn-secondary btn-sm" onclick="TurmasModule._exportAulas()" title="Exportar para Excel">
+          ⬇ Excel
+        </button>
       </div>
       ${aulas.length ? `
         <div class="table-card">
@@ -3344,6 +3350,34 @@ const TurmasModule = {
   _fmtTime(iso) {
     if (!iso) return '—';
     return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Exportar Aulas para Excel                                           */
+  /* ------------------------------------------------------------------ */
+
+  _exportAulas() {
+    const aulas = this._aulasFiltered || [];
+    if (!aulas.length) { UI.toast('Nenhuma aula para exportar', 'warning'); return; }
+
+    const headers = ['Título', 'Turma', 'Data', 'Início', 'Fim', 'Professor', 'Arena', 'Status', 'Alunos'];
+    const aulaAlunosAll = Storage.getAll('aulaAlunos');
+    const rows = aulas.map(a => {
+      const qtdAlunos = aulaAlunosAll.filter(aa => aa.aulaId === a.id && aa.status === 'ativo').length;
+      return [
+        a.titulo          || '',
+        a.turmaNome       || '',
+        ExportService.fmtData(a.data),
+        a.horarioInicio   || '',
+        a.horarioFim      || '',
+        a.professorNome   || '',
+        a.arenaNome       || '',
+        a.status          || '',
+        qtdAlunos,
+      ];
+    });
+
+    ExportService.toXLSX('picklemanager_aulas', headers, rows, 'Aulas');
   },
 };
 
