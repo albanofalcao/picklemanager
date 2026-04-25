@@ -68,11 +68,11 @@ const TorneioModule = {
   },
 
   NIVEL: {
-    aberto:        'Aberto',
+    kids:          'Kids',
     iniciante:     'Iniciante',
     intermediario: 'Intermediário',
     avancado:      'Avançado',
-    elite:         'Elite',
+    profissional:  'Profissional',
   },
 
   /* ------------------------------------------------------------------ */
@@ -95,37 +95,40 @@ const TorneioModule = {
   /* ------------------------------------------------------------------ */
 
   SEED_CAT_TIPOS: [
-    // ── Singles ──────────────────────────────────────────────────────
-    { nome: 'Masculino A',      tipoParticipacao: 'singles', sexo: 'masculino', nivel: 'elite',         descricao: 'Singles masculino nível elite' },
-    { nome: 'Masculino B',      tipoParticipacao: 'singles', sexo: 'masculino', nivel: 'avancado',      descricao: 'Singles masculino nível avançado' },
-    { nome: 'Masculino C',      tipoParticipacao: 'singles', sexo: 'masculino', nivel: 'intermediario', descricao: 'Singles masculino nível intermediário' },
-    { nome: 'Masculino D',      tipoParticipacao: 'singles', sexo: 'masculino', nivel: 'iniciante',     descricao: 'Singles masculino nível iniciante' },
-    { nome: 'Feminino A',       tipoParticipacao: 'singles', sexo: 'feminino',  nivel: 'elite',         descricao: 'Singles feminino nível elite' },
-    { nome: 'Feminino B',       tipoParticipacao: 'singles', sexo: 'feminino',  nivel: 'avancado',      descricao: 'Singles feminino nível avançado' },
-    { nome: 'Feminino C',       tipoParticipacao: 'singles', sexo: 'feminino',  nivel: 'intermediario', descricao: 'Singles feminino nível intermediário' },
-    { nome: 'Feminino D',       tipoParticipacao: 'singles', sexo: 'feminino',  nivel: 'iniciante',     descricao: 'Singles feminino nível iniciante' },
-    // ── Duplas ───────────────────────────────────────────────────────
-    { nome: 'Duplas Masc A',    tipoParticipacao: 'duplas',  sexo: 'masculino', nivel: 'elite',         descricao: 'Duplas masculinas nível elite' },
-    { nome: 'Duplas Masc B',    tipoParticipacao: 'duplas',  sexo: 'masculino', nivel: 'avancado',      descricao: 'Duplas masculinas nível avançado' },
-    { nome: 'Duplas Masc C',    tipoParticipacao: 'duplas',  sexo: 'masculino', nivel: 'intermediario', descricao: 'Duplas masculinas nível intermediário' },
-    { nome: 'Duplas Masc D',    tipoParticipacao: 'duplas',  sexo: 'masculino', nivel: 'iniciante',     descricao: 'Duplas masculinas nível iniciante' },
-    { nome: 'Duplas Fem A',     tipoParticipacao: 'duplas',  sexo: 'feminino',  nivel: 'elite',         descricao: 'Duplas femininas nível elite' },
-    { nome: 'Duplas Fem B',     tipoParticipacao: 'duplas',  sexo: 'feminino',  nivel: 'avancado',      descricao: 'Duplas femininas nível avançado' },
-    { nome: 'Duplas Fem C',     tipoParticipacao: 'duplas',  sexo: 'feminino',  nivel: 'intermediario', descricao: 'Duplas femininas nível intermediário' },
-    { nome: 'Duplas Fem D',     tipoParticipacao: 'duplas',  sexo: 'feminino',  nivel: 'iniciante',     descricao: 'Duplas femininas nível iniciante' },
-    { nome: 'Duplas Mistas A',  tipoParticipacao: 'duplas',  sexo: 'misto',     nivel: 'elite',         descricao: 'Duplas mistas nível elite' },
-    { nome: 'Duplas Mistas B',  tipoParticipacao: 'duplas',  sexo: 'misto',     nivel: 'avancado',      descricao: 'Duplas mistas nível avançado' },
-    { nome: 'Duplas Mistas C',  tipoParticipacao: 'duplas',  sexo: 'misto',     nivel: 'intermediario', descricao: 'Duplas mistas nível intermediário' },
-    { nome: 'Duplas Mistas D',  tipoParticipacao: 'duplas',  sexo: 'misto',     nivel: 'iniciante',     descricao: 'Duplas mistas nível iniciante' },
-    // ── Faixas etárias ───────────────────────────────────────────────
-    { nome: 'Sub-12',           tipoParticipacao: '',        sexo: 'aberto',    nivel: 'aberto',        descricao: 'Categoria para até 12 anos' },
-    { nome: 'Sub-15',           tipoParticipacao: '',        sexo: 'aberto',    nivel: 'aberto',        descricao: 'Categoria para até 15 anos' },
-    { nome: 'Sub-18',           tipoParticipacao: '',        sexo: 'aberto',    nivel: 'aberto',        descricao: 'Categoria para até 18 anos' },
-    { nome: '50+ Masculino',    tipoParticipacao: '',        sexo: 'masculino', nivel: 'aberto',        descricao: 'Masculino a partir de 50 anos' },
-    { nome: '50+ Feminino',     tipoParticipacao: '',        sexo: 'feminino',  nivel: 'aberto',        descricao: 'Feminino a partir de 50 anos' },
-    { nome: '60+ Masculino',    tipoParticipacao: '',        sexo: 'masculino', nivel: 'aberto',        descricao: 'Masculino a partir de 60 anos' },
-    { nome: '60+ Feminino',     tipoParticipacao: '',        sexo: 'feminino',  nivel: 'aberto',        descricao: 'Feminino a partir de 60 anos' },
-    { nome: 'Open',             tipoParticipacao: '',        sexo: 'aberto',    nivel: 'aberto',        descricao: 'Categoria aberta sem restrição' },
+    // ── Singles ──────────────────────────────────────────────────────────────────────────────────────────
+    { nome: 'Masculino Profissional', tipoParticipacao: 'singles', sexo: 'masculino', nivel: 'profissional',  idadeMin: null, idadeMax: null, descricao: 'Singles masculino nível profissional' },
+    { nome: 'Masculino Avançado',     tipoParticipacao: 'singles', sexo: 'masculino', nivel: 'avancado',      idadeMin: null, idadeMax: null, descricao: 'Singles masculino nível avançado' },
+    { nome: 'Masculino Intermediário',tipoParticipacao: 'singles', sexo: 'masculino', nivel: 'intermediario', idadeMin: null, idadeMax: null, descricao: 'Singles masculino nível intermediário' },
+    { nome: 'Masculino Iniciante',    tipoParticipacao: 'singles', sexo: 'masculino', nivel: 'iniciante',     idadeMin: null, idadeMax: null, descricao: 'Singles masculino nível iniciante' },
+    { nome: 'Feminino Profissional',  tipoParticipacao: 'singles', sexo: 'feminino',  nivel: 'profissional',  idadeMin: null, idadeMax: null, descricao: 'Singles feminino nível profissional' },
+    { nome: 'Feminino Avançado',      tipoParticipacao: 'singles', sexo: 'feminino',  nivel: 'avancado',      idadeMin: null, idadeMax: null, descricao: 'Singles feminino nível avançado' },
+    { nome: 'Feminino Intermediário', tipoParticipacao: 'singles', sexo: 'feminino',  nivel: 'intermediario', idadeMin: null, idadeMax: null, descricao: 'Singles feminino nível intermediário' },
+    { nome: 'Feminino Iniciante',     tipoParticipacao: 'singles', sexo: 'feminino',  nivel: 'iniciante',     idadeMin: null, idadeMax: null, descricao: 'Singles feminino nível iniciante' },
+    // ── Duplas ───────────────────────────────────────────────────────────────────────────────────────────
+    { nome: 'Duplas Masc Profissional',  tipoParticipacao: 'duplas', sexo: 'masculino', nivel: 'profissional',  idadeMin: null, idadeMax: null, descricao: 'Duplas masculinas profissional' },
+    { nome: 'Duplas Masc Avançado',      tipoParticipacao: 'duplas', sexo: 'masculino', nivel: 'avancado',      idadeMin: null, idadeMax: null, descricao: 'Duplas masculinas avançado' },
+    { nome: 'Duplas Masc Intermediário', tipoParticipacao: 'duplas', sexo: 'masculino', nivel: 'intermediario', idadeMin: null, idadeMax: null, descricao: 'Duplas masculinas intermediário' },
+    { nome: 'Duplas Masc Iniciante',     tipoParticipacao: 'duplas', sexo: 'masculino', nivel: 'iniciante',     idadeMin: null, idadeMax: null, descricao: 'Duplas masculinas iniciante' },
+    { nome: 'Duplas Fem Profissional',   tipoParticipacao: 'duplas', sexo: 'feminino',  nivel: 'profissional',  idadeMin: null, idadeMax: null, descricao: 'Duplas femininas profissional' },
+    { nome: 'Duplas Fem Avançado',       tipoParticipacao: 'duplas', sexo: 'feminino',  nivel: 'avancado',      idadeMin: null, idadeMax: null, descricao: 'Duplas femininas avançado' },
+    { nome: 'Duplas Fem Intermediário',  tipoParticipacao: 'duplas', sexo: 'feminino',  nivel: 'intermediario', idadeMin: null, idadeMax: null, descricao: 'Duplas femininas intermediário' },
+    { nome: 'Duplas Fem Iniciante',      tipoParticipacao: 'duplas', sexo: 'feminino',  nivel: 'iniciante',     idadeMin: null, idadeMax: null, descricao: 'Duplas femininas iniciante' },
+    { nome: 'Duplas Mistas Profissional',tipoParticipacao: 'duplas', sexo: 'misto',     nivel: 'profissional',  idadeMin: null, idadeMax: null, descricao: 'Duplas mistas profissional' },
+    { nome: 'Duplas Mistas Avançado',    tipoParticipacao: 'duplas', sexo: 'misto',     nivel: 'avancado',      idadeMin: null, idadeMax: null, descricao: 'Duplas mistas avançado' },
+    { nome: 'Duplas Mistas Intermediário',tipoParticipacao:'duplas', sexo: 'misto',     nivel: 'intermediario', idadeMin: null, idadeMax: null, descricao: 'Duplas mistas intermediário' },
+    { nome: 'Duplas Mistas Iniciante',   tipoParticipacao: 'duplas', sexo: 'misto',     nivel: 'iniciante',     idadeMin: null, idadeMax: null, descricao: 'Duplas mistas iniciante' },
+    // ── Kids & Jovens ────────────────────────────────────────────────────────────────────────────────────
+    { nome: 'Kids Sub-10',        tipoParticipacao: '', sexo: 'aberto',    nivel: 'kids',     idadeMin: null, idadeMax: 10, descricao: 'Até 10 anos' },
+    { nome: 'Kids Sub-12',        tipoParticipacao: '', sexo: 'aberto',    nivel: 'kids',     idadeMin: null, idadeMax: 12, descricao: 'Até 12 anos' },
+    { nome: 'Sub-15',             tipoParticipacao: '', sexo: 'aberto',    nivel: 'iniciante',idadeMin: null, idadeMax: 15, descricao: 'Até 15 anos' },
+    { nome: 'Sub-18',             tipoParticipacao: '', sexo: 'aberto',    nivel: 'iniciante',idadeMin: null, idadeMax: 18, descricao: 'Até 18 anos' },
+    // ── Sênior ───────────────────────────────────────────────────────────────────────────────────────────
+    { nome: '50+ Masculino',      tipoParticipacao: '', sexo: 'masculino', nivel: 'iniciante',idadeMin: 50, idadeMax: null, descricao: 'Masculino 50 anos ou mais' },
+    { nome: '50+ Feminino',       tipoParticipacao: '', sexo: 'feminino',  nivel: 'iniciante',idadeMin: 50, idadeMax: null, descricao: 'Feminino 50 anos ou mais' },
+    { nome: '60+ Masculino',      tipoParticipacao: '', sexo: 'masculino', nivel: 'iniciante',idadeMin: 60, idadeMax: null, descricao: 'Masculino 60 anos ou mais' },
+    { nome: '60+ Feminino',       tipoParticipacao: '', sexo: 'feminino',  nivel: 'iniciante',idadeMin: 60, idadeMax: null, descricao: 'Feminino 60 anos ou mais' },
+    // ── Aberto ───────────────────────────────────────────────────────────────────────────────────────────
+    { nome: 'Open',               tipoParticipacao: '', sexo: 'aberto',    nivel: 'iniciante',idadeMin: null, idadeMax: null, descricao: 'Categoria aberta sem restrição de nível ou idade' },
   ],
 
   _seedCatTipos() {
@@ -321,7 +324,9 @@ const TorneioModule = {
         </div>
       </div>
 
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      ${this._renderViabilidadeBanner(evento, cats)}
+
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:20px 0 16px;">
         <h3 style="font-size:15px;font-weight:700;">
           📂 Categorias
           <span class="badge badge-gray" style="font-size:12px;margin-left:6px;">${cats.length}</span>
@@ -357,11 +362,12 @@ const TorneioModule = {
   },
 
   _renderCatCard(cat, evento) {
-    const insc  = Storage.getAll(this.SK_INSC).filter(i => i.categoriaId === cat.id);
-    const pago  = insc.filter(i => i.statusPagamento === 'pago').length;
-    const pend  = insc.filter(i => i.statusPagamento === 'pendente').length;
-    const fmt   = this.FORMATO[cat.formato] || null;
-    const tipo  = this.TIPO_PART[cat.tipoParticipacao] || null;
+    const insc   = Storage.getAll(this.SK_INSC).filter(i => i.categoriaId === cat.id);
+    const pago   = insc.filter(i => i.statusPagamento === 'pago').length;
+    const pend   = insc.filter(i => i.statusPagamento === 'pendente').length;
+    const fmt    = this.FORMATO[cat.formato] || null;
+    const tipo   = this.TIPO_PART[cat.tipoParticipacao] || null;
+    const est    = this._calcEstimativa(cat, evento.quadrasDisponiveis);
 
     return `
       <div class="card torneio-cat-card">
@@ -370,20 +376,35 @@ const TorneioModule = {
           <div style="display:flex;gap:6px;flex-shrink:0;">
             <button class="btn btn-ghost btn-sm"
               onclick="TorneioModule.openModalConfigCat('${cat.id}','${evento.id}')"
-              title="Configurar taxas e formato">⚙️</button>
+              title="Configurar">⚙️</button>
             <button class="btn btn-ghost btn-sm danger"
               onclick="TorneioModule.deleteCatEvento('${cat.id}','${evento.id}')"
               title="Remover do torneio">🗑️</button>
           </div>
         </div>
+
         <div class="torneio-cat-stats">
-          ${tipo  ? `<span>👥 ${tipo}</span>`             : ''}
-          ${fmt   ? `<span>🎮 ${fmt}</span>`              : ''}
+          ${tipo ? `<span>👥 ${tipo}</span>` : ''}
+          ${fmt  ? `<span>🎮 ${fmt}</span>`  : '<span style="color:var(--color-warning);">⚠️ Formato não definido</span>'}
           ${cat.taxaInscricao > 0
-            ? `<span>💰 R$ ${(+cat.taxaInscricao).toLocaleString('pt-BR',{minimumFractionDigits:2})}</span>`
+            ? `<span>💰 R$ ${(+cat.taxaInscricao).toLocaleString('pt-BR',{minimumFractionDigits:2})}/pessoa</span>`
             : '<span style="color:var(--color-success);">Gratuita</span>'}
-          ${cat.maxParticipantes ? `<span>🔢 Máx ${cat.maxParticipantes}</span>` : ''}
+          ${cat.maxParticipantes ? `<span>🔢 Máx ${cat.maxParticipantes}</span>` : '<span style="color:var(--text-muted);">Sem limite</span>'}
         </div>
+
+        ${est ? `
+        <div class="torneio-est-bar">
+          <span title="Partidas estimadas">🎯 ${est.partidas} partidas</span>
+          <span title="Duração estimada com ${evento.quadrasDisponiveis || 1} quadra(s)">⏱ ~${est.duracaoStr}</span>
+          <span title="Tempo por partida">${cat.tempoPartidaMin || 30} min/jogo</span>
+          <span class="torneio-est-badge ${est.viavel ? 'torneio-est-ok' : 'torneio-est-warn'}">
+            ${est.viavel ? '✓ Viável' : '⚠️ Revisar'}
+          </span>
+        </div>` : `
+        <div class="torneio-est-bar" style="color:var(--text-muted);font-style:italic;">
+          Configure formato e máx. participantes para ver a estimativa
+        </div>`}
+
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--card-border);
              display:flex;gap:12px;font-size:13px;align-items:center;">
           <span>👤 <strong>${insc.length}</strong> inscritos</span>
@@ -443,6 +464,7 @@ const TorneioModule = {
               <th>Participação</th>
               <th>Sexo</th>
               <th>Nível</th>
+              <th>Idade</th>
               <th>Descrição</th>
               <th></th>
             </tr></thead>
@@ -467,12 +489,17 @@ const TorneioModule = {
   },
 
   _renderCatTipoRow(c) {
-    const emUso = Storage.getAll(this.SK_CAT).filter(x => x.catTipoId === c.id).length;
+    const emUso   = Storage.getAll(this.SK_CAT).filter(x => x.catTipoId === c.id).length;
+    const idadeStr = c.idadeMin && c.idadeMax ? `${c.idadeMin}–${c.idadeMax} anos`
+                   : c.idadeMin ? `${c.idadeMin}+ anos`
+                   : c.idadeMax ? `até ${c.idadeMax} anos`
+                   : '—';
     return `<tr>
       <td><strong>${UI.escape(c.nome)}</strong></td>
       <td>${this.TIPO_PART[c.tipoParticipacao] || '—'}</td>
       <td>${this.SEXO[c.sexo]   || '—'}</td>
       <td>${this.NIVEL[c.nivel] || '—'}</td>
+      <td>${idadeStr}</td>
       <td style="color:var(--text-muted);font-size:12px;">${UI.escape(c.descricao || '—')}</td>
       <td class="aluno-row-actions">
         ${emUso ? `<span class="badge badge-gray" style="font-size:11px;">${emUso} torneio${emUso > 1 ? 's' : ''}</span>` : ''}
@@ -506,7 +533,7 @@ const TorneioModule = {
           <div class="form-group">
             <label class="form-label">Nome <span class="required-star">*</span></label>
             <input id="ct-nome" type="text" class="form-input"
-              placeholder="ex: Masculino A, Feminino, Duplas Mistas, Sub-18…"
+              placeholder="ex: Masculino Avançado, Feminino Iniciante, Sub-18, 50+…"
               value="${v('nome')}" autocomplete="off" />
           </div>
           <div class="form-grid-3">
@@ -525,17 +552,38 @@ const TorneioModule = {
               </select>
             </div>
             <div class="form-group">
-              <label class="form-label">Nível</label>
+              <label class="form-label">Nível de jogo</label>
               <select id="ct-nivel" class="form-select">
                 <option value="">— Qualquer —</option>
                 ${mkOpts(this.NIVEL, 'nivel')}
               </select>
             </div>
           </div>
+
+          <div style="background:var(--bg-secondary);border-radius:10px;padding:14px 16px;border:1px solid var(--card-border);">
+            <div style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">
+              🎂 Restrição de Idade (deixe em branco = sem restrição)
+            </div>
+            <div class="form-grid-2">
+              <div class="form-group" style="margin:0;">
+                <label class="form-label">Idade mínima</label>
+                <input id="ct-idade-min" type="number" class="form-input" min="0" max="120"
+                  placeholder="ex: 50 para categoria 50+"
+                  value="${cat?.idadeMin ?? ''}" />
+              </div>
+              <div class="form-group" style="margin:0;">
+                <label class="form-label">Idade máxima</label>
+                <input id="ct-idade-max" type="number" class="form-input" min="0" max="120"
+                  placeholder="ex: 18 para Sub-18"
+                  value="${cat?.idadeMax ?? ''}" />
+              </div>
+            </div>
+          </div>
+
           <div class="form-group">
             <label class="form-label">Descrição / observação</label>
             <input id="ct-desc" type="text" class="form-input"
-              placeholder="Faixa etária, critério de classificação…"
+              placeholder="Critério de classificação, regras específicas…"
               value="${v('descricao')}" />
           </div>
         </div>`,
@@ -550,10 +598,12 @@ const TorneioModule = {
 
     const data = {
       nome,
-      tipoParticipacao: g('ct-tipo')?.value  || '',
-      sexo:             g('ct-sexo')?.value  || '',
-      nivel:            g('ct-nivel')?.value || '',
-      descricao:        g('ct-desc')?.value.trim() || '',
+      tipoParticipacao: g('ct-tipo')?.value          || '',
+      sexo:             g('ct-sexo')?.value          || '',
+      nivel:            g('ct-nivel')?.value         || '',
+      idadeMin:         parseInt(g('ct-idade-min')?.value) || null,
+      idadeMax:         parseInt(g('ct-idade-max')?.value) || null,
+      descricao:        g('ct-desc')?.value.trim()   || '',
     };
 
     if (id) {
@@ -679,16 +729,21 @@ const TorneioModule = {
       onConfirm:    () => this.saveConfigCat(catId, eventoId),
       content: `
         <div class="form-grid">
-          <div class="form-grid-2">
+          <div class="form-grid-3">
+            <div class="form-group">
+              <label class="form-label">Máx. participantes</label>
+              <input id="cc-max" type="number" class="form-input" min="2"
+                placeholder="Sem limite" value="${v('maxParticipantes', '')}" />
+            </div>
             <div class="form-group">
               <label class="form-label">Taxa de inscrição (R$/pessoa)</label>
               <input id="cc-taxa" type="number" class="form-input" min="0" step="0.01"
                 placeholder="0.00 = gratuita" value="${v('taxaInscricao', '0')}" />
             </div>
             <div class="form-group">
-              <label class="form-label">Máx. participantes</label>
-              <input id="cc-max" type="number" class="form-input" min="2"
-                placeholder="Sem limite" value="${v('maxParticipantes', '')}" />
+              <label class="form-label">Tempo por partida (min)</label>
+              <input id="cc-tempo" type="number" class="form-input" min="5" max="180"
+                placeholder="30" value="${v('tempoPartidaMin', '30')}" />
             </div>
           </div>
           <div class="form-group">
@@ -705,9 +760,10 @@ const TorneioModule = {
   saveConfigCat(catId, eventoId) {
     const g = id => document.getElementById(id);
     Storage.update(this.SK_CAT, catId, {
-      taxaInscricao:    parseFloat(g('cc-taxa')?.value)  || 0,
-      maxParticipantes: parseInt(g('cc-max')?.value)     || null,
-      formato:          g('cc-formato')?.value           || '',
+      taxaInscricao:    parseFloat(g('cc-taxa')?.value)   || 0,
+      maxParticipantes: parseInt(g('cc-max')?.value)      || null,
+      tempoPartidaMin:  parseInt(g('cc-tempo')?.value)    || 30,
+      formato:          g('cc-formato')?.value            || '',
     });
     UI.toast('Configuração salva!', 'success');
     UI.closeModal();
@@ -780,6 +836,27 @@ const TorneioModule = {
               <input id="t-data-fim" type="date" class="form-input" value="${v('dataFim')}" />
             </div>
           </div>
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Quadras disponíveis para o torneio</label>
+              <input id="t-quadras" type="number" class="form-input" min="1" max="50"
+                placeholder="ex: 4"
+                value="${v('quadrasDisponiveis', '')}" />
+              <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">
+                Usado para calcular duração estimada por categoria
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Horário início → fim</label>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <input id="t-hora-ini" type="time" class="form-input"
+                  value="${v('horarioInicio', '')}" style="flex:1;" />
+                <span style="color:var(--text-muted);">→</span>
+                <input id="t-hora-fim" type="time" class="form-input"
+                  value="${v('horarioFim', '')}" style="flex:1;" />
+              </div>
+            </div>
+          </div>
           <div class="form-group">
             <label class="form-label">Observações internas</label>
             <textarea id="t-obs" class="form-input" rows="3"
@@ -802,9 +879,12 @@ const TorneioModule = {
 
     const data = {
       nome, esporte, dataInicio,
-      dataFim:     g('t-data-fim')?.value   || dataInicio,
-      status:      g('t-status')?.value     || 'rascunho',
-      observacoes: g('t-obs')?.value.trim() || '',
+      dataFim:             g('t-data-fim')?.value    || dataInicio,
+      status:              g('t-status')?.value      || 'rascunho',
+      quadrasDisponiveis:  parseInt(g('t-quadras')?.value)  || null,
+      horarioInicio:       g('t-hora-ini')?.value          || '',
+      horarioFim:          g('t-hora-fim')?.value          || '',
+      observacoes:         g('t-obs')?.value.trim()  || '',
     };
 
     if (id) {
@@ -1060,6 +1140,160 @@ const TorneioModule = {
         <div class="empty-icon">🚧</div>
         <div class="empty-title">Em desenvolvimento</div>
         <div class="empty-desc">Inscrições, geração de chaves e lançamento de resultados estão na próxima fase.</div>
+      </div>`;
+  },
+
+  /* ================================================================== */
+  /*  Simulador de viabilidade                                            */
+  /* ================================================================== */
+
+  /**
+   * Calcula estimativa de partidas e duração de uma categoria.
+   * quadras: número de quadras disponíveis para esta categoria.
+   */
+  _calcEstimativa(cat, quadras) {
+    const maxP  = cat.maxParticipantes;
+    const tempo = cat.tempoPartidaMin || 30;
+    const q     = Math.max(1, quadras || 1);
+    const fmt   = cat.formato;
+
+    if (!maxP || maxP < 2 || !fmt) return null;
+
+    let partidas = 0;
+
+    switch (fmt) {
+      case 'eliminatoria_simples':
+        partidas = maxP - 1;
+        break;
+      case 'eliminatoria_dupla':
+        partidas = (maxP - 1) * 2;
+        break;
+      case 'round_robin':
+        partidas = (maxP * (maxP - 1)) / 2;
+        break;
+      case 'grupos_mata_mata': {
+        const nGrupos      = Math.ceil(maxP / 4);
+        const pPorGrupo    = Math.ceil(maxP / nGrupos);
+        const pGrupo       = nGrupos * (pPorGrupo * (pPorGrupo - 1) / 2);
+        const classificados= nGrupos * 2;
+        const pMata        = classificados > 1 ? classificados - 1 : 0;
+        partidas = pGrupo + pMata;
+        break;
+      }
+      case 'suico': {
+        const rodadas = Math.ceil(Math.log2(maxP));
+        partidas = Math.floor(maxP / 2) * rodadas;
+        break;
+      }
+      case 'repescagem':
+        partidas = maxP;
+        break;
+      default:
+        return null;
+    }
+
+    partidas = Math.ceil(partidas);
+    // Minutos totais considerando rodadas paralelas nas quadras
+    const rodadas  = Math.ceil(partidas / q);
+    const minutos  = rodadas * tempo;
+    const horas    = Math.floor(minutos / 60);
+    const min      = minutos % 60;
+    const duracaoStr = horas > 0
+      ? `${horas}h${min > 0 ? min + 'min' : ''}`
+      : `${min}min`;
+
+    return { partidas, rodadas, minutos, duracaoStr };
+  },
+
+  /**
+   * Avalia a viabilidade global do evento:
+   * soma os court-minutes necessários e compara com os disponíveis.
+   */
+  _calcViabilidade(evento, cats) {
+    const quadras = evento.quadrasDisponiveis;
+    const hIni    = evento.horarioInicio;
+    const hFim    = evento.horarioFim;
+
+    if (!quadras || !hIni || !hFim) return null;
+
+    const [hh1, mm1] = hIni.split(':').map(Number);
+    const [hh2, mm2] = hFim.split(':').map(Number);
+    const janela = (hh2 * 60 + mm2) - (hh1 * 60 + mm1);
+    if (janela <= 0) return null;
+
+    // Minutos-quadra disponíveis no evento
+    const disponivelMin = quadras * janela;
+
+    // Minutos-quadra necessários (soma de todas as categorias)
+    let necessarioMin = 0;
+    let totalPartidas = 0;
+    let catsComDados  = 0;
+
+    cats.forEach(cat => {
+      const est = this._calcEstimativa(cat, 1); // 1 quadra → partidas × tempo por jogo
+      if (est) {
+        necessarioMin += est.partidas * (cat.tempoPartidaMin || 30);
+        totalPartidas += est.partidas;
+        catsComDados++;
+      }
+    });
+
+    if (catsComDados === 0) return null;
+
+    const ocupacao   = Math.round(necessarioMin / disponivelMin * 100);
+    const hJanela    = Math.floor(janela / 60);
+    const mJanela    = janela % 60;
+    const janelaStr  = `${hJanela}h${mJanela > 0 ? mJanela + 'min' : ''}`;
+
+    let status, badge, cor;
+    if (ocupacao <= 75) {
+      status = '✅ Viável'; badge = 'badge-success'; cor = 'var(--color-success)';
+    } else if (ocupacao <= 100) {
+      status = '⚠️ Apertado — revise os parâmetros'; badge = 'badge-warning'; cor = 'var(--color-warning)';
+    } else {
+      status = '❌ Inviável — estouro de tempo'; badge = 'badge-danger'; cor = 'var(--color-danger,#ef4444)';
+    }
+
+    return {
+      quadras, janela, janelaStr, disponivelMin, necessarioMin,
+      totalPartidas, ocupacao, catsComDados,
+      status, badge, cor,
+    };
+  },
+
+  _renderViabilidadeBanner(evento, cats) {
+    const v = this._calcViabilidade(evento, cats);
+    if (!v) {
+      // Dados insuficientes — mostra orientação
+      const semQuadras = !evento.quadrasDisponiveis;
+      const semHora    = !evento.horarioInicio || !evento.horarioFim;
+      if (semQuadras || semHora) {
+        return `
+          <div class="torneio-viab-banner torneio-viab-info">
+            ℹ️ Para ativar o simulador de viabilidade, edite o torneio e informe
+            ${semQuadras ? '<strong>quadras disponíveis</strong>' : ''}
+            ${semQuadras && semHora ? ' e ' : ''}
+            ${semHora ? '<strong>horário de início e fim</strong>' : ''}.
+            <button class="btn btn-ghost btn-sm" style="margin-left:auto;"
+              onclick="TorneioModule.openModalEvento('${evento.id}')">✏️ Editar torneio</button>
+          </div>`;
+      }
+      return `
+        <div class="torneio-viab-banner torneio-viab-info">
+          ℹ️ Configure <strong>formato</strong> e <strong>máx. participantes</strong> nas categorias para ver a estimativa de viabilidade.
+        </div>`;
+    }
+
+    return `
+      <div class="torneio-viab-banner" style="border-color:${v.cor}20;background:${v.cor}10;">
+        <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
+          <span class="badge ${v.badge}" style="font-size:13px;padding:6px 12px;">${v.status}</span>
+          <span>🎯 ${v.totalPartidas} partidas totais</span>
+          <span>⏱ ${Math.floor(v.necessarioMin/60)}h${v.necessarioMin%60>0?v.necessarioMin%60+'min':''} necessários</span>
+          <span>🏟️ ${v.quadras} quadra${v.quadras>1?'s':''} · janela ${v.janelaStr}</span>
+          <span style="font-weight:700;color:${v.cor};">${v.ocupacao}% de ocupação</span>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="TorneioModule.openModalEvento('${evento.id}')">✏️ Ajustar</button>
       </div>`;
   },
 

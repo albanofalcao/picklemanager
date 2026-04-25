@@ -5196,3 +5196,48 @@ tr.tarefa-concluida td { opacity: .6; }
   border-color: var(--card-border);
   background: var(--bg-primary);
 }
+
+/* ================================================================
+   Torneios — Banner de viabilidade
+   ================================================================ */
+.torneio-viab-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1.5px solid var(--card-border);
+  background: var(--bg-secondary);
+  font-size: 13px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.torneio-viab-info {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* ================================================================
+   Torneios — Barra de estimativa na categoria
+   ================================================================ */
+.torneio-est-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 8px 0 4px;
+}
+
+.torneio-est-badge {
+  margin-left: auto;
+  font-size: 11px;
+}
+
+.torneio-est-ok   { }
+.torneio-est-warn { }
