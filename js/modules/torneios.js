@@ -320,6 +320,8 @@ const TorneioModule = {
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           ${this._statusActions(evento)}
           <button class="btn btn-secondary btn-sm"
+            onclick="TorneioModule.abrirPreCalendario('${id}')">📅 Pré-Calendário</button>
+          <button class="btn btn-secondary btn-sm"
             onclick="TorneioModule.openModalEvento('${id}')">✏️ Editar</button>
         </div>
       </div>
@@ -1295,6 +1297,214 @@ const TorneioModule = {
         </div>
         <button class="btn btn-ghost btn-sm" onclick="TorneioModule.openModalEvento('${evento.id}')">✏️ Ajustar</button>
       </div>`;
+  },
+
+  /* ================================================================== */
+  /*  Pré-Calendário                                                      */
+  /* ================================================================== */
+
+  abrirPreCalendario(eventoId) {
+    const evento = Storage.getById(this.SK, eventoId);
+    if (!evento) return;
+    const cats = Storage.getAll(this.SK_CAT).filter(c => c.eventoId === eventoId);
+    const esp  = this.ESPORTES[evento.esporte] || { icon: '🏅' };
+
+    const area = document.getElementById('content-area');
+    area.innerHTML = `
+      <div class="page-header">
+        <div class="page-header-text">
+          <button class="btn btn-ghost btn-sm"
+            onclick="TorneioModule.abrirDetalhe('${eventoId}')"
+            style="margin-bottom:4px;">← ${esp.icon} ${UI.escape(evento.nome)}</button>
+          <h2>📅 Pré-Calendário</h2>
+          <p>Distribuição estimada de partidas por quadra e dia</p>
+        </div>
+        <div style="font-size:12px;color:var(--text-muted);text-align:right;max-width:260px;line-height:1.6;">
+          ℹ️ Estimativa baseada nos parâmetros configurados.<br>
+          O calendário definitivo é gerado após o fechamento das inscrições.
+        </div>
+      </div>
+      ${this._renderPreCalendario(evento, cats)}
+    `;
+  },
+
+  _renderPreCalendario(evento, cats) {
+    const quadras = evento.quadrasDisponiveis;
+    const hIni    = evento.horarioInicio;
+    const hFim    = evento.horarioFim;
+
+    // Verificações de dados
+    if (!quadras || !hIni || !hFim) {
+      return `
+        <div class="empty-state">
+          <div class="empty-icon">⚙️</div>
+          <div class="empty-title">Dados insuficientes</div>
+          <div class="empty-desc">Para gerar o pré-calendário, edite o torneio e informe
+            <strong>quadras disponíveis</strong> e <strong>horário início → fim</strong>.</div>
+          <button class="btn btn-primary mt-16"
+            onclick="TorneioModule.openModalEvento('${evento.id}')">✏️ Editar Torneio</button>
+        </div>`;
+    }
+
+    const catsValidas = cats.filter(c => c.maxParticipantes && c.formato);
+    if (!catsValidas.length) {
+      return `
+        <div class="empty-state">
+          <div class="empty-icon">📂</div>
+          <div class="empty-title">Configure as categorias</div>
+          <div class="empty-desc">Defina <strong>formato</strong> e <strong>máx. participantes</strong>
+            em cada categoria usando o botão ⚙️.</div>
+        </div>`;
+    }
+
+    // Dados por categoria
+    const catData = catsValidas.map(cat => {
+      const est = this._calcEstimativa(cat, 1);
+      if (!est || est.partidas === 0) return null;
+      return {
+        nome:     cat.nome,
+        partidas: est.partidas,
+        tempo:    cat.tempoPartidaMin || 30,
+        totalMin: est.partidas * (cat.tempoPartidaMin || 30),
+      };
+    }).filter(Boolean).sort((a, b) => b.totalMin - a.totalMin); // maiores primeiro
+
+    if (!catData.length) return `<div class="empty-state"><div class="empty-title">Sem dados suficientes nas categorias.</div></div>`;
+
+    // Distribuição entre quadras — greedy: menor carga total primeiro
+    const courts = Array.from({ length: quadras }, (_, i) => ({
+      num: i + 1, totalMin: 0, cats: [],
+    }));
+
+    catData.forEach(cat => {
+      const court = courts.reduce((min, c) => c.totalMin < min.totalMin ? c : min, courts[0]);
+      court.cats.push({ ...cat, restante: cat.partidas });
+      court.totalMin += cat.totalMin;
+    });
+
+    // Gera blocos por quadra por dia
+    const dias    = this._getDias(evento.dataInicio, evento.dataFim || evento.dataInicio);
+    const [hh1, mm1] = hIni.split(':').map(Number);
+    const [hh2, mm2] = hFim.split(':').map(Number);
+    const iniMin  = hh1 * 60 + mm1;
+    const fimMin  = hh2 * 60 + mm2;
+
+    courts.forEach(court => {
+      court.blocks = [];
+      let dayIdx = 0;
+      let curMin = iniMin;
+
+      court.cats.forEach(cat => {
+        let restante = cat.partidas;
+        while (restante > 0 && dayIdx < dias.length) {
+          const cabe = Math.floor((fimMin - curMin) / cat.tempo);
+          if (cabe > 0) {
+            const jogos = Math.min(restante, cabe);
+            court.blocks.push({
+              dia: dias[dayIdx], catNome: cat.nome,
+              startMin: curMin, endMin: curMin + jogos * cat.tempo,
+              partidas: jogos,
+            });
+            curMin  += jogos * cat.tempo;
+            restante -= jogos;
+          }
+          if (curMin >= fimMin || cabe === 0) { dayIdx++; curMin = iniMin; }
+        }
+      });
+    });
+
+    // Totais
+    const totalPartidas = catData.reduce((s, c) => s + c.partidas, 0);
+    const diasUsados    = [...new Set(courts.flatMap(c => c.blocks.map(b => b.dia)))].sort();
+
+    // Paleta de cores por categoria
+    const cores = ['#3b9e8f','#f59e0b','#8b5cf6','#ef4444','#10b981','#f97316','#06b6d4','#ec4899'];
+    const catCores = {};
+    catData.forEach((c, i) => { catCores[c.nome] = cores[i % cores.length]; });
+
+    // Renderização por dia
+    const diasHtml = diasUsados.map(dia => {
+      const dtLabel = new Date(dia + 'T12:00:00').toLocaleDateString('pt-BR',
+        { weekday: 'long', day: '2-digit', month: 'long' });
+
+      const courtCols = courts.map(court => {
+        const blocks = court.blocks.filter(b => b.dia === dia);
+        if (!blocks.length) {
+          return `<td class="precal-cell precal-livre">Livre</td>`;
+        }
+        const blocksHtml = blocks.map(b => `
+          <div class="precal-block" style="background:${catCores[b.catNome]};">
+            <div class="precal-block-nome">${UI.escape(b.catNome)}</div>
+            <div class="precal-block-hora">${this._minToTime(b.startMin)} → ${this._minToTime(b.endMin)}</div>
+            <div class="precal-block-info">🎯 ${b.partidas} jogo${b.partidas > 1 ? 's' : ''}</div>
+          </div>`).join('');
+        return `<td class="precal-cell">${blocksHtml}</td>`;
+      }).join('');
+
+      return `
+        <div class="precal-dia">
+          <div class="precal-dia-titulo">📅 ${dtLabel}</div>
+          <div style="overflow-x:auto;">
+            <table class="precal-table">
+              <thead><tr>
+                ${courts.map(c => `<th class="precal-th">🏟️ Quadra ${c.num}</th>`).join('')}
+              </tr></thead>
+              <tbody><tr>${courtCols}</tr></tbody>
+            </table>
+          </div>
+        </div>`;
+    }).join('');
+
+    // Legenda de categorias
+    const legendaHtml = catData.map(c => `
+      <div class="precal-legenda-item">
+        <span class="precal-legenda-cor" style="background:${catCores[c.nome]};"></span>
+        <span>${UI.escape(c.nome)}</span>
+        <span style="color:var(--text-muted);">${c.partidas} jogos · ${c.tempo} min/jogo</span>
+      </div>`).join('');
+
+    return `
+      <div class="card precal-resumo">
+        <div class="precal-resumo-items">
+          <span>📅 ${diasUsados.length} dia${diasUsados.length > 1 ? 's' : ''}</span>
+          <span>🏟️ ${quadras} quadra${quadras > 1 ? 's' : ''}</span>
+          <span>⏰ ${hIni} → ${hFim}</span>
+          <span>📂 ${catData.length} categorias</span>
+          <span>🎯 ${totalPartidas} partidas no total</span>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:20px;">
+        <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
+          color:var(--text-muted);margin-bottom:10px;">Legenda</div>
+        <div class="precal-legenda">${legendaHtml}</div>
+      </div>
+
+      ${diasHtml}
+
+      <div class="precal-aviso">
+        ℹ️ Este pré-calendário é uma <strong>estimativa</strong>. Os horários e quadras reais
+        de cada partida serão definidos após o encerramento das inscrições e sorteio das chaves.
+      </div>
+    `;
+  },
+
+  _getDias(dataIni, dataFim) {
+    const dias = [];
+    const ini  = new Date(dataIni + 'T12:00:00');
+    const fim  = new Date((dataFim || dataIni) + 'T12:00:00');
+    const cur  = new Date(ini);
+    while (cur <= fim) {
+      dias.push(cur.toISOString().slice(0, 10));
+      cur.setDate(cur.getDate() + 1);
+    }
+    return dias;
+  },
+
+  _minToTime(min) {
+    const h = Math.floor(min / 60);
+    const m = min % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
   },
 
   /* ================================================================== */
