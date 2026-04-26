@@ -5322,3 +5322,152 @@ tr.tarefa-concluida td { opacity: .6; }
   text-align: center;
   margin-top: 8px;
 }
+
+/* ================================================================
+   Torneios — Bracket (Eliminatória)
+   ================================================================ */
+.bracket-wrap {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  min-width: max-content;
+  padding-bottom: 8px;
+}
+
+.bracket-round {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 180px;
+  flex-shrink: 0;
+}
+
+.bracket-round-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 6px 0 2px;
+  border-bottom: 1px solid var(--card-border);
+  margin-bottom: 2px;
+}
+
+.bracket-match {
+  background: var(--bg-primary, #fff);
+  border: 2px solid var(--card-border);
+  border-radius: 10px;
+  overflow: hidden;
+  transition: border-color .15s;
+}
+.bracket-match:hover {
+  border-color: var(--color-primary, #3b9e8f);
+}
+.bracket-match-pending {
+  opacity: .5;
+}
+
+.bracket-player {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  font-size: 13px;
+  border-bottom: 1px solid var(--card-border);
+  gap: 6px;
+  min-height: 38px;
+}
+.bracket-player:last-of-type {
+  border-bottom: none;
+}
+.bracket-player.winner {
+  background: color-mix(in srgb, var(--color-success, #10b981) 10%, transparent);
+  font-weight: 700;
+  color: var(--color-success, #10b981);
+}
+.bracket-player.winner::before {
+  content: '✓';
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.bracket-player-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.bracket-score {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 4px 8px;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--card-border);
+}
+
+.bracket-match-action {
+  text-align: center;
+  padding: 4px 8px;
+  border-top: 1px solid var(--card-border);
+}
+.bracket-match-action:empty {
+  display: none;
+}
+
+/* ================================================================
+   Torneios — Round Robin
+   ================================================================ */
+.rr-table th, .rr-table td {
+  text-align: center;
+  white-space: nowrap;
+}
+.rr-table td:nth-child(2),
+.rr-table th:nth-child(2) {
+  text-align: left;
+}
+.rr-win  { color: var(--color-success, #10b981); font-weight: 700; }
+.rr-loss { color: var(--color-danger,  #ef4444); font-weight: 700; }
+
+.rr-match-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--card-border);
+  font-size: 13px;
+}
+.rr-match-row:last-child {
+  border-bottom: none;
+}
+
+.rr-player {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rr-player.rr-winner {
+  font-weight: 700;
+  color: var(--color-success, #10b981);
+}
+.rr-right {
+  text-align: right;
+}
+
+.rr-score-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  min-width: 90px;
+  justify-content: center;
+}
+.rr-score-txt {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+

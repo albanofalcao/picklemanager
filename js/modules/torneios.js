@@ -1176,11 +1176,14 @@ const TorneioModule = {
     const evento = Storage.getById(this.SK, eventoId);
     if (!cat || !evento) return;
 
-    const inscs = Storage.getAll(this.SK_INSC).filter(i => i.categoriaId === catId);
-    const link  = this._gerarLinkInscricao(evento.id, catId);
-    const vagasTotal = cat.maxParticipantes || null;
-    const vagasUsadas = inscs.filter(i => i.status !== 'cancelado').length;
-    const vagasRestantes = vagasTotal ? vagasTotal - vagasUsadas : null;
+    if (!this._state._catTab) this._state._catTab = {};
+    const tab         = this._state._catTab[catId] || 'inscricoes';
+    const inscs       = Storage.getAll(this.SK_INSC).filter(i => i.categoriaId === catId);
+    const inscAtivas  = inscs.filter(i => i.status !== 'cancelado').length;
+    const link        = this._gerarLinkInscricao(evento.id, catId);
+    const vagasTotal  = cat.maxParticipantes || null;
+    const vagasRest   = vagasTotal ? vagasTotal - inscAtivas : null;
+    const partidas    = Storage.getAll(this.SK_PARTIDA).filter(p => p.categoriaId === catId);
 
     const area = document.getElementById('content-area');
     area.innerHTML = `
@@ -1191,37 +1194,50 @@ const TorneioModule = {
             ← ${UI.escape(evento.nome)}
           </button>
           <h2>📂 ${UI.escape(cat.nome)}</h2>
-          <p>${inscs.length} inscrito${inscs.length !== 1 ? 's' : ''}
-            ${vagasRestantes !== null
-              ? ` · <span style="color:${vagasRestantes <= 0 ? 'var(--color-danger)' : 'var(--color-success)'};">
-                  ${vagasRestantes <= 0 ? '🚫 Esgotada' : vagasRestantes + ' vaga' + (vagasRestantes > 1 ? 's' : '') + ' restante' + (vagasRestantes > 1 ? 's' : '')}
+          <p>${inscAtivas} inscrito${inscAtivas !== 1 ? 's' : ''}
+            ${vagasRest !== null
+              ? ` · <span style="color:${vagasRest <= 0 ? 'var(--color-danger)' : 'var(--color-success)'};">
+                  ${vagasRest <= 0 ? '🚫 Esgotada' : vagasRest + ' vaga' + (vagasRest > 1 ? 's' : '') + ' restante' + (vagasRest > 1 ? 's' : '')}
                 </span>`
-              : ''}</p>
+              : ''}
+            ${partidas.length ? ` · <span style="color:var(--color-primary);">🎲 ${partidas.length} partidas geradas</span>` : ''}
+          </p>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button class="btn btn-secondary btn-sm"
-            onclick="TorneioModule._copiarLink('${link}')">🔗 Copiar Link de Inscrição</button>
+            onclick="TorneioModule._copiarLink('${link}')">🔗 Link de Inscrição</button>
           <button class="btn btn-primary btn-sm"
             onclick="TorneioModule.openModalAdicionarInscricao('${catId}','${eventoId}')">
-            ➕ Inscrever pela Secretaria</button>
+            ➕ Secretaria</button>
         </div>
       </div>
 
-      <!-- Caixa do link público -->
-      <div class="torneio-viab-banner torneio-viab-info" style="margin-bottom:20px;gap:10px;align-items:center;">
-        <span style="font-size:13px;font-weight:600;white-space:nowrap;">🔗 Link público:</span>
-        <input type="text" value="${link}" readonly id="link-insc-input"
-          style="flex:1;background:var(--bg-primary);border:1px solid var(--card-border);
-            border-radius:6px;padding:5px 10px;font-size:12px;font-family:monospace;
-            color:var(--text-secondary);min-width:0;" />
-        <button class="btn btn-ghost btn-sm" style="white-space:nowrap;"
-          onclick="TorneioModule._copiarLink('${link}')">📋 Copiar</button>
+      <!-- Abas -->
+      <div class="tabs-bar" style="margin-bottom:20px;">
+        <button class="tab-btn ${tab === 'inscricoes' ? 'active' : ''}"
+          onclick="TorneioModule._switchCatTab('${catId}','${eventoId}','inscricoes')">
+          👤 Inscrições
+          <span class="badge badge-gray" style="margin-left:4px;font-size:11px;">${inscAtivas}</span>
+        </button>
+        <button class="tab-btn ${tab === 'chaves' ? 'active' : ''}"
+          onclick="TorneioModule._switchCatTab('${catId}','${eventoId}','chaves')">
+          🎲 Chaves e Jogos
+          ${partidas.length ? `<span class="badge badge-blue" style="margin-left:4px;font-size:11px;">${partidas.length}</span>` : ''}
+        </button>
       </div>
 
-      <div id="inscricoes-list">
-        ${this._renderInscricoesList(catId, eventoId, inscs)}
+      <div id="cat-tab-content">
+        ${tab === 'inscricoes'
+          ? this._renderInscricoesList(catId, eventoId, inscs)
+          : this._renderSecaoChaves(catId, eventoId, cat, evento, inscs)}
       </div>
     `;
+  },
+
+  _switchCatTab(catId, eventoId, tab) {
+    if (!this._state._catTab) this._state._catTab = {};
+    this._state._catTab[catId] = tab;
+    this.abrirCategoria(catId, eventoId);
   },
 
   _gerarLinkInscricao(eventoId, catId = null) {
@@ -2004,6 +2020,591 @@ const TorneioModule = {
     const h = Math.floor(min / 60);
     const m = min % 60;
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  },
+
+  /* ================================================================== */
+  /*  Chaves e Jogos — geração e exibição de bracket / round-robin       */
+  /* ================================================================== */
+
+  _renderSecaoChaves(catId, eventoId, cat, evento, inscs) {
+    const partidas   = Storage.getAll(this.SK_PARTIDA).filter(p => p.categoriaId === catId);
+    const inscAtivas = inscs.filter(i => i.status !== 'cancelado');
+
+    if (!cat.formato) {
+      return `
+        <div class="empty-state" style="padding:40px 0;">
+          <div class="empty-icon">⚙️</div>
+          <div class="empty-title">Formato não configurado</div>
+          <div class="empty-desc">Configure o formato de disputa desta categoria para gerar as chaves.</div>
+          <button class="btn btn-primary mt-16"
+            onclick="TorneioModule.openModalConfigCat('${catId}','${eventoId}')">⚙️ Configurar Categoria</button>
+        </div>`;
+    }
+
+    if (!partidas.length) {
+      if (inscAtivas.length < 2) {
+        return `
+          <div class="empty-state" style="padding:40px 0;">
+            <div class="empty-icon">👤</div>
+            <div class="empty-title">Inscrições insuficientes</div>
+            <div class="empty-desc">São necessários ao menos 2 inscritos para gerar as chaves.</div>
+          </div>`;
+      }
+      const fmt     = this.FORMATO[cat.formato] || cat.formato;
+      const numSets = cat.numSets === 'melhor_de_3' ? 'Melhor de 3' : '1 Set';
+      return `
+        <div class="empty-state" style="padding:40px 0;">
+          <div class="empty-icon">🎲</div>
+          <div class="empty-title">Chaves ainda não geradas</div>
+          <div class="empty-desc">
+            <strong>${inscAtivas.length}</strong> inscritos · Formato: <strong>${fmt}</strong> · ${numSets}
+          </div>
+          <button class="btn btn-primary mt-16"
+            onclick="TorneioModule.gerarChaves('${catId}','${eventoId}')">🎲 Gerar Chaves</button>
+        </div>`;
+    }
+
+    const finalizadas = partidas.filter(p => p.status === 'finalizado').length;
+    const totalReais  = partidas.filter(p => !p.isBye).length;
+
+    return `
+      <div style="display:flex;align-items:center;justify-content:space-between;
+        margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+        <div style="font-size:13px;color:var(--text-muted);">
+          🎯 ${finalizadas} / ${totalReais} partidas realizadas
+        </div>
+        <button class="btn btn-ghost btn-sm danger"
+          onclick="TorneioModule._resetarChaves('${catId}','${eventoId}')">🔄 Regenerar Chaves</button>
+      </div>
+      ${cat.formato === 'round_robin'
+        ? this._renderTabelaRoundRobin(catId, eventoId, partidas, inscAtivas)
+        : this._renderBracketEliminatoria(catId, eventoId, partidas, inscAtivas)}
+    `;
+  },
+
+  /* ------------------------------------------------------------------ */
+
+  gerarChaves(catId, eventoId) {
+    const cat   = Storage.getById(this.SK_CAT, catId);
+    const inscs = Storage.getAll(this.SK_INSC).filter(
+      i => i.categoriaId === catId && i.status !== 'cancelado'
+    );
+
+    if (!cat || inscs.length < 2) {
+      UI.toast('São necessários ao menos 2 inscritos para gerar as chaves.', 'error');
+      return;
+    }
+
+    // Resolver participantes a partir das inscrições
+    const parts = inscs.map(i => {
+      const p = Storage.getById(this.SK_PART, i.participanteId);
+      return p ? { id: p.id, nome: p.nome } : null;
+    }).filter(Boolean);
+
+    if (parts.length < 2) {
+      UI.toast('Não foi possível resolver os participantes. Verifique as inscrições.', 'error');
+      return;
+    }
+
+    // Remove partidas antigas desta categoria
+    Storage.getAll(this.SK_PARTIDA)
+      .filter(p => p.categoriaId === catId)
+      .forEach(p => Storage.delete(this.SK_PARTIDA, p.id));
+
+    if (cat.formato === 'round_robin') {
+      this._gerarRoundRobin(parts, catId, eventoId, cat);
+    } else {
+      this._gerarEliminatoria(parts, catId, eventoId, cat);
+    }
+
+    UI.toast('Chaves geradas com sucesso!', 'success');
+    this._switchCatTab(catId, eventoId, 'chaves');
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Helpers de nomeação de fases                                        */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * Retorna array com nomes de fase do round 1 ao final.
+   * numRounds: total de rounds (ex: 3 para 8 jogadores)
+   * resultado: ['Oitavas','Quartas','Semifinal','Final'] etc.
+   */
+  _getFaseNames(numRounds) {
+    const labelFromEnd = (distFinal) => {
+      switch (distFinal) {
+        case 0: return 'Final';
+        case 1: return 'Semifinal';
+        case 2: return 'Quartas';
+        case 3: return 'Oitavas';
+        default: return `Rodada ${numRounds - distFinal}`;
+      }
+    };
+    const names = [];
+    for (let r = 0; r < numRounds; r++) {
+      names.push(labelFromEnd(numRounds - 1 - r));
+    }
+    return names; // index 0 = primeiro round
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Round Robin — geração                                               */
+  /* ------------------------------------------------------------------ */
+
+  _gerarRoundRobin(parts, catId, eventoId, cat) {
+    let players = [...parts];
+    if (players.length % 2 !== 0) players.push(null); // null = BYE
+
+    const n       = players.length;
+    const half    = n / 2;
+    const numSets = cat.numSets || '1_set';
+    const fixed   = players[0];
+    let rotating  = players.slice(1);
+
+    for (let r = 0; r < n - 1; r++) {
+      const current = [fixed, ...rotating];
+      for (let i = 0; i < half; i++) {
+        const p1 = current[i];
+        const p2 = current[n - 1 - i];
+        if (p1 === null && p2 === null) continue;
+
+        const isBye  = (p1 === null || p2 === null);
+        const realP1 = isBye ? (p1 || p2) : p1;
+        const realP2 = isBye ? null : p2;
+
+        Storage.create(this.SK_PARTIDA, {
+          categoriaId:    catId,
+          eventoId,
+          fase:           `Rodada ${r + 1}`,
+          rodada:         r + 1,
+          posicao:        i + 1,
+          formato:        'round_robin',
+          numSets,
+          part1Id:        realP1?.id   || null,
+          part1Nome:      realP1?.nome || null,
+          part2Id:        realP2?.id   || null,
+          part2Nome:      realP2?.nome || null,
+          isBye,
+          status:         isBye ? 'walkover' : 'aguardando',
+          vencedorId:     isBye ? (realP1?.id   || null) : null,
+          vencedorNome:   isBye ? (realP1?.nome || null) : null,
+          sets:           [],
+          fonte1MatchId:  null,
+          fonte2MatchId:  null,
+          proximoMatchId: null,
+          proximoSlot:    null,
+        });
+      }
+      // Rotação: último elemento vai para o início
+      rotating = [rotating[rotating.length - 1], ...rotating.slice(0, -1)];
+    }
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Eliminatória Simples — geração                                      */
+  /* ------------------------------------------------------------------ */
+
+  _gerarEliminatoria(parts, catId, eventoId, cat) {
+    const n         = parts.length;
+    const numRounds = Math.ceil(Math.log2(Math.max(n, 2)));
+    const size      = Math.pow(2, numRounds);
+    const faseNomes = this._getFaseNames(numRounds);
+    const numSets   = cat.numSets || '1_set';
+
+    // Embaralha e posiciona participantes (os excedentes ficam como BYE)
+    const shuffled  = [...parts].sort(() => Math.random() - 0.5);
+    const allSlots  = Array(size).fill(null);
+    shuffled.forEach((p, i) => { allSlots[i] = p; });
+
+    // Estrutura de rounds para referenciar matches depois de criá-los
+    const roundMatches = [];
+    for (let r = 0; r < numRounds; r++) {
+      const numInRound = size / Math.pow(2, r + 1);
+      roundMatches[r] = Array.from({ length: numInRound }, (_, i) => ({
+        posicao: i + 1, fase: faseNomes[r], match: null,
+      }));
+    }
+
+    // Cria os matches no Storage round a round
+    for (let r = 0; r < numRounds; r++) {
+      for (let i = 0; i < roundMatches[r].length; i++) {
+        const info = roundMatches[r][i];
+        let p1 = null, p2 = null, isBye = false;
+
+        if (r === 0) {
+          p1    = allSlots[i * 2];
+          p2    = allSlots[i * 2 + 1];
+          isBye = (p1 === null || p2 === null);
+        }
+
+        const real1 = isBye ? (p1 || p2) : p1;
+        const real2 = isBye ? null        : p2;
+
+        const m = Storage.create(this.SK_PARTIDA, {
+          categoriaId:    catId,
+          eventoId,
+          fase:           info.fase,
+          rodada:         r + 1,
+          posicao:        i + 1,
+          formato:        'eliminatoria_simples',
+          numSets,
+          part1Id:        real1?.id   || null,
+          part1Nome:      real1?.nome || null,
+          part2Id:        real2?.id   || null,
+          part2Nome:      real2?.nome || null,
+          isBye,
+          status:         isBye ? 'walkover' : 'aguardando',
+          vencedorId:     isBye ? (real1?.id   || null) : null,
+          vencedorNome:   isBye ? (real1?.nome || null) : null,
+          sets:           [],
+          fonte1MatchId:  null,
+          fonte2MatchId:  null,
+          proximoMatchId: null,
+          proximoSlot:    null,
+        });
+        roundMatches[r][i].match = m;
+      }
+    }
+
+    // Liga os matches entre rounds e define proximoMatchId/fonte
+    for (let r = 1; r < numRounds; r++) {
+      for (let i = 0; i < roundMatches[r].length; i++) {
+        const next = roundMatches[r][i].match;
+        const src1 = roundMatches[r - 1][i * 2].match;
+        const src2 = roundMatches[r - 1][i * 2 + 1].match;
+
+        Storage.update(this.SK_PARTIDA, src1.id, { proximoMatchId: next.id, proximoSlot: 1 });
+        Storage.update(this.SK_PARTIDA, src2.id, { proximoMatchId: next.id, proximoSlot: 2 });
+        Storage.update(this.SK_PARTIDA, next.id, { fonte1MatchId: src1.id, fonte2MatchId: src2.id });
+      }
+    }
+
+    // Avanço automático de byes
+    Storage.getAll(this.SK_PARTIDA)
+      .filter(p => p.categoriaId === catId && p.isBye && p.proximoMatchId)
+      .forEach(p => this._avancarVencedor(p, { id: p.vencedorId, nome: p.vencedorNome }));
+  },
+
+  _avancarVencedor(partida, vencedor) {
+    if (!partida.proximoMatchId || !vencedor?.id) return;
+    const slot = partida.proximoSlot;
+    const upd  = {};
+    upd[`part${slot}Id`]   = vencedor.id;
+    upd[`part${slot}Nome`] = vencedor.nome;
+    Storage.update(this.SK_PARTIDA, partida.proximoMatchId, upd);
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Eliminatória — exibição de bracket                                  */
+  /* ------------------------------------------------------------------ */
+
+  _renderBracketEliminatoria(catId, eventoId, partidas) {
+    const byRound = {};
+    partidas.forEach(p => {
+      if (!byRound[p.rodada]) byRound[p.rodada] = [];
+      byRound[p.rodada].push(p);
+    });
+    const rounds = Object.keys(byRound).map(Number).sort((a, b) => a - b);
+
+    const cols = rounds.map(r => {
+      const rodadaParts = byRound[r].sort((a, b) => a.posicao - b.posicao);
+      const fase        = rodadaParts[0]?.fase || `Rodada ${r}`;
+
+      const cards = rodadaParts.map(p => {
+        if (p.isBye) return ''; // Byes não aparecem no bracket visual
+
+        const p1w      = p.status === 'finalizado' && p.vencedorId === p.part1Id;
+        const p2w      = p.status === 'finalizado' && p.vencedorId === p.part2Id;
+        const hasRes   = p.status === 'finalizado';
+        const canEdit  = p.part1Id && p.part2Id && !hasRes;
+        const aguardaP = !p.part1Id || !p.part2Id; // aguardando adversário anterior
+
+        const scoreStr = hasRes && p.sets?.length
+          ? p.sets.map(s => `${s.p1}–${s.p2}`).join(' / ')
+          : '';
+
+        return `
+          <div class="bracket-match${aguardaP ? ' bracket-match-pending' : ''}">
+            <div class="bracket-player${p1w ? ' winner' : ''}">
+              <span class="bracket-player-name">${UI.escape(p.part1Nome || (p.fonte1MatchId ? '…' : '—'))}</span>
+            </div>
+            <div class="bracket-player${p2w ? ' winner' : ''}">
+              <span class="bracket-player-name">${UI.escape(p.part2Nome || (p.fonte2MatchId ? '…' : '—'))}</span>
+            </div>
+            ${scoreStr ? `<div class="bracket-score">${UI.escape(scoreStr)}</div>` : ''}
+            <div class="bracket-match-action">
+              ${canEdit ? `<button class="btn btn-ghost btn-sm" style="font-size:11px;padding:2px 10px;"
+                onclick="TorneioModule.openModalResultado('${p.id}','${catId}','${eventoId}')">
+                ✏️ Resultado</button>` : ''}
+              ${hasRes ? `<button class="btn btn-ghost btn-sm" style="font-size:11px;padding:2px 8px;color:var(--text-muted);"
+                onclick="TorneioModule.openModalResultado('${p.id}','${catId}','${eventoId}')">
+                ✏️ Editar</button>` : ''}
+            </div>
+          </div>`;
+      }).join('');
+
+      return `
+        <div class="bracket-round">
+          <div class="bracket-round-label">${UI.escape(fase)}</div>
+          ${cards || '<div class="bracket-match bracket-match-pending" style="min-height:60px;"></div>'}
+        </div>`;
+    }).join('');
+
+    return `<div style="overflow-x:auto;"><div class="bracket-wrap">${cols}</div></div>`;
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Round Robin — exibição                                              */
+  /* ------------------------------------------------------------------ */
+
+  _renderTabelaRoundRobin(catId, eventoId, partidas, inscAtivas) {
+    const standings = this._calcRRStandings(inscAtivas, partidas);
+    const byRound   = {};
+    partidas.forEach(p => {
+      if (!byRound[p.rodada]) byRound[p.rodada] = [];
+      byRound[p.rodada].push(p);
+    });
+    const rounds = Object.keys(byRound).map(Number).sort((a, b) => a - b);
+
+    const medalha = (i) => i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}º`;
+
+    const standingsHtml = standings.length ? `
+      <div style="margin-bottom:24px;">
+        <div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
+          color:var(--text-muted);margin-bottom:10px;">🏅 Classificação</div>
+        <div class="table-card">
+          <table class="data-table rr-table">
+            <thead><tr>
+              <th>#</th><th>Participante</th>
+              <th title="Vitórias">V</th><th title="Derrotas">D</th>
+              <th title="Sets vencidos / perdidos">Sets</th>
+              <th title="Pontos vencidos / perdidos">Pontos</th>
+            </tr></thead>
+            <tbody>
+              ${standings.map((s, i) => `<tr>
+                <td style="font-weight:700;">${medalha(i)}</td>
+                <td><strong>${UI.escape(s.nome)}</strong></td>
+                <td class="rr-win">${s.wins}</td>
+                <td class="rr-loss">${s.losses}</td>
+                <td>${s.setsVencidos}/${s.setsPerdidos}</td>
+                <td style="font-size:12px;color:var(--text-muted);">${s.pontosVencidos}/${s.pontosPerdidos}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>` : '';
+
+    const rodadasHtml = rounds.map(r => {
+      const rodadaParts = byRound[r].sort((a, b) => a.posicao - b.posicao);
+      const fase        = rodadaParts[0]?.fase || `Rodada ${r}`;
+      const fin         = rodadaParts.filter(p => !p.isBye && p.status === 'finalizado').length;
+      const tot         = rodadaParts.filter(p => !p.isBye).length;
+
+      const rows = rodadaParts.map(p => {
+        if (p.isBye) return '';
+        const hasRes = p.status === 'finalizado';
+        const p1w    = hasRes && p.vencedorId === p.part1Id;
+        const p2w    = hasRes && p.vencedorId === p.part2Id;
+        const score  = hasRes && p.sets?.length
+          ? p.sets.map(s => `${s.p1}–${s.p2}`).join(', ')
+          : null;
+
+        return `
+          <div class="rr-match-row">
+            <span class="rr-player${p1w ? ' rr-winner' : ''}">${UI.escape(p.part1Nome || '—')}</span>
+            <div class="rr-score-cell">
+              ${score
+                ? `<span class="rr-score-txt">${UI.escape(score)}</span>
+                   <button class="btn btn-ghost btn-sm" style="font-size:11px;padding:1px 6px;color:var(--text-muted);"
+                     onclick="TorneioModule.openModalResultado('${p.id}','${catId}','${eventoId}')">✏️</button>`
+                : `<button class="btn btn-ghost btn-sm" style="font-size:11px;padding:2px 10px;"
+                     onclick="TorneioModule.openModalResultado('${p.id}','${catId}','${eventoId}')">+ Resultado</button>`}
+            </div>
+            <span class="rr-player rr-right${p2w ? ' rr-winner' : ''}">${UI.escape(p.part2Nome || '—')}</span>
+          </div>`;
+      }).filter(Boolean).join('');
+
+      return `
+        <div style="margin-bottom:16px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <div style="font-size:13px;font-weight:700;">${UI.escape(fase)}</div>
+            <span style="font-size:11px;color:var(--text-muted);">${fin}/${tot} jogados</span>
+          </div>
+          <div class="card" style="padding:8px 12px;">
+            ${rows || '<div style="font-size:12px;color:var(--text-muted);padding:8px 0;">Sem partidas nesta rodada.</div>'}
+          </div>
+        </div>`;
+    }).join('');
+
+    return standingsHtml + rodadasHtml;
+  },
+
+  _calcRRStandings(inscAtivas, partidas) {
+    const standings = {};
+
+    inscAtivas.forEach(i => {
+      const p = Storage.getById(this.SK_PART, i.participanteId);
+      if (p) {
+        standings[p.id] = {
+          id: p.id, nome: p.nome,
+          wins: 0, losses: 0,
+          setsVencidos: 0, setsPerdidos: 0,
+          pontosVencidos: 0, pontosPerdidos: 0,
+        };
+      }
+    });
+
+    partidas.filter(p => p.status === 'finalizado' && !p.isBye).forEach(p => {
+      if (p.vencedorId && standings[p.vencedorId]) standings[p.vencedorId].wins++;
+      const perdedorId = (p.vencedorId === p.part1Id) ? p.part2Id : p.part1Id;
+      if (perdedorId && standings[perdedorId]) standings[perdedorId].losses++;
+
+      (p.sets || []).forEach(s => {
+        if (standings[p.part1Id]) {
+          standings[p.part1Id].setsVencidos   += s.p1 > s.p2 ? 1 : 0;
+          standings[p.part1Id].setsPerdidos   += s.p2 > s.p1 ? 1 : 0;
+          standings[p.part1Id].pontosVencidos  += s.p1;
+          standings[p.part1Id].pontosPerdidos  += s.p2;
+        }
+        if (standings[p.part2Id]) {
+          standings[p.part2Id].setsVencidos   += s.p2 > s.p1 ? 1 : 0;
+          standings[p.part2Id].setsPerdidos   += s.p1 > s.p2 ? 1 : 0;
+          standings[p.part2Id].pontosVencidos  += s.p2;
+          standings[p.part2Id].pontosPerdidos  += s.p1;
+        }
+      });
+    });
+
+    return Object.values(standings).sort((a, b) =>
+      b.wins - a.wins ||
+      (b.setsVencidos - b.setsPerdidos) - (a.setsVencidos - a.setsPerdidos) ||
+      (b.pontosVencidos - b.pontosPerdidos) - (a.pontosVencidos - a.pontosPerdidos)
+    );
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Modal — Registrar / editar resultado                                */
+  /* ------------------------------------------------------------------ */
+
+  openModalResultado(partidaId, catId, eventoId) {
+    const partida = Storage.getById(this.SK_PARTIDA, partidaId);
+    if (!partida) return;
+
+    const numSets = partida.numSets || '1_set';
+    const maxSets = numSets === 'melhor_de_3' ? 3 : 1;
+
+    let setsHtml = '';
+    for (let s = 0; s < maxSets; s++) {
+      const p1v = partida.sets?.[s]?.p1 ?? '';
+      const p2v = partida.sets?.[s]?.p2 ?? '';
+      const isTb = numSets === 'melhor_de_3' && s === 2;
+      setsHtml += `
+        ${isTb ? `<div style="font-size:11px;color:var(--text-muted);margin-bottom:-4px;">
+          Set 3 — Desempate (opcional, apenas se 1×1)</div>` : ''}
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label">Set ${s + 1} · ${UI.escape(partida.part1Nome || 'P1')}</label>
+            <input id="set-${s}-p1" type="number" class="form-input" min="0" max="99"
+              value="${p1v}" placeholder="0" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Set ${s + 1} · ${UI.escape(partida.part2Nome || 'P2')}</label>
+            <input id="set-${s}-p2" type="number" class="form-input" min="0" max="99"
+              value="${p2v}" placeholder="0" />
+          </div>
+        </div>`;
+    }
+
+    UI.openModal({
+      title:        '🎾 Registrar Resultado',
+      confirmLabel: 'Salvar',
+      onConfirm:    () => this.saveResultado(partidaId, catId, eventoId),
+      content: `
+        <div class="form-grid">
+          <div style="background:var(--bg-secondary);border-radius:10px;padding:14px 16px;
+            text-align:center;margin-bottom:4px;">
+            <div style="font-size:15px;font-weight:700;">
+              ${UI.escape(partida.part1Nome || '—')}
+              <span style="color:var(--text-muted);font-size:13px;margin:0 8px;">vs</span>
+              ${UI.escape(partida.part2Nome || '—')}
+            </div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">
+              ${UI.escape(partida.fase)}
+            </div>
+          </div>
+          ${setsHtml}
+        </div>`,
+    });
+    setTimeout(() => document.getElementById('set-0-p1')?.focus(), 100);
+  },
+
+  saveResultado(partidaId, catId, eventoId) {
+    const partida = Storage.getById(this.SK_PARTIDA, partidaId);
+    if (!partida) return;
+
+    const numSets = partida.numSets || '1_set';
+    const maxSets = numSets === 'melhor_de_3' ? 3 : 1;
+
+    const sets  = [];
+    let p1Wins  = 0;
+    let p2Wins  = 0;
+
+    for (let s = 0; s < maxSets; s++) {
+      const p1El = document.getElementById(`set-${s}-p1`);
+      const p2El = document.getElementById(`set-${s}-p2`);
+      if (!p1El || !p2El) continue;
+      if (p1El.value === '' && p2El.value === '') continue; // set em branco (tiebreak opcional)
+      const p1 = parseInt(p1El.value) || 0;
+      const p2 = parseInt(p2El.value) || 0;
+      sets.push({ p1, p2 });
+      if (p1 > p2) p1Wins++;
+      else if (p2 > p1) p2Wins++;
+    }
+
+    if (!sets.length) { UI.toast('Informe o placar de ao menos um set', 'error'); return; }
+
+    let vencedorId, vencedorNome;
+
+    if (numSets === 'melhor_de_3') {
+      if (p1Wins > p2Wins)      { vencedorId = partida.part1Id; vencedorNome = partida.part1Nome; }
+      else if (p2Wins > p1Wins) { vencedorId = partida.part2Id; vencedorNome = partida.part2Nome; }
+      else { UI.toast('Sets empatados — revise os placares ou complete o set de desempate', 'error'); return; }
+    } else {
+      const s = sets[0];
+      if (s.p1 > s.p2)      { vencedorId = partida.part1Id; vencedorNome = partida.part1Nome; }
+      else if (s.p2 > s.p1) { vencedorId = partida.part2Id; vencedorNome = partida.part2Nome; }
+      else { UI.toast('Placar empatado — não é possível salvar sem vencedor', 'error'); return; }
+    }
+
+    Storage.update(this.SK_PARTIDA, partidaId, {
+      sets, status: 'finalizado', vencedorId, vencedorNome,
+    });
+
+    // Avançar vencedor no bracket de eliminatória
+    if (partida.formato === 'eliminatoria_simples' && partida.proximoMatchId) {
+      this._avancarVencedor(
+        { proximoMatchId: partida.proximoMatchId, proximoSlot: partida.proximoSlot },
+        { id: vencedorId, nome: vencedorNome }
+      );
+    }
+
+    UI.toast('Resultado salvo!', 'success');
+    UI.closeModal();
+    this.abrirCategoria(catId, eventoId);
+  },
+
+  _resetarChaves(catId, eventoId) {
+    UI.confirm(
+      'Apagar todas as chaves e resultados desta categoria? Os dados lançados serão perdidos.',
+      'Confirmar', 'Apagar'
+    ).then(ok => {
+      if (!ok) return;
+      Storage.getAll(this.SK_PARTIDA)
+        .filter(p => p.categoriaId === catId)
+        .forEach(p => Storage.delete(this.SK_PARTIDA, p.id));
+      UI.toast('Chaves apagadas. Gere novamente quando quiser.', 'success');
+      this.abrirCategoria(catId, eventoId);
+    });
   },
 
   /* ================================================================== */
