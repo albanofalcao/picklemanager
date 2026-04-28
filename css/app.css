@@ -5324,151 +5324,139 @@ tr.tarefa-concluida td { opacity: .6; }
 }
 
 /* ================================================================
-   Torneios — Bracket (Eliminatória)
+   Torneios — Bracket (Eliminatória) — layout de colunas
    ================================================================ */
 .bracket-wrap {
   display: flex;
-  gap: 12px;
+  gap: 0;
   align-items: flex-start;
   min-width: max-content;
-  padding-bottom: 8px;
+  padding: 4px 0 16px;
 }
 
 .bracket-round {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  min-width: 180px;
+  min-width: 220px;
   flex-shrink: 0;
+  padding: 0 14px;
+}
+.bracket-round + .bracket-round {
+  border-left: 1px solid var(--card-border);
 }
 
 .bracket-round-label {
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: .6px;
+  letter-spacing: .7px;
   color: var(--text-muted);
   text-align: center;
-  padding: 6px 0 2px;
-  border-bottom: 1px solid var(--card-border);
-  margin-bottom: 2px;
+  padding-bottom: 10px;
+  margin-bottom: 4px;
+  border-bottom: 2px solid var(--card-border);
 }
 
-.bracket-match {
+/* ================================================================
+   Torneios — Round Robin standings table
+   ================================================================ */
+.rr-table th, .rr-table td { text-align: center; white-space: nowrap; }
+.rr-table td:nth-child(2),
+.rr-table th:nth-child(2)  { text-align: left; }
+.rr-win  { color: var(--color-success, #10b981); font-weight: 700; }
+.rr-loss { color: var(--color-danger,  #ef4444); font-weight: 700; }
+
+.rr-matches-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+}
+
+/* ================================================================
+   Torneios — Match Card (.jogo-card) — usado em Bracket e RR
+   ================================================================ */
+.jogo-card {
   background: var(--bg-primary, #fff);
   border: 2px solid var(--card-border);
-  border-radius: 10px;
+  border-radius: 12px;
   overflow: hidden;
-  transition: border-color .15s;
+  transition: border-color .15s, box-shadow .15s;
 }
-.bracket-match:hover {
+.jogo-card:hover {
   border-color: var(--color-primary, #3b9e8f);
+  box-shadow: 0 4px 14px rgba(0,0,0,.08);
 }
-.bracket-match-pending {
+.jogo-card.jogo-pending {
   opacity: .5;
+  border-style: dashed;
+  pointer-events: none;
 }
 
-.bracket-player {
+.jogo-player {
   display: flex;
   align-items: center;
-  padding: 8px 12px;
-  font-size: 13px;
-  border-bottom: 1px solid var(--card-border);
+  padding: 10px 14px;
   gap: 6px;
-  min-height: 38px;
+  border-bottom: 1px solid var(--card-border);
+  font-size: 14px;
+  min-height: 44px;
 }
-.bracket-player:last-of-type {
+.jogo-player:nth-of-type(2) {
   border-bottom: none;
 }
-.bracket-player.winner {
+.jogo-player.jogo-winner {
   background: color-mix(in srgb, var(--color-success, #10b981) 10%, transparent);
   font-weight: 700;
   color: var(--color-success, #10b981);
 }
-.bracket-player.winner::before {
-  content: '✓';
-  font-size: 11px;
-  flex-shrink: 0;
-}
 
-.bracket-player-name {
+.jogo-player-icon {
+  font-size: 12px;
+  width: 16px;
+  flex-shrink: 0;
+  text-align: center;
+}
+.jogo-player-nome {
+  flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  flex: 1;
+}
+.jogo-player-score {
+  font-size: 20px;
+  font-weight: 800;
+  min-width: 28px;
+  text-align: right;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.jogo-winner .jogo-player-score {
+  color: var(--color-success, #10b981);
 }
 
-.bracket-score {
+.jogo-sets-detail {
   font-size: 11px;
   color: var(--text-muted);
   text-align: center;
-  padding: 4px 8px;
+  padding: 4px 10px;
   background: var(--bg-secondary);
   border-top: 1px solid var(--card-border);
+  letter-spacing: .3px;
 }
 
-.bracket-match-action {
-  text-align: center;
-  padding: 4px 8px;
+.jogo-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
   border-top: 1px solid var(--card-border);
+  background: var(--bg-secondary);
+  min-height: 38px;
 }
-.bracket-match-action:empty {
+.jogo-footer:empty {
   display: none;
-}
-
-/* ================================================================
-   Torneios — Round Robin
-   ================================================================ */
-.rr-table th, .rr-table td {
-  text-align: center;
-  white-space: nowrap;
-}
-.rr-table td:nth-child(2),
-.rr-table th:nth-child(2) {
-  text-align: left;
-}
-.rr-win  { color: var(--color-success, #10b981); font-weight: 700; }
-.rr-loss { color: var(--color-danger,  #ef4444); font-weight: 700; }
-
-.rr-match-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 4px;
-  border-bottom: 1px solid var(--card-border);
-  font-size: 13px;
-}
-.rr-match-row:last-child {
-  border-bottom: none;
-}
-
-.rr-player {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.rr-player.rr-winner {
-  font-weight: 700;
-  color: var(--color-success, #10b981);
-}
-.rr-right {
-  text-align: right;
-}
-
-.rr-score-cell {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-  min-width: 90px;
-  justify-content: center;
-}
-.rr-score-txt {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--text-primary);
-  white-space: nowrap;
 }
 
 /* ================================================================

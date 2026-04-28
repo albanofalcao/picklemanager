@@ -1638,8 +1638,17 @@ const TorneioModule = {
     const cat = Storage.getById(this.SK_CAT, catId);
     if (!cat) return;
 
-    const alunos = Storage.getAll('alunos').filter(a => a.status === 'ativo')
-      .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+    // Restrições do tipo de categoria (sexo, nível, idade)
+    const catTipo     = cat.catTipoId ? Storage.getById(this.SK_CAT_TIPO, cat.catTipoId) : null;
+    const sexoCat     = catTipo?.sexo  || '';   // 'masculino' | 'feminino' | 'misto' | 'aberto' | ''
+    const restringeSexo = sexoCat === 'masculino' || sexoCat === 'feminino';
+    const sexoLabel   = { masculino: '♂ Masculino', feminino: '♀ Feminino' }[sexoCat] || '';
+
+    // Filtra alunos pelo sexo da categoria
+    let alunos = Storage.getAll('alunos').filter(a => a.status === 'ativo');
+    if (restringeSexo) alunos = alunos.filter(a => a.sexo === sexoCat);
+    alunos.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+
     const alunoOpts = alunos
       .map(a => `<option value="${a.id}">${UI.escape(a.nome)}</option>`)
       .join('');
@@ -1647,12 +1656,45 @@ const TorneioModule = {
       .map(([k, l]) => `<option value="${k}">${l}</option>`)
       .join('');
 
+    // Campo sexo para participante externo: fixo se restrito, livre se aberto/misto
+    const sexoExtHtml = restringeSexo
+      ? `<input type="hidden" id="insc-sexo" value="${sexoCat}" />
+         <div class="form-group">
+           <label class="form-label">Sexo</label>
+           <div style="padding:10px 12px;background:var(--bg-secondary);border-radius:8px;
+             font-size:13px;border:1px solid var(--card-border);">
+             <strong>${sexoLabel}</strong>
+             <span style="color:var(--text-muted);margin-left:6px;font-size:12px;">(definido pela categoria)</span>
+           </div>
+         </div>`
+      : `<div class="form-group">
+           <label class="form-label">Sexo</label>
+           <select id="insc-sexo" class="form-select">
+             <option value="">—</option>
+             <option value="masculino">♂ Masculino</option>
+             <option value="feminino">♀ Feminino</option>
+           </select>
+         </div>`;
+
+    // Aviso de restrição no topo do modal
+    const avisoHtml = restringeSexo ? `
+      <div style="background:color-mix(in srgb,var(--color-primary)8%,transparent);
+        border:1px solid color-mix(in srgb,var(--color-primary)25%,transparent);
+        border-radius:8px;padding:10px 14px;font-size:13px;">
+        ℹ️ Categoria restrita a <strong>${sexoLabel}</strong>.
+        ${alunos.length === 0
+          ? `<span style="color:var(--color-warning);"> Nenhum aluno ${sexoLabel} ativo encontrado.</span>`
+          : `${alunos.length} aluno${alunos.length !== 1 ? 's' : ''} disponível${alunos.length !== 1 ? 'is' : ''}.`}
+      </div>` : '';
+
     UI.openModal({
       title:        `➕ Inscrever em ${UI.escape(cat.nome)}`,
       confirmLabel: 'Inscrever',
       onConfirm:    () => this._salvarInscricaoSecretaria(catId, eventoId),
       content: `
         <div class="form-grid">
+          ${avisoHtml}
+
           <div class="form-group">
             <label class="form-label">Tipo de participante</label>
             <div style="display:flex;gap:20px;padding:4px 0;">
@@ -1693,13 +1735,14 @@ const TorneioModule = {
                 <label class="form-label">Telefone</label>
                 <input id="insc-tel" type="tel" class="form-input" />
               </div>
-              <div class="form-group">
-                <label class="form-label">Nível</label>
-                <select id="insc-nivel" class="form-select">
-                  <option value="">—</option>
-                  ${nivelOpts}
-                </select>
-              </div>
+              ${sexoExtHtml}
+            </div>
+            <div class="form-group">
+              <label class="form-label">Nível</label>
+              <select id="insc-nivel" class="form-select">
+                <option value="">—</option>
+                ${nivelOpts}
+              </select>
             </div>
           </div>
 
@@ -1759,7 +1802,7 @@ const TorneioModule = {
         email:          g('insc-email')?.value.trim() || '',
         telefone:       g('insc-tel')?.value.trim()   || '',
         nivel:          g('insc-nivel')?.value        || '',
-        sexo:           '',
+        sexo:           g('insc-sexo')?.value || '',
         dataNascimento: '',
       });
       participanteId   = part.id;
@@ -2597,48 +2640,19 @@ const TorneioModule = {
     const cols = rounds.map(r => {
       const rodadaParts = byRound[r].sort((a, b) => a.posicao - b.posicao);
       const fase        = rodadaParts[0]?.fase || `Rodada ${r}`;
-
-      const cards = rodadaParts.map(p => {
-        if (p.isBye) return ''; // Byes não aparecem no bracket visual
-
-        const p1w      = p.status === 'finalizado' && p.vencedorId === p.part1Id;
-        const p2w      = p.status === 'finalizado' && p.vencedorId === p.part2Id;
-        const hasRes   = p.status === 'finalizado';
-        const canEdit  = p.part1Id && p.part2Id && !hasRes;
-        const aguardaP = !p.part1Id || !p.part2Id; // aguardando adversário anterior
-
-        const scoreStr = hasRes && p.sets?.length
-          ? p.sets.map(s => `${s.p1}–${s.p2}`).join(' / ')
-          : '';
-
-        return `
-          <div class="bracket-match${aguardaP ? ' bracket-match-pending' : ''}">
-            <div class="bracket-player${p1w ? ' winner' : ''}">
-              <span class="bracket-player-name">${UI.escape(p.part1Nome || (p.fonte1MatchId ? '…' : '—'))}</span>
-            </div>
-            <div class="bracket-player${p2w ? ' winner' : ''}">
-              <span class="bracket-player-name">${UI.escape(p.part2Nome || (p.fonte2MatchId ? '…' : '—'))}</span>
-            </div>
-            ${scoreStr ? `<div class="bracket-score">${UI.escape(scoreStr)}</div>` : ''}
-            <div class="bracket-match-action">
-              ${canEdit ? `<button class="btn btn-ghost btn-sm" style="font-size:11px;padding:2px 10px;"
-                onclick="TorneioModule.openModalResultado('${p.id}','${catId}','${eventoId}')">
-                ✏️ Resultado</button>` : ''}
-              ${hasRes ? `<button class="btn btn-ghost btn-sm" style="font-size:11px;padding:2px 8px;color:var(--text-muted);"
-                onclick="TorneioModule.openModalResultado('${p.id}','${catId}','${eventoId}')">
-                ✏️ Editar</button>` : ''}
-            </div>
-          </div>`;
-      }).join('');
+      const cards       = rodadaParts
+        .filter(p => !p.isBye)
+        .map(p => this._renderJogoCard(p, catId, eventoId))
+        .join('');
 
       return `
         <div class="bracket-round">
           <div class="bracket-round-label">${UI.escape(fase)}</div>
-          ${cards || '<div class="bracket-match bracket-match-pending" style="min-height:60px;"></div>'}
+          ${cards || `<div class="jogo-card jogo-pending" style="min-height:88px;"></div>`}
         </div>`;
     }).join('');
 
-    return `<div style="overflow-x:auto;"><div class="bracket-wrap">${cols}</div></div>`;
+    return `<div style="overflow-x:auto;padding-bottom:4px;"><div class="bracket-wrap">${cols}</div></div>`;
   },
 
   /* ------------------------------------------------------------------ */
@@ -2652,31 +2666,32 @@ const TorneioModule = {
       if (!byRound[p.rodada]) byRound[p.rodada] = [];
       byRound[p.rodada].push(p);
     });
-    const rounds = Object.keys(byRound).map(Number).sort((a, b) => a - b);
-
-    const medalha = (i) => i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}º`;
+    const rounds  = Object.keys(byRound).map(Number).sort((a, b) => a - b);
+    const medalha = i => i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}º`;
 
     const standingsHtml = standings.length ? `
-      <div style="margin-bottom:24px;">
-        <div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
-          color:var(--text-muted);margin-bottom:10px;">🏅 Classificação</div>
+      <div style="margin-bottom:28px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;
+          color:var(--text-muted);margin-bottom:12px;">🏅 Classificação</div>
         <div class="table-card">
           <table class="data-table rr-table">
             <thead><tr>
               <th>#</th><th>Participante</th>
-              <th title="Vitórias">V</th><th title="Derrotas">D</th>
+              <th title="Vitórias">V</th>
+              <th title="Derrotas">D</th>
               <th title="Sets vencidos / perdidos">Sets</th>
-              <th title="Pontos vencidos / perdidos">Pontos</th>
+              <th title="Pontos">Pts</th>
             </tr></thead>
             <tbody>
-              ${standings.map((s, i) => `<tr>
-                <td style="font-weight:700;">${medalha(i)}</td>
-                <td><strong>${UI.escape(s.nome)}</strong></td>
-                <td class="rr-win">${s.wins}</td>
-                <td class="rr-loss">${s.losses}</td>
-                <td>${s.setsVencidos}/${s.setsPerdidos}</td>
-                <td style="font-size:12px;color:var(--text-muted);">${s.pontosVencidos}/${s.pontosPerdidos}</td>
-              </tr>`).join('')}
+              ${standings.map((s, i) => `
+                <tr${i === 0 ? ' style="background:color-mix(in srgb,var(--color-warning)8%,transparent);"' : ''}>
+                  <td style="font-size:15px;">${medalha(i)}</td>
+                  <td><strong>${UI.escape(s.nome)}</strong></td>
+                  <td class="rr-win">${s.wins}</td>
+                  <td class="rr-loss">${s.losses}</td>
+                  <td style="font-size:12px;">${s.setsVencidos}/${s.setsPerdidos}</td>
+                  <td style="font-size:12px;color:var(--text-muted);">${s.pontosVencidos}/${s.pontosPerdidos}</td>
+                </tr>`).join('')}
             </tbody>
           </table>
         </div>
@@ -2685,46 +2700,82 @@ const TorneioModule = {
     const rodadasHtml = rounds.map(r => {
       const rodadaParts = byRound[r].sort((a, b) => a.posicao - b.posicao);
       const fase        = rodadaParts[0]?.fase || `Rodada ${r}`;
-      const fin         = rodadaParts.filter(p => !p.isBye && p.status === 'finalizado').length;
-      const tot         = rodadaParts.filter(p => !p.isBye).length;
+      const jogos       = rodadaParts.filter(p => !p.isBye);
+      const fin         = jogos.filter(p => p.status === 'finalizado').length;
+      const completa    = fin === jogos.length && jogos.length > 0;
 
-      const rows = rodadaParts.map(p => {
-        if (p.isBye) return '';
-        const hasRes = p.status === 'finalizado';
-        const p1w    = hasRes && p.vencedorId === p.part1Id;
-        const p2w    = hasRes && p.vencedorId === p.part2Id;
-        const score  = hasRes && p.sets?.length
-          ? p.sets.map(s => `${s.p1}–${s.p2}`).join(', ')
-          : null;
-
-        return `
-          <div class="rr-match-row">
-            <span class="rr-player${p1w ? ' rr-winner' : ''}">${UI.escape(p.part1Nome || '—')}</span>
-            <div class="rr-score-cell">
-              ${score
-                ? `<span class="rr-score-txt">${UI.escape(score)}</span>
-                   <button class="btn btn-ghost btn-sm" style="font-size:11px;padding:1px 6px;color:var(--text-muted);"
-                     onclick="TorneioModule.openModalResultado('${p.id}','${catId}','${eventoId}')">✏️</button>`
-                : `<button class="btn btn-ghost btn-sm" style="font-size:11px;padding:2px 10px;"
-                     onclick="TorneioModule.openModalResultado('${p.id}','${catId}','${eventoId}')">+ Resultado</button>`}
-            </div>
-            <span class="rr-player rr-right${p2w ? ' rr-winner' : ''}">${UI.escape(p.part2Nome || '—')}</span>
-          </div>`;
-      }).filter(Boolean).join('');
+      const cards = jogos.map(p => this._renderJogoCard(p, catId, eventoId)).join('');
 
       return `
-        <div style="margin-bottom:16px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-            <div style="font-size:13px;font-weight:700;">${UI.escape(fase)}</div>
-            <span style="font-size:11px;color:var(--text-muted);">${fin}/${tot} jogados</span>
+        <div style="margin-bottom:24px;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+            <div style="font-size:14px;font-weight:700;color:var(--text-primary);">${UI.escape(fase)}</div>
+            <span class="badge ${completa ? 'badge-success' : 'badge-gray'}" style="font-size:11px;">
+              ${fin}/${jogos.length} jogados
+            </span>
           </div>
-          <div class="card" style="padding:8px 12px;">
-            ${rows || '<div style="font-size:12px;color:var(--text-muted);padding:8px 0;">Sem partidas nesta rodada.</div>'}
+          <div class="rr-matches-grid">
+            ${cards || '<div style="font-size:12px;color:var(--text-muted);">Sem partidas.</div>'}
           </div>
         </div>`;
     }).join('');
 
     return standingsHtml + rodadasHtml;
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Card de partida — usado em Bracket e Round Robin                    */
+  /* ------------------------------------------------------------------ */
+
+  _renderJogoCard(p, catId, eventoId) {
+    const hasRes  = p.status === 'finalizado';
+    const p1w     = hasRes && p.vencedorId === p.part1Id;
+    const p2w     = hasRes && p.vencedorId === p.part2Id;
+    const pending = !p.part1Id || !p.part2Id;
+    const canEdit = p.part1Id && p.part2Id && !hasRes;
+
+    // Scores individuais por jogador
+    let scoreP1 = null, scoreP2 = null, setsDetail = '';
+    if (hasRes && p.sets?.length) {
+      if (p.numSets === 'melhor_de_3') {
+        scoreP1    = p.sets.filter(s => s.p1 > s.p2).length;
+        scoreP2    = p.sets.filter(s => s.p2 > s.p1).length;
+        setsDetail = p.sets.map(s => `${s.p1}–${s.p2}`).join(' · ');
+      } else {
+        scoreP1 = p.sets[0].p1;
+        scoreP2 = p.sets[0].p2;
+      }
+    }
+
+    const p1Nome = p.part1Nome || (p.fonte1MatchId ? '…' : '—');
+    const p2Nome = p.part2Nome || (p.fonte2MatchId ? '…' : '—');
+
+    return `
+      <div class="jogo-card${pending ? ' jogo-pending' : ''}">
+        <div class="jogo-player${p1w ? ' jogo-winner' : ''}">
+          <span class="jogo-player-icon">${p1w ? '🏆' : ''}</span>
+          <span class="jogo-player-nome">${UI.escape(p1Nome)}</span>
+          ${scoreP1 !== null ? `<span class="jogo-player-score">${scoreP1}</span>` : ''}
+        </div>
+        <div class="jogo-player${p2w ? ' jogo-winner' : ''}">
+          <span class="jogo-player-icon">${p2w ? '🏆' : ''}</span>
+          <span class="jogo-player-nome">${UI.escape(p2Nome)}</span>
+          ${scoreP2 !== null ? `<span class="jogo-player-score">${scoreP2}</span>` : ''}
+        </div>
+        ${setsDetail ? `<div class="jogo-sets-detail">${UI.escape(setsDetail)}</div>` : ''}
+        <div class="jogo-footer">
+          ${canEdit
+            ? `<button class="btn btn-primary btn-sm"
+                 style="width:100%;font-size:12px;height:30px;border-radius:0 0 9px 9px;"
+                 onclick="TorneioModule.openModalResultado('${p.id}','${catId}','${eventoId}')">
+                 + Resultado</button>`
+            : hasRes
+              ? `<span style="flex:1;color:var(--text-muted);font-size:11px;">Finalizado</span>
+                 <button class="btn btn-ghost btn-sm" style="font-size:11px;padding:1px 8px;"
+                   onclick="TorneioModule.openModalResultado('${p.id}','${catId}','${eventoId}')">✏️</button>`
+              : `<span style="color:var(--text-muted);font-size:11px;font-style:italic;">Aguardando adversário…</span>`}
+        </div>
+      </div>`;
   },
 
   _calcRRStandings(inscAtivas, partidas) {
