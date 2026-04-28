@@ -392,7 +392,7 @@ const TorneioModule = {
         <div class="torneio-cat-stats">
           ${tipo ? `<span>👥 ${tipo}</span>` : ''}
           ${fmt  ? `<span>🎮 ${fmt}</span>`  : '<span style="color:var(--color-warning);">⚠️ Formato não definido</span>'}
-          <span>🎾 ${cat.numSets === 'melhor_de_3' ? 'Melhor de 3' : '1 Set'}</span>
+          <span>🎾 ${this._numSetsLabel(cat.numSets)}${cat.numSetsFinal ? ` · Final: ${this._numSetsLabel(cat.numSetsFinal)}` : ''}</span>
           ${cat.taxaInscricao > 0
             ? `<span>💰 R$ ${(+cat.taxaInscricao).toLocaleString('pt-BR',{minimumFractionDigits:2})}/pessoa</span>`
             : '<span style="color:var(--color-success);">Gratuita</span>'}
@@ -721,6 +721,7 @@ const TorneioModule = {
 
   // Tempo sugerido (min) por formato de sets
   _tempoSugeridoPorSets(numSets) {
+    if (numSets === 'melhor_de_5') return 75;
     return numSets === 'melhor_de_3' ? 50 : 25;
   },
 
@@ -733,7 +734,8 @@ const TorneioModule = {
       .map(([k, l]) => `<option value="${k}" ${cat.formato === k ? 'selected' : ''}>${l}</option>`)
       .join('');
 
-    const numSetsVal = cat.numSets || '1_set';
+    const numSetsVal      = cat.numSets      || '1_set';
+    const numSetsFinalVal = cat.numSetsFinal || '';
 
     UI.openModal({
       title:        `⚙️ ${UI.escape(cat.nome)}`,
@@ -744,11 +746,12 @@ const TorneioModule = {
 
           <div class="form-grid-2">
             <div class="form-group">
-              <label class="form-label">Formato de sets</label>
+              <label class="form-label">Formato de sets (partidas comuns)</label>
               <select id="cc-sets" class="form-select"
                 onchange="TorneioModule._atualizarTempoSugerido()">
                 <option value="1_set"       ${numSetsVal === '1_set'       ? 'selected' : ''}>1 Set</option>
                 <option value="melhor_de_3" ${numSetsVal === 'melhor_de_3' ? 'selected' : ''}>Melhor de 3</option>
+                <option value="melhor_de_5" ${numSetsVal === 'melhor_de_5' ? 'selected' : ''}>Melhor de 5</option>
               </select>
             </div>
             <div class="form-group">
@@ -758,6 +761,18 @@ const TorneioModule = {
               <input id="cc-tempo" type="number" class="form-input" min="5" max="180"
                 placeholder="ex: 25" value="${v('tempoPartidaMin', this._tempoSugeridoPorSets(numSetsVal))}" />
             </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">🏆 Formato da Final
+              <span style="font-weight:400;color:var(--text-muted);font-size:11px;">(apenas eliminatórias — deixe em branco para usar o mesmo)</span>
+            </label>
+            <select id="cc-sets-final" class="form-select">
+              <option value=""           ${numSetsFinalVal === ''           ? 'selected' : ''}>— Mesmo que as demais —</option>
+              <option value="1_set"      ${numSetsFinalVal === '1_set'      ? 'selected' : ''}>1 Set</option>
+              <option value="melhor_de_3"${numSetsFinalVal === 'melhor_de_3'? 'selected' : ''}>Melhor de 3</option>
+              <option value="melhor_de_5"${numSetsFinalVal === 'melhor_de_5'? 'selected' : ''}>Melhor de 5</option>
+            </select>
           </div>
 
           <div class="form-group">
@@ -804,7 +819,9 @@ const TorneioModule = {
     if (!sel) return;
 
     const sugerido = this._tempoSugeridoPorSets(sel.value);
-    const label    = sel.value === 'melhor_de_3' ? 'Melhor de 3 · sugestão: 50 min' : '1 Set · sugestão: 25 min';
+    const label    = sel.value === 'melhor_de_5' ? 'Melhor de 5 · sugestão: 75 min'
+                   : sel.value === 'melhor_de_3' ? 'Melhor de 3 · sugestão: 50 min'
+                   : '1 Set · sugestão: 25 min';
 
     if (hint) hint.textContent = `(${label})`;
 
@@ -824,6 +841,7 @@ const TorneioModule = {
       taxaInscricao:    parseFloat(g('cc-taxa')?.value)   || 0,
       maxParticipantes: parseInt(g('cc-max')?.value)      || null,
       numSets:          g('cc-sets')?.value               || '1_set',
+      numSetsFinal:     g('cc-sets-final')?.value         || '',
       tempoPartidaMin:  parseInt(g('cc-tempo')?.value)    || 25,
       formato:          g('cc-formato')?.value            || '',
       sexo:             g('cc-sexo')?.value               || '',
@@ -1183,6 +1201,7 @@ const TorneioModule = {
   /* ================================================================== */
 
   abrirCategoria(catId, eventoId) {
+    try {
     const cat    = Storage.getById(this.SK_CAT, catId);
     const evento = Storage.getById(this.SK, eventoId);
     if (!cat || !evento) return;
@@ -1243,6 +1262,17 @@ const TorneioModule = {
           : this._renderSecaoChaves(catId, eventoId, cat, evento, inscs)}
       </div>
     `;
+    } catch (err) {
+      AppLogger.error('TorneioModule', 'Erro ao renderizar categoria', err, { catId, eventoId });
+      const area = document.getElementById('content-area');
+      if (area) area.innerHTML = `
+        <div class="empty-state" style="padding:60px 0;">
+          <div class="empty-icon">⚠️</div>
+          <div class="empty-title">Erro ao carregar categoria</div>
+          <div class="empty-desc">O problema foi registrado automaticamente. Tente novamente ou recarregue a página.</div>
+          <button class="btn btn-secondary mt-16" onclick="TorneioModule.abrirDetalhe('${eventoId}')">← Voltar ao Torneio</button>
+        </div>`;
+    }
   },
 
   _switchCatTab(catId, eventoId, tab) {
@@ -1606,39 +1636,51 @@ const TorneioModule = {
   },
 
   salvarPagamento(inscId, catId, eventoId) {
-    const g      = id => document.getElementById(id);
-    const isento = g('pag-isento')?.checked;
+    try {
+      const g      = id => document.getElementById(id);
+      const isento = g('pag-isento')?.checked;
 
-    if (isento) {
+      if (isento) {
+        Storage.update(this.SK_INSC, inscId, {
+          statusPagamento:     'isento',
+          valorPago:           0,
+          metodoPagamento:     '',
+          dataPagamento:       '',
+          refPagamento:        '',
+          observacaoPagamento: 'Isenção / cortesia',
+        });
+        AppLogger.info('TorneioModule', 'Inscrição marcada como isenta', { inscId, catId, eventoId });
+        UI.toast('Inscrição marcada como isenta!', 'success');
+        UI.closeModal();
+        this.abrirCategoria(catId, eventoId);
+        return;
+      }
+
+      const valor = parseFloat(g('pag-valor')?.value);
+      if (isNaN(valor) || valor < 0) { UI.toast('Informe o valor pago', 'error'); return; }
+
+      const metodo = g('pag-metodo')?.value || 'pix';
       Storage.update(this.SK_INSC, inscId, {
-        statusPagamento:     'isento',
-        valorPago:           0,
-        metodoPagamento:     '',
-        dataPagamento:       '',
-        refPagamento:        '',
-        observacaoPagamento: 'Isenção / cortesia',
+        statusPagamento:     'pago',
+        valorPago:           valor,
+        metodoPagamento:     metodo,
+        dataPagamento:       g('pag-data')?.value                || new Date().toISOString().slice(0, 10),
+        refPagamento:        g('pag-ref')?.value.trim()          || '',
+        observacaoPagamento: g('pag-obs')?.value.trim()          || '',
       });
-      UI.toast('Inscrição marcada como isenta!', 'success');
+
+      AppLogger.info('TorneioModule', 'Pagamento de inscrição registrado', {
+        inscId, catId, eventoId, valor, metodo,
+      });
+      UI.toast('Pagamento registrado!', 'success');
       UI.closeModal();
       this.abrirCategoria(catId, eventoId);
-      return;
+    } catch (err) {
+      AppLogger.error('TorneioModule', 'Erro ao salvar pagamento de inscrição', err, {
+        inscId, catId, eventoId,
+      });
+      UI.toast('Erro ao registrar o pagamento. O problema foi registrado — tente novamente.', 'error');
     }
-
-    const valor = parseFloat(g('pag-valor')?.value);
-    if (isNaN(valor) || valor < 0) { UI.toast('Informe o valor pago', 'error'); return; }
-
-    Storage.update(this.SK_INSC, inscId, {
-      statusPagamento:     'pago',
-      valorPago:           valor,
-      metodoPagamento:     g('pag-metodo')?.value              || 'pix',
-      dataPagamento:       g('pag-data')?.value                || new Date().toISOString().slice(0, 10),
-      refPagamento:        g('pag-ref')?.value.trim()          || '',
-      observacaoPagamento: g('pag-obs')?.value.trim()          || '',
-    });
-
-    UI.toast('Pagamento registrado!', 'success');
-    UI.closeModal();
-    this.abrirCategoria(catId, eventoId);
   },
 
   _estornarPagamento(inscId, catId, eventoId) {
@@ -1680,17 +1722,29 @@ const TorneioModule = {
     UI.confirm(msg, 'Confirmar', 'Remover Inscrição')
       .then(ok => {
         if (!ok) return;
-        if (temChaves) {
-          partidas.forEach(p => Storage.delete(this.SK_PARTIDA, p.id));
+        try {
+          if (temChaves) {
+            partidas.forEach(p => Storage.delete(this.SK_PARTIDA, p.id));
+          }
+          Storage.delete(this.SK_INSC, inscId);
+          AppLogger.info('TorneioModule', 'Inscrição cancelada', {
+            inscId, catId, eventoId,
+            chavesApagadas: temChaves,
+            tinhaPageamento: pagou,
+          });
+          UI.toast(
+            temChaves
+              ? 'Inscrição removida e chaves apagadas. Gere novamente quando quiser.'
+              : 'Inscrição removida.',
+            'success'
+          );
+          this.abrirCategoria(catId, eventoId);
+        } catch (err) {
+          AppLogger.error('TorneioModule', 'Erro ao cancelar inscrição', err, {
+            inscId, catId, eventoId,
+          });
+          UI.toast('Erro ao remover a inscrição. O problema foi registrado.', 'error');
         }
-        Storage.delete(this.SK_INSC, inscId);
-        UI.toast(
-          temChaves
-            ? 'Inscrição removida e chaves apagadas. Gere novamente quando quiser.'
-            : 'Inscrição removida.',
-          'success'
-        );
-        this.abrirCategoria(catId, eventoId);
       });
   },
 
@@ -2518,13 +2572,14 @@ const TorneioModule = {
           </div>`;
       }
       const fmt     = this.FORMATO[cat.formato] || cat.formato;
-      const numSets = cat.numSets === 'melhor_de_3' ? 'Melhor de 3' : '1 Set';
+      const numSets = this._numSetsLabel(cat.numSets);
+      const fmtFinal = cat.numSetsFinal ? ` · Final: <strong>${this._numSetsLabel(cat.numSetsFinal)}</strong>` : '';
       return `
         <div class="empty-state" style="padding:40px 0;">
           <div class="empty-icon">🎲</div>
           <div class="empty-title">Chaves ainda não geradas</div>
           <div class="empty-desc">
-            <strong>${inscAtivas.length}</strong> inscritos · Formato: <strong>${fmt}</strong> · ${numSets}
+            <strong>${inscAtivas.length}</strong> inscritos · Formato: <strong>${fmt}</strong> · ${numSets}${fmtFinal}
           </div>
           <button class="btn btn-primary mt-16"
             onclick="TorneioModule.gerarChaves('${catId}','${eventoId}')">🎲 Gerar Chaves</button>
@@ -2552,40 +2607,48 @@ const TorneioModule = {
   /* ------------------------------------------------------------------ */
 
   gerarChaves(catId, eventoId) {
-    const cat   = Storage.getById(this.SK_CAT, catId);
-    const inscs = Storage.getAll(this.SK_INSC).filter(
-      i => i.categoriaId === catId && i.status !== 'cancelado'
-    );
+    try {
+      const cat   = Storage.getById(this.SK_CAT, catId);
+      const inscs = Storage.getAll(this.SK_INSC).filter(
+        i => i.categoriaId === catId && i.status !== 'cancelado'
+      );
 
-    if (!cat || inscs.length < 2) {
-      UI.toast('São necessários ao menos 2 inscritos para gerar as chaves.', 'error');
-      return;
+      if (!cat || inscs.length < 2) {
+        UI.toast('São necessários ao menos 2 inscritos para gerar as chaves.', 'error');
+        return;
+      }
+
+      // Resolver participantes a partir das inscrições
+      const parts = inscs.map(i => {
+        const p = Storage.getById(this.SK_PART, i.participanteId);
+        return p ? { id: p.id, nome: p.nome } : null;
+      }).filter(Boolean);
+
+      if (parts.length < 2) {
+        UI.toast('Não foi possível resolver os participantes. Verifique as inscrições.', 'error');
+        return;
+      }
+
+      // Remove partidas antigas desta categoria
+      Storage.getAll(this.SK_PARTIDA)
+        .filter(p => p.categoriaId === catId)
+        .forEach(p => Storage.delete(this.SK_PARTIDA, p.id));
+
+      if (cat.formato === 'round_robin') {
+        this._gerarRoundRobin(parts, catId, eventoId, cat);
+      } else {
+        this._gerarEliminatoria(parts, catId, eventoId, cat);
+      }
+
+      AppLogger.info('TorneioModule', 'Chaves geradas com sucesso', {
+        catId, eventoId, formato: cat.formato, participantes: parts.length,
+      });
+      UI.toast('Chaves geradas com sucesso!', 'success');
+      this._switchCatTab(catId, eventoId, 'chaves');
+    } catch (err) {
+      AppLogger.error('TorneioModule', 'Erro ao gerar chaves', err, { catId, eventoId });
+      UI.toast('Erro ao gerar as chaves. O problema foi registrado — tente novamente.', 'error');
     }
-
-    // Resolver participantes a partir das inscrições
-    const parts = inscs.map(i => {
-      const p = Storage.getById(this.SK_PART, i.participanteId);
-      return p ? { id: p.id, nome: p.nome } : null;
-    }).filter(Boolean);
-
-    if (parts.length < 2) {
-      UI.toast('Não foi possível resolver os participantes. Verifique as inscrições.', 'error');
-      return;
-    }
-
-    // Remove partidas antigas desta categoria
-    Storage.getAll(this.SK_PARTIDA)
-      .filter(p => p.categoriaId === catId)
-      .forEach(p => Storage.delete(this.SK_PARTIDA, p.id));
-
-    if (cat.formato === 'round_robin') {
-      this._gerarRoundRobin(parts, catId, eventoId, cat);
-    } else {
-      this._gerarEliminatoria(parts, catId, eventoId, cat);
-    }
-
-    UI.toast('Chaves geradas com sucesso!', 'success');
-    this._switchCatTab(catId, eventoId, 'chaves');
   },
 
   /* ------------------------------------------------------------------ */
@@ -2619,51 +2682,58 @@ const TorneioModule = {
   /* ------------------------------------------------------------------ */
 
   _gerarRoundRobin(parts, catId, eventoId, cat) {
-    let players = [...parts];
-    if (players.length % 2 !== 0) players.push(null); // null = BYE
+    try {
+      let players = [...parts];
+      if (players.length % 2 !== 0) players.push(null); // null = BYE
 
-    const n       = players.length;
-    const half    = n / 2;
-    const numSets = cat.numSets || '1_set';
-    const fixed   = players[0];
-    let rotating  = players.slice(1);
+      const n       = players.length;
+      const half    = n / 2;
+      const numSets = cat.numSets || '1_set';
+      const fixed   = players[0];
+      let rotating  = players.slice(1);
 
-    for (let r = 0; r < n - 1; r++) {
-      const current = [fixed, ...rotating];
-      for (let i = 0; i < half; i++) {
-        const p1 = current[i];
-        const p2 = current[n - 1 - i];
-        if (p1 === null && p2 === null) continue;
+      for (let r = 0; r < n - 1; r++) {
+        const current = [fixed, ...rotating];
+        for (let i = 0; i < half; i++) {
+          const p1 = current[i];
+          const p2 = current[n - 1 - i];
+          if (p1 === null && p2 === null) continue;
 
-        const isBye  = (p1 === null || p2 === null);
-        const realP1 = isBye ? (p1 || p2) : p1;
-        const realP2 = isBye ? null : p2;
+          const isBye  = (p1 === null || p2 === null);
+          const realP1 = isBye ? (p1 || p2) : p1;
+          const realP2 = isBye ? null : p2;
 
-        Storage.create(this.SK_PARTIDA, {
-          categoriaId:    catId,
-          eventoId,
-          fase:           `Rodada ${r + 1}`,
-          rodada:         r + 1,
-          posicao:        i + 1,
-          formato:        'round_robin',
-          numSets,
-          part1Id:        realP1?.id   || null,
-          part1Nome:      realP1?.nome || null,
-          part2Id:        realP2?.id   || null,
-          part2Nome:      realP2?.nome || null,
-          isBye,
-          status:         isBye ? 'walkover' : 'aguardando',
-          vencedorId:     isBye ? (realP1?.id   || null) : null,
-          vencedorNome:   isBye ? (realP1?.nome || null) : null,
-          sets:           [],
-          fonte1MatchId:  null,
-          fonte2MatchId:  null,
-          proximoMatchId: null,
-          proximoSlot:    null,
-        });
+          Storage.create(this.SK_PARTIDA, {
+            categoriaId:    catId,
+            eventoId,
+            fase:           `Rodada ${r + 1}`,
+            rodada:         r + 1,
+            posicao:        i + 1,
+            formato:        'round_robin',
+            numSets,
+            part1Id:        realP1?.id   || null,
+            part1Nome:      realP1?.nome || null,
+            part2Id:        realP2?.id   || null,
+            part2Nome:      realP2?.nome || null,
+            isBye,
+            status:         isBye ? 'walkover' : 'aguardando',
+            vencedorId:     isBye ? (realP1?.id   || null) : null,
+            vencedorNome:   isBye ? (realP1?.nome || null) : null,
+            sets:           [],
+            fonte1MatchId:  null,
+            fonte2MatchId:  null,
+            proximoMatchId: null,
+            proximoSlot:    null,
+          });
+        }
+        // Rotação: último elemento vai para o início
+        rotating = [rotating[rotating.length - 1], ...rotating.slice(0, -1)];
       }
-      // Rotação: último elemento vai para o início
-      rotating = [rotating[rotating.length - 1], ...rotating.slice(0, -1)];
+    } catch (err) {
+      AppLogger.error('TorneioModule', 'Erro na geração Round Robin', err, {
+        catId, eventoId, participantes: parts.length, formato: cat.formato,
+      });
+      throw err; // propaga para gerarChaves tratar
     }
   },
 
@@ -2672,93 +2742,118 @@ const TorneioModule = {
   /* ------------------------------------------------------------------ */
 
   _gerarEliminatoria(parts, catId, eventoId, cat) {
-    const n         = parts.length;
-    const numRounds = Math.ceil(Math.log2(Math.max(n, 2)));
-    const size      = Math.pow(2, numRounds);
-    const faseNomes = this._getFaseNames(numRounds);
-    const numSets   = cat.numSets || '1_set';
+    try {
+      const n         = parts.length;
+      const numRounds = Math.ceil(Math.log2(Math.max(n, 2)));
+      const size      = Math.pow(2, numRounds);
+      const faseNomes = this._getFaseNames(numRounds);
+      const numSets   = cat.numSets || '1_set';
 
-    // Embaralha e posiciona participantes (os excedentes ficam como BYE)
-    const shuffled  = [...parts].sort(() => Math.random() - 0.5);
-    const allSlots  = Array(size).fill(null);
-    shuffled.forEach((p, i) => { allSlots[i] = p; });
+      // Embaralha e posiciona participantes (os excedentes ficam como BYE)
+      const shuffled  = [...parts].sort(() => Math.random() - 0.5);
+      const allSlots  = Array(size).fill(null);
+      shuffled.forEach((p, i) => { allSlots[i] = p; });
 
-    // Estrutura de rounds para referenciar matches depois de criá-los
-    const roundMatches = [];
-    for (let r = 0; r < numRounds; r++) {
-      const numInRound = size / Math.pow(2, r + 1);
-      roundMatches[r] = Array.from({ length: numInRound }, (_, i) => ({
-        posicao: i + 1, fase: faseNomes[r], match: null,
-      }));
-    }
+      // Estrutura de rounds para referenciar matches depois de criá-los
+      const roundMatches = [];
+      for (let r = 0; r < numRounds; r++) {
+        const numInRound = size / Math.pow(2, r + 1);
+        roundMatches[r] = Array.from({ length: numInRound }, (_, i) => ({
+          posicao: i + 1, fase: faseNomes[r], match: null,
+        }));
+      }
 
-    // Cria os matches no Storage round a round
-    for (let r = 0; r < numRounds; r++) {
-      for (let i = 0; i < roundMatches[r].length; i++) {
-        const info = roundMatches[r][i];
-        let p1 = null, p2 = null, isBye = false;
+      // Cria os matches no Storage round a round
+      for (let r = 0; r < numRounds; r++) {
+        for (let i = 0; i < roundMatches[r].length; i++) {
+          const info = roundMatches[r][i];
+          let p1 = null, p2 = null, isBye = false;
 
-        if (r === 0) {
-          p1    = allSlots[i * 2];
-          p2    = allSlots[i * 2 + 1];
-          isBye = (p1 === null || p2 === null);
+          if (r === 0) {
+            p1    = allSlots[i * 2];
+            p2    = allSlots[i * 2 + 1];
+            isBye = (p1 === null || p2 === null);
+          }
+
+          const real1 = isBye ? (p1 || p2) : p1;
+          const real2 = isBye ? null        : p2;
+
+          const m = Storage.create(this.SK_PARTIDA, {
+            categoriaId:    catId,
+            eventoId,
+            fase:           info.fase,
+            rodada:         r + 1,
+            posicao:        i + 1,
+            formato:        'eliminatoria_simples',
+            numSets,
+            part1Id:        real1?.id   || null,
+            part1Nome:      real1?.nome || null,
+            part2Id:        real2?.id   || null,
+            part2Nome:      real2?.nome || null,
+            isBye,
+            status:         isBye ? 'walkover' : 'aguardando',
+            vencedorId:     isBye ? (real1?.id   || null) : null,
+            vencedorNome:   isBye ? (real1?.nome || null) : null,
+            sets:           [],
+            fonte1MatchId:  null,
+            fonte2MatchId:  null,
+            proximoMatchId: null,
+            proximoSlot:    null,
+          });
+          roundMatches[r][i].match = m;
         }
+      }
 
-        const real1 = isBye ? (p1 || p2) : p1;
-        const real2 = isBye ? null        : p2;
+      // Liga os matches entre rounds e define proximoMatchId/fonte
+      for (let r = 1; r < numRounds; r++) {
+        for (let i = 0; i < roundMatches[r].length; i++) {
+          const next = roundMatches[r][i].match;
+          const src1 = roundMatches[r - 1][i * 2].match;
+          const src2 = roundMatches[r - 1][i * 2 + 1].match;
 
-        const m = Storage.create(this.SK_PARTIDA, {
-          categoriaId:    catId,
-          eventoId,
-          fase:           info.fase,
-          rodada:         r + 1,
-          posicao:        i + 1,
-          formato:        'eliminatoria_simples',
-          numSets,
-          part1Id:        real1?.id   || null,
-          part1Nome:      real1?.nome || null,
-          part2Id:        real2?.id   || null,
-          part2Nome:      real2?.nome || null,
-          isBye,
-          status:         isBye ? 'walkover' : 'aguardando',
-          vencedorId:     isBye ? (real1?.id   || null) : null,
-          vencedorNome:   isBye ? (real1?.nome || null) : null,
-          sets:           [],
-          fonte1MatchId:  null,
-          fonte2MatchId:  null,
-          proximoMatchId: null,
-          proximoSlot:    null,
+          Storage.update(this.SK_PARTIDA, src1.id, { proximoMatchId: next.id, proximoSlot: 1 });
+          Storage.update(this.SK_PARTIDA, src2.id, { proximoMatchId: next.id, proximoSlot: 2 });
+          Storage.update(this.SK_PARTIDA, next.id, { fonte1MatchId: src1.id, fonte2MatchId: src2.id });
+        }
+      }
+
+      // Avanço automático de byes
+      Storage.getAll(this.SK_PARTIDA)
+        .filter(p => p.categoriaId === catId && p.isBye && p.proximoMatchId)
+        .forEach(p => this._avancarVencedor(p, { id: p.vencedorId, nome: p.vencedorNome }));
+
+      // Aplica formato especial da final (último round da eliminatória)
+      if (cat.numSetsFinal) {
+        roundMatches[numRounds - 1].forEach(info => {
+          if (info.match) {
+            Storage.update(this.SK_PARTIDA, info.match.id, { numSets: cat.numSetsFinal });
+          }
         });
-        roundMatches[r][i].match = m;
       }
+    } catch (err) {
+      AppLogger.error('TorneioModule', 'Erro na geração Eliminatória', err, {
+        catId, eventoId, participantes: parts.length, formato: cat.formato,
+      });
+      throw err; // propaga para gerarChaves tratar
     }
-
-    // Liga os matches entre rounds e define proximoMatchId/fonte
-    for (let r = 1; r < numRounds; r++) {
-      for (let i = 0; i < roundMatches[r].length; i++) {
-        const next = roundMatches[r][i].match;
-        const src1 = roundMatches[r - 1][i * 2].match;
-        const src2 = roundMatches[r - 1][i * 2 + 1].match;
-
-        Storage.update(this.SK_PARTIDA, src1.id, { proximoMatchId: next.id, proximoSlot: 1 });
-        Storage.update(this.SK_PARTIDA, src2.id, { proximoMatchId: next.id, proximoSlot: 2 });
-        Storage.update(this.SK_PARTIDA, next.id, { fonte1MatchId: src1.id, fonte2MatchId: src2.id });
-      }
-    }
-
-    // Avanço automático de byes
-    Storage.getAll(this.SK_PARTIDA)
-      .filter(p => p.categoriaId === catId && p.isBye && p.proximoMatchId)
-      .forEach(p => this._avancarVencedor(p, { id: p.vencedorId, nome: p.vencedorNome }));
   },
 
   _avancarVencedor(partida, vencedor) {
-    if (!partida.proximoMatchId || !vencedor?.id) return;
-    const slot = partida.proximoSlot;
-    const upd  = {};
-    upd[`part${slot}Id`]   = vencedor.id;
-    upd[`part${slot}Nome`] = vencedor.nome;
-    Storage.update(this.SK_PARTIDA, partida.proximoMatchId, upd);
+    try {
+      if (!partida.proximoMatchId || !vencedor?.id) return;
+      const slot = partida.proximoSlot;
+      const upd  = {};
+      upd[`part${slot}Id`]   = vencedor.id;
+      upd[`part${slot}Nome`] = vencedor.nome;
+      Storage.update(this.SK_PARTIDA, partida.proximoMatchId, upd);
+    } catch (err) {
+      AppLogger.error('TorneioModule', 'Erro ao avançar vencedor no bracket', err, {
+        partidaId:      partida?.id,
+        proximoMatchId: partida?.proximoMatchId,
+        proximoSlot:    partida?.proximoSlot,
+        vencedorId:     vencedor?.id,
+      });
+    }
   },
 
   /* ------------------------------------------------------------------ */
@@ -2873,7 +2968,7 @@ const TorneioModule = {
     // Scores individuais por jogador
     let scoreP1 = null, scoreP2 = null, setsDetail = '';
     if (hasRes && p.sets?.length) {
-      if (p.numSets === 'melhor_de_3') {
+      if (p.numSets === 'melhor_de_3' || p.numSets === 'melhor_de_5') {
         scoreP1    = p.sets.filter(s => s.p1 > s.p2).length;
         scoreP2    = p.sets.filter(s => s.p2 > s.p1).length;
         setsDetail = p.sets.map(s => `${s.p1}–${s.p2}`).join(' · ');
@@ -2966,26 +3061,33 @@ const TorneioModule = {
     if (!partida) return;
 
     const numSets = partida.numSets || '1_set';
-    const maxSets = numSets === 'melhor_de_3' ? 3 : 1;
+    const maxSets = this._maxSetsFromFormat(numSets);
 
+    // Renderiza 5 wrappers — mostra só os necessários via CSS; o JS ajusta ao trocar o select
     let setsHtml = '';
-    for (let s = 0; s < maxSets; s++) {
-      const p1v = partida.sets?.[s]?.p1 ?? '';
-      const p2v = partida.sets?.[s]?.p2 ?? '';
-      const isTb = numSets === 'melhor_de_3' && s === 2;
+    for (let s = 0; s < 5; s++) {
+      const p1v    = partida.sets?.[s]?.p1 ?? '';
+      const p2v    = partida.sets?.[s]?.p2 ?? '';
+      const hidden = s >= maxSets ? 'style="display:none;"' : '';
       setsHtml += `
-        ${isTb ? `<div style="font-size:11px;color:var(--text-muted);margin-bottom:-4px;">
-          Set 3 — Desempate (opcional, apenas se 1×1)</div>` : ''}
-        <div class="form-grid-2">
-          <div class="form-group">
-            <label class="form-label">Set ${s + 1} · ${UI.escape(partida.part1Nome || 'P1')}</label>
-            <input id="set-${s}-p1" type="number" class="form-input" min="0" max="99"
-              value="${p1v}" placeholder="0" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Set ${s + 1} · ${UI.escape(partida.part2Nome || 'P2')}</label>
-            <input id="set-${s}-p2" type="number" class="form-input" min="0" max="99"
-              value="${p2v}" placeholder="0" />
+        <div id="res-set-wrap-${s}" ${hidden}>
+          ${s === 2 ? `<div id="res-tb3-hint" style="font-size:11px;color:var(--text-muted);margin-bottom:-4px;${numSets !== 'melhor_de_3' ? 'display:none;' : ''}">
+            Set 3 — Desempate (apenas se 1×1)</div>` : ''}
+          ${s === 4 ? `<div id="res-tb5-hint" style="font-size:11px;color:var(--text-muted);margin-bottom:-4px;${numSets !== 'melhor_de_5' ? 'display:none;' : ''}">
+            Set 5 — Desempate (apenas se 2×2)</div>` : ''}
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Set ${s + 1} · ${UI.escape(partida.part1Nome || 'P1')}</label>
+              <input id="set-${s}-p1" type="text" inputmode="numeric" pattern="[0-9]*"
+                class="form-input" autocomplete="off" value="${p1v}" placeholder="0"
+                style="text-align:center;font-size:22px;font-weight:700;letter-spacing:1px;" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Set ${s + 1} · ${UI.escape(partida.part2Nome || 'P2')}</label>
+              <input id="set-${s}-p2" type="text" inputmode="numeric" pattern="[0-9]*"
+                class="form-input" autocomplete="off" value="${p2v}" placeholder="0"
+                style="text-align:center;font-size:22px;font-weight:700;letter-spacing:1px;" />
+            </div>
           </div>
         </div>`;
     }
@@ -2996,6 +3098,7 @@ const TorneioModule = {
       onConfirm:    () => this.saveResultado(partidaId, catId, eventoId),
       content: `
         <div class="form-grid">
+
           <div style="background:var(--bg-secondary);border-radius:10px;padding:14px 16px;
             text-align:center;margin-bottom:4px;">
             <div style="font-size:15px;font-weight:700;">
@@ -3003,10 +3106,19 @@ const TorneioModule = {
               <span style="color:var(--text-muted);font-size:13px;margin:0 8px;">vs</span>
               ${UI.escape(partida.part2Nome || '—')}
             </div>
-            <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">
-              ${UI.escape(partida.fase)}
-            </div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">${UI.escape(partida.fase)}</div>
           </div>
+
+          <div class="form-group">
+            <label class="form-label" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;">🎾 Formato desta partida</label>
+            <select id="res-formato" class="form-select"
+              onchange="TorneioModule._atualizarVisibilidadeSets()">
+              <option value="1_set"       ${numSets === '1_set'       ? 'selected' : ''}>1 Set</option>
+              <option value="melhor_de_3" ${numSets === 'melhor_de_3' ? 'selected' : ''}>Melhor de 3</option>
+              <option value="melhor_de_5" ${numSets === 'melhor_de_5' ? 'selected' : ''}>Melhor de 5</option>
+            </select>
+          </div>
+
           ${setsHtml}
         </div>`,
     });
@@ -3014,58 +3126,75 @@ const TorneioModule = {
   },
 
   saveResultado(partidaId, catId, eventoId) {
-    const partida = Storage.getById(this.SK_PARTIDA, partidaId);
-    if (!partida) return;
+    try {
+      const partida = Storage.getById(this.SK_PARTIDA, partidaId);
+      if (!partida) return;
 
-    const numSets = partida.numSets || '1_set';
-    const maxSets = numSets === 'melhor_de_3' ? 3 : 1;
+      // Lê formato — pode ter sido alterado pelo usuário no modal
+      const formatoOriginal = partida.numSets || '1_set';
+      const formato  = document.getElementById('res-formato')?.value || formatoOriginal;
+      const maxSets  = this._maxSetsFromFormat(formato);
 
-    const sets  = [];
-    let p1Wins  = 0;
-    let p2Wins  = 0;
+      const sets  = [];
+      let p1Wins  = 0;
+      let p2Wins  = 0;
 
-    for (let s = 0; s < maxSets; s++) {
-      const p1El = document.getElementById(`set-${s}-p1`);
-      const p2El = document.getElementById(`set-${s}-p2`);
-      if (!p1El || !p2El) continue;
-      if (p1El.value === '' && p2El.value === '') continue; // set em branco (tiebreak opcional)
-      const p1 = parseInt(p1El.value) || 0;
-      const p2 = parseInt(p2El.value) || 0;
-      sets.push({ p1, p2 });
-      if (p1 > p2) p1Wins++;
-      else if (p2 > p1) p2Wins++;
+      for (let s = 0; s < maxSets; s++) {
+        const p1El = document.getElementById(`set-${s}-p1`);
+        const p2El = document.getElementById(`set-${s}-p2`);
+        if (!p1El || !p2El) continue;
+        if (p1El.value === '' && p2El.value === '') continue; // set em branco (tiebreak opcional)
+        const p1 = parseInt(p1El.value.replace(/\D/g, '')) || 0;
+        const p2 = parseInt(p2El.value.replace(/\D/g, '')) || 0;
+        sets.push({ p1, p2 });
+        if (p1 > p2) p1Wins++;
+        else if (p2 > p1) p2Wins++;
+      }
+
+      if (!sets.length) { UI.toast('Informe o placar de ao menos um set', 'error'); return; }
+
+      let vencedorId, vencedorNome;
+
+      if (formato === '1_set') {
+        const s = sets[0];
+        if (s.p1 > s.p2)      { vencedorId = partida.part1Id; vencedorNome = partida.part1Nome; }
+        else if (s.p2 > s.p1) { vencedorId = partida.part2Id; vencedorNome = partida.part2Nome; }
+        else { UI.toast('Placar empatado — não é possível salvar sem vencedor', 'error'); return; }
+      } else {
+        // melhor_de_3 (1º a 2) ou melhor_de_5 (1º a 3)
+        if (p1Wins > p2Wins)      { vencedorId = partida.part1Id; vencedorNome = partida.part1Nome; }
+        else if (p2Wins > p1Wins) { vencedorId = partida.part2Id; vencedorNome = partida.part2Nome; }
+        else { UI.toast('Sets empatados — revise os placares ou complete o set de desempate', 'error'); return; }
+      }
+
+      const updateData = { sets, status: 'finalizado', vencedorId, vencedorNome };
+      // Persiste o formato se foi alterado no modal
+      if (formato !== formatoOriginal) updateData.numSets = formato;
+
+      Storage.update(this.SK_PARTIDA, partidaId, updateData);
+
+      // Avançar vencedor no bracket de eliminatória
+      if (partida.formato === 'eliminatoria_simples' && partida.proximoMatchId) {
+        this._avancarVencedor(
+          { proximoMatchId: partida.proximoMatchId, proximoSlot: partida.proximoSlot },
+          { id: vencedorId, nome: vencedorNome }
+        );
+      }
+
+      AppLogger.info('TorneioModule', 'Resultado de partida salvo', {
+        partidaId, catId, eventoId,
+        vencedorId, sets,
+        formato: partida.formato,
+      });
+      UI.toast('Resultado salvo!', 'success');
+      UI.closeModal();
+      this.abrirCategoria(catId, eventoId);
+    } catch (err) {
+      AppLogger.error('TorneioModule', 'Erro ao salvar resultado de partida', err, {
+        partidaId, catId, eventoId,
+      });
+      UI.toast('Erro ao salvar o resultado. O problema foi registrado — tente novamente.', 'error');
     }
-
-    if (!sets.length) { UI.toast('Informe o placar de ao menos um set', 'error'); return; }
-
-    let vencedorId, vencedorNome;
-
-    if (numSets === 'melhor_de_3') {
-      if (p1Wins > p2Wins)      { vencedorId = partida.part1Id; vencedorNome = partida.part1Nome; }
-      else if (p2Wins > p1Wins) { vencedorId = partida.part2Id; vencedorNome = partida.part2Nome; }
-      else { UI.toast('Sets empatados — revise os placares ou complete o set de desempate', 'error'); return; }
-    } else {
-      const s = sets[0];
-      if (s.p1 > s.p2)      { vencedorId = partida.part1Id; vencedorNome = partida.part1Nome; }
-      else if (s.p2 > s.p1) { vencedorId = partida.part2Id; vencedorNome = partida.part2Nome; }
-      else { UI.toast('Placar empatado — não é possível salvar sem vencedor', 'error'); return; }
-    }
-
-    Storage.update(this.SK_PARTIDA, partidaId, {
-      sets, status: 'finalizado', vencedorId, vencedorNome,
-    });
-
-    // Avançar vencedor no bracket de eliminatória
-    if (partida.formato === 'eliminatoria_simples' && partida.proximoMatchId) {
-      this._avancarVencedor(
-        { proximoMatchId: partida.proximoMatchId, proximoSlot: partida.proximoSlot },
-        { id: vencedorId, nome: vencedorNome }
-      );
-    }
-
-    UI.toast('Resultado salvo!', 'success');
-    UI.closeModal();
-    this.abrirCategoria(catId, eventoId);
   },
 
   _resetarChaves(catId, eventoId) {
@@ -3085,6 +3214,35 @@ const TorneioModule = {
   /* ================================================================== */
   /*  Utilitários                                                         */
   /* ================================================================== */
+
+  /** Retorna label legível para o valor de numSets */
+  _numSetsLabel(numSets) {
+    if (numSets === 'melhor_de_5') return 'Melhor de 5';
+    if (numSets === 'melhor_de_3') return 'Melhor de 3';
+    return '1 Set';
+  },
+
+  /** maxSets a partir do valor de numSets */
+  _maxSetsFromFormat(numSets) {
+    if (numSets === 'melhor_de_5') return 5;
+    if (numSets === 'melhor_de_3') return 3;
+    return 1;
+  },
+
+  /** Atualiza a visibilidade dos inputs de set no modal de resultado */
+  _atualizarVisibilidadeSets() {
+    const fmt     = document.getElementById('res-formato')?.value || '1_set';
+    const maxSets = this._maxSetsFromFormat(fmt);
+    for (let i = 0; i < 5; i++) {
+      const wrap = document.getElementById(`res-set-wrap-${i}`);
+      if (wrap) wrap.style.display = i < maxSets ? '' : 'none';
+    }
+    // hints de desempate
+    const tb3 = document.getElementById('res-tb3-hint');
+    const tb5 = document.getElementById('res-tb5-hint');
+    if (tb3) tb3.style.display = fmt === 'melhor_de_3' ? '' : 'none';
+    if (tb5) tb5.style.display = fmt === 'melhor_de_5' ? '' : 'none';
+  },
 
   _calcIdade(dataNasc) {
     const hoje  = new Date();
