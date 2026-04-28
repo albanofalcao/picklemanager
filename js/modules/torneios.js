@@ -701,6 +701,7 @@ const TorneioModule = {
         eventoId,
         catTipoId:        tipo.id,
         nome:             tipo.nome,
+        sexo:             tipo.sexo             || '',
         tipoParticipacao: tipo.tipoParticipacao || '',
         taxaInscricao:    0,
         maxParticipantes: null,
@@ -1687,13 +1688,22 @@ const TorneioModule = {
   /*  Modal — Inscrever pela Secretaria                                   */
   /* ------------------------------------------------------------------ */
 
+  // Retorna o sexo da categoria, usando cat.sexo como fonte primária
+  // e catTipo.sexo como fallback (auto-corrige categorias antigas sem o campo)
+  _getSexoCat(cat) {
+    if (cat.sexo) return cat.sexo;
+    const catTipo = cat.catTipoId ? Storage.getById(this.SK_CAT_TIPO, cat.catTipoId) : null;
+    const sexo = catTipo?.sexo || '';
+    if (sexo) Storage.update(this.SK_CAT, cat.id, { sexo }); // backfill
+    return sexo;
+  },
+
   openModalAdicionarInscricao(catId, eventoId) {
     const cat = Storage.getById(this.SK_CAT, catId);
     if (!cat) return;
 
-    // Restrições do tipo de categoria (sexo, nível, idade)
-    const catTipo     = cat.catTipoId ? Storage.getById(this.SK_CAT_TIPO, cat.catTipoId) : null;
-    const sexoCat     = catTipo?.sexo  || '';   // 'masculino' | 'feminino' | 'misto' | 'aberto' | ''
+    // Restrições do tipo de categoria (sexo)
+    const sexoCat       = this._getSexoCat(cat);
     const restringeSexo = sexoCat === 'masculino' || sexoCat === 'feminino';
     const sexoLabel   = { masculino: '♂ Masculino', feminino: '♀ Feminino' }[sexoCat] || '';
 
@@ -1849,9 +1859,8 @@ const TorneioModule = {
     const pag  = g('insc-pag')?.value || 'pendente';
 
     // Restrição de sexo da categoria
-    const cat     = Storage.getById(this.SK_CAT, catId);
-    const catTipo = cat?.catTipoId ? Storage.getById(this.SK_CAT_TIPO, cat.catTipoId) : null;
-    const sexoCat = catTipo?.sexo || '';
+    const cat           = Storage.getById(this.SK_CAT, catId);
+    const sexoCat       = cat ? this._getSexoCat(cat) : '';
     const restringeSexo = sexoCat === 'masculino' || sexoCat === 'feminino';
 
     let participanteId, nomeParticipante, sexoPart;
