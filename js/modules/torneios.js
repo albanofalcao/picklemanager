@@ -1839,10 +1839,16 @@ const TorneioModule = {
       sexoPart = aluno.sexo || '';
 
       // Valida sexo antes de qualquer coisa
-      if (restringeSexo && sexoPart && sexoPart !== sexoCat) {
+      if (restringeSexo) {
         const label = sexoCat === 'masculino' ? 'Masculino' : 'Feminino';
-        UI.toast(`Esta categoria é restrita a participantes ${label}.`, 'error');
-        return;
+        if (!sexoPart) {
+          UI.toast(`Esta categoria é restrita a ${label}. O cadastro deste aluno não tem sexo definido — atualize o cadastro antes de inscrever.`, 'error');
+          return;
+        }
+        if (sexoPart !== sexoCat) {
+          UI.toast(`Esta categoria é restrita a participantes ${label}.`, 'error');
+          return;
+        }
       }
 
       // Reutiliza participante existente vinculado ao aluno, ou cria
@@ -1868,10 +1874,16 @@ const TorneioModule = {
       sexoPart = g('insc-sexo')?.value || '';
 
       // Valida sexo antes de criar o participante
-      if (restringeSexo && sexoPart && sexoPart !== sexoCat) {
+      if (restringeSexo) {
         const label = sexoCat === 'masculino' ? 'Masculino' : 'Feminino';
-        UI.toast(`Esta categoria é restrita a participantes ${label}.`, 'error');
-        return;
+        if (!sexoPart) {
+          UI.toast(`Esta categoria é restrita a ${label}. Informe o sexo do participante.`, 'error');
+          return;
+        }
+        if (sexoPart !== sexoCat) {
+          UI.toast(`Esta categoria é restrita a participantes ${label}.`, 'error');
+          return;
+        }
       }
 
       const part = Storage.create(this.SK_PART, {
