@@ -130,7 +130,7 @@ const AppLogger = {
   },
 
   _persist(level, module, message, err, context) {
-    if (!this.enabled || !window.SupabaseClient) return;
+    if (!this.enabled || !SupabaseClient) return;
 
     // Contexto do usuário logado (lê pm_session sem depender do módulo Auth)
     const session = (() => {

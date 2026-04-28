@@ -879,7 +879,7 @@ const AdminModule = {
     const container = document.getElementById('admin-logs-container');
     if (!container) return;
 
-    if (!window.SupabaseClient) {
+    if (!SupabaseClient) {
       container.innerHTML = `
         <div class="empty-state">
           <div class="empty-icon">⚠️</div>
