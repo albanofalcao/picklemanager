@@ -1262,7 +1262,10 @@ const TorneioModule = {
   },
 
   _renderInscricoesList(catId, eventoId, inscs) {
-    const cat = Storage.getById(this.SK_CAT, catId);
+    const cat     = Storage.getById(this.SK_CAT, catId);
+    const catTipo = cat?.catTipoId ? Storage.getById(this.SK_CAT_TIPO, cat.catTipoId) : null;
+    const sexoCat = catTipo?.sexo || '';
+    const restringeSexo = sexoCat === 'masculino' || sexoCat === 'feminino';
 
     if (!inscs.length) {
       return `
@@ -1292,6 +1295,10 @@ const TorneioModule = {
       const part    = Storage.getById(this.SK_PART, i.participanteId);
       const nome    = part?.nome || i.nomeParticipante || '—';
       const cancelado = i.status === 'cancelado';
+
+      // Detecta conflito de sexo
+      const sexoPart = part?.sexo || '';
+      const sexoConflito = restringeSexo && sexoPart && sexoPart !== sexoCat;
 
       const origem = i.origem === 'secretaria'
         ? '<span style="font-size:11px;color:var(--text-muted);">🏢</span>'
@@ -1335,6 +1342,8 @@ const TorneioModule = {
             ${origem}
             <div>
               <strong>${UI.escape(nome)}</strong>
+              ${sexoConflito ? `<span class="badge badge-error" style="font-size:10px;margin-left:4px;"
+                title="Sexo incompatível com esta categoria">⚠️ Sexo inválido</span>` : ''}
               ${part?.email || i.email
                 ? `<div style="font-size:11px;color:var(--text-muted);">${UI.escape(part?.email || i.email)}</div>`
                 : ''}
@@ -1366,7 +1375,33 @@ const TorneioModule = {
       </tr>`;
     }).join('');
 
+    // Banner de conflito de sexo
+    const conflitos = inscs.filter(i => {
+      if (i.status === 'cancelado') return false;
+      const p = Storage.getById(this.SK_PART, i.participanteId);
+      return restringeSexo && p?.sexo && p.sexo !== sexoCat;
+    });
+    const sexoLabel = { masculino: 'Masculino', feminino: 'Feminino' }[sexoCat] || '';
+    const bannerConflito = conflitos.length ? `
+      <div style="background:#fef2f2;border:2px solid #ef4444;border-radius:10px;
+        padding:12px 16px;margin-bottom:16px;font-size:13px;">
+        <div style="font-weight:700;color:#991b1b;margin-bottom:6px;">
+          ⚠️ ${conflitos.length} inscrito${conflitos.length > 1 ? 's' : ''} com sexo incompatível
+        </div>
+        <div style="color:#7f1d1d;margin-bottom:8px;">
+          Esta é uma categoria <strong>${sexoLabel}</strong>, mas há participantes de outro sexo inscritos.
+          Cancele as inscrições incorretas abaixo.
+        </div>
+        <div style="font-size:12px;color:#b91c1c;">
+          ${conflitos.map(i => {
+            const p = Storage.getById(this.SK_PART, i.participanteId);
+            return `• ${UI.escape(p?.nome || i.nomeParticipante || '—')}`;
+          }).join('<br>')}
+        </div>
+      </div>` : '';
+
     return `
+      ${bannerConflito}
       ${this._renderResumoFinanceiro(cat, inscs)}
 
       <div class="filters-bar" style="margin-bottom:12px;padding:10px 16px;
@@ -1769,13 +1804,28 @@ const TorneioModule = {
     const tipo = document.querySelector('input[name="insc-tipo"]:checked')?.value || 'aluno';
     const pag  = g('insc-pag')?.value || 'pendente';
 
-    let participanteId, nomeParticipante;
+    // Restrição de sexo da categoria
+    const cat     = Storage.getById(this.SK_CAT, catId);
+    const catTipo = cat?.catTipoId ? Storage.getById(this.SK_CAT_TIPO, cat.catTipoId) : null;
+    const sexoCat = catTipo?.sexo || '';
+    const restringeSexo = sexoCat === 'masculino' || sexoCat === 'feminino';
+
+    let participanteId, nomeParticipante, sexoPart;
 
     if (tipo === 'aluno') {
       const alunoId = g('insc-aluno-id')?.value;
       if (!alunoId) { UI.toast('Selecione um aluno', 'error'); return; }
       const aluno = Storage.getById('alunos', alunoId);
       if (!aluno)  { UI.toast('Aluno não encontrado', 'error'); return; }
+
+      sexoPart = aluno.sexo || '';
+
+      // Valida sexo antes de qualquer coisa
+      if (restringeSexo && sexoPart && sexoPart !== sexoCat) {
+        const label = sexoCat === 'masculino' ? 'Masculino' : 'Feminino';
+        UI.toast(`Esta categoria é restrita a participantes ${label}.`, 'error');
+        return;
+      }
 
       // Reutiliza participante existente vinculado ao aluno, ou cria
       let part = Storage.getAll(this.SK_PART).find(p => p.alunoId === alunoId);
@@ -1796,13 +1846,23 @@ const TorneioModule = {
     } else {
       const nome = g('insc-nome')?.value.trim();
       if (!nome) { UI.toast('Informe o nome do participante', 'error'); return; }
+
+      sexoPart = g('insc-sexo')?.value || '';
+
+      // Valida sexo antes de criar o participante
+      if (restringeSexo && sexoPart && sexoPart !== sexoCat) {
+        const label = sexoCat === 'masculino' ? 'Masculino' : 'Feminino';
+        UI.toast(`Esta categoria é restrita a participantes ${label}.`, 'error');
+        return;
+      }
+
       const part = Storage.create(this.SK_PART, {
         alunoId:        null,
         nome,
         email:          g('insc-email')?.value.trim() || '',
         telefone:       g('insc-tel')?.value.trim()   || '',
         nivel:          g('insc-nivel')?.value        || '',
-        sexo:           g('insc-sexo')?.value || '',
+        sexo:           sexoPart,
         dataNascimento: '',
       });
       participanteId   = part.id;
