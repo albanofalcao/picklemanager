@@ -1344,7 +1344,7 @@ const TorneioModule = {
         <td style="font-size:12px;color:var(--text-muted);">${UI.escape(part?.telefone || i.telefone || '—')}</td>
         <td>${pagamentoCell}</td>
         <td class="aluno-row-actions">
-          ${!cancelado && i.statusPagamento !== 'pago' ? `
+          ${!cancelado && i.statusPagamento === 'pendente' ? `
             <button class="btn btn-primary btn-sm" style="font-size:12px;"
               onclick="TorneioModule.openModalPagamento('${i.id}','${catId}','${eventoId}')">
               💰 Pagar</button>` : ''}
