@@ -1763,12 +1763,30 @@ const TorneioModule = {
           </div>
 
           <div id="insc-aluno-sec">
-            <div class="form-group">
-              <label class="form-label">Selecionar aluno <span class="required-star">*</span></label>
-              <select id="insc-aluno-id" class="form-select">
-                <option value="">— Selecionar —</option>
-                ${alunoOpts}
-              </select>
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label class="form-label">Selecionar aluno <span class="required-star">*</span></label>
+                <select id="insc-aluno-id" class="form-select"
+                  onchange="TorneioModule._onAlunoChange(this.value)">
+                  <option value="">— Selecionar —</option>
+                  ${alunoOpts}
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Sexo <span class="required-star">*</span></label>
+                ${restringeSexo
+                  ? `<input type="hidden" id="insc-sexo-aluno" value="${sexoCat}" />
+                     <div style="padding:10px 12px;background:var(--bg-secondary);border-radius:8px;
+                       font-size:13px;border:1px solid var(--card-border);">
+                       <strong>${sexoLabel}</strong>
+                       <span style="color:var(--text-muted);font-size:12px;margin-left:6px;">(definido pela categoria)</span>
+                     </div>`
+                  : `<select id="insc-sexo-aluno" class="form-select">
+                       <option value="">— Selecionar —</option>
+                       <option value="masculino">♂ Masculino</option>
+                       <option value="feminino">♀ Feminino</option>
+                     </select>`}
+              </div>
             </div>
           </div>
 
@@ -1817,6 +1835,14 @@ const TorneioModule = {
     if (e) e.style.display = tipo === 'externo' ? '' : 'none';
   },
 
+  _onAlunoChange(alunoId) {
+    const sel = document.getElementById('insc-sexo-aluno');
+    if (!sel || sel.tagName !== 'SELECT') return; // campo fixo (categoria restrita) — não altera
+    if (!alunoId) { sel.value = ''; return; }
+    const aluno = Storage.getById('alunos', alunoId);
+    sel.value = aluno?.sexo || '';
+  },
+
   _salvarInscricaoSecretaria(catId, eventoId) {
     const g    = id => document.getElementById(id);
     const tipo = document.querySelector('input[name="insc-tipo"]:checked')?.value || 'aluno';
@@ -1836,15 +1862,16 @@ const TorneioModule = {
       const aluno = Storage.getById('alunos', alunoId);
       if (!aluno)  { UI.toast('Aluno não encontrado', 'error'); return; }
 
-      sexoPart = aluno.sexo || '';
+      // Usa o sexo declarado no formulário (campo visível ou hidden se categoria restrita)
+      sexoPart = g('insc-sexo-aluno')?.value || '';
 
-      // Valida sexo antes de qualquer coisa
+      // Valida sexo declarado
+      if (!sexoPart) {
+        UI.toast('Informe o sexo do participante.', 'error');
+        return;
+      }
       if (restringeSexo) {
         const label = sexoCat === 'masculino' ? 'Masculino' : 'Feminino';
-        if (!sexoPart) {
-          UI.toast(`Esta categoria é restrita a ${label}. O cadastro deste aluno não tem sexo definido — atualize o cadastro antes de inscrever.`, 'error');
-          return;
-        }
         if (sexoPart !== sexoCat) {
           UI.toast(`Esta categoria é restrita a participantes ${label}.`, 'error');
           return;
