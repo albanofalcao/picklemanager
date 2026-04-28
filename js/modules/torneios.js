@@ -410,12 +410,18 @@ const TorneioModule = {
         </div>`}
 
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--card-border);
-             display:flex;gap:12px;font-size:13px;align-items:center;">
+             display:flex;gap:8px;font-size:13px;align-items:center;flex-wrap:wrap;">
           <span>👤 <strong>${insc.length}</strong> inscritos</span>
           ${pago ? `<span style="color:var(--color-success);">✓ ${pago} pagos</span>` : ''}
           ${pend ? `<span style="color:var(--color-warning);">⏳ ${pend} pendentes</span>` : ''}
-          <button class="btn btn-primary btn-sm" style="margin-left:auto;"
-            onclick="TorneioModule.abrirCategoria('${cat.id}','${evento.id}')">👤 Inscrições</button>
+          <div style="margin-left:auto;display:flex;gap:6px;">
+            <button class="btn btn-secondary btn-sm"
+              onclick="TorneioModule._switchCatTab('${cat.id}','${evento.id}','inscricoes')">
+              👤 Inscrições</button>
+            <button class="btn btn-primary btn-sm"
+              onclick="TorneioModule._switchCatTab('${cat.id}','${evento.id}','chaves')">
+              🎲 Chaves e Jogos</button>
+          </div>
         </div>
       </div>`;
   },
