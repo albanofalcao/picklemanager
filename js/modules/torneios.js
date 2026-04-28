@@ -254,7 +254,7 @@ const TorneioModule = {
     const esp  = this.ESPORTES[e.esporte] || { label: e.esporte, icon: '🏅' };
     const st   = this.STATUS[e.status]    || { label: e.status,  badge: 'badge-gray' };
     const cats = Storage.getAll(this.SK_CAT).filter(c => c.eventoId === e.id);
-    const insc = Storage.getAll(this.SK_INSC).filter(i => cats.some(c => c.id === i.categoriaId));
+    const insc = Storage.getAll(this.SK_INSC).filter(i => cats.some(c => c.id === i.categoriaId) && i.status !== 'cancelado');
 
     return `
       <div class="card torneio-card">
@@ -368,7 +368,7 @@ const TorneioModule = {
   },
 
   _renderCatCard(cat, evento) {
-    const insc   = Storage.getAll(this.SK_INSC).filter(i => i.categoriaId === cat.id);
+    const insc   = Storage.getAll(this.SK_INSC).filter(i => i.categoriaId === cat.id && i.status !== 'cancelado');
     const pago   = insc.filter(i => i.statusPagamento === 'pago').length;
     const pend   = insc.filter(i => i.statusPagamento === 'pendente').length;
     const fmt    = this.FORMATO[cat.formato] || null;
@@ -1267,7 +1267,9 @@ const TorneioModule = {
     const sexoCat = catTipo?.sexo || '';
     const restringeSexo = sexoCat === 'masculino' || sexoCat === 'feminino';
 
-    if (!inscs.length) {
+    const ativas = inscs.filter(i => i.status !== 'cancelado');
+
+    if (!ativas.length) {
       return `
         <div class="empty-state" style="padding:40px 0;">
           <div class="empty-icon">👤</div>
@@ -1276,11 +1278,9 @@ const TorneioModule = {
         </div>`;
     }
 
-    const ativas = inscs.filter(i => i.status !== 'cancelado');
     const pagas  = ativas.filter(i => i.statusPagamento === 'pago');
     const isentas= ativas.filter(i => i.statusPagamento === 'isento');
     const pend   = ativas.filter(i => i.statusPagamento === 'pendente');
-    const canc   = inscs.filter(i => i.status === 'cancelado').length;
 
     const metodosLabel = {
       pix:           '🔵 Pix',
@@ -1291,10 +1291,9 @@ const TorneioModule = {
       outro:         '📝 Outro',
     };
 
-    const rows = inscs.map(i => {
+    const rows = ativas.map(i => {
       const part    = Storage.getById(this.SK_PART, i.participanteId);
       const nome    = part?.nome || i.nomeParticipante || '—';
-      const cancelado = i.status === 'cancelado';
 
       // Detecta conflito de sexo
       const sexoPart = part?.sexo || '';
@@ -1306,9 +1305,7 @@ const TorneioModule = {
 
       // Coluna de pagamento — varia por status
       let pagamentoCell = '';
-      if (cancelado) {
-        pagamentoCell = `<span class="badge badge-error">Cancelado</span>`;
-      } else if (i.statusPagamento === 'pago') {
+      if (i.statusPagamento === 'pago') {
         const metLabel = metodosLabel[i.metodoPagamento] || i.metodoPagamento || '';
         const dataStr  = i.dataPagamento
           ? new Date(i.dataPagamento + 'T12:00:00').toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit' })
@@ -1336,7 +1333,7 @@ const TorneioModule = {
           </div>`;
       }
 
-      return `<tr class="${cancelado ? 'row-cancelado' : ''}">
+      return `<tr>
         <td>
           <div style="display:flex;align-items:center;gap:6px;">
             ${origem}
@@ -1353,31 +1350,29 @@ const TorneioModule = {
         <td style="font-size:12px;color:var(--text-muted);">${UI.escape(part?.telefone || i.telefone || '—')}</td>
         <td>${pagamentoCell}</td>
         <td class="aluno-row-actions">
-          ${!cancelado && i.statusPagamento === 'pendente' ? `
+          ${i.statusPagamento === 'pendente' ? `
             <button class="btn btn-primary btn-sm" style="font-size:12px;"
               onclick="TorneioModule.openModalPagamento('${i.id}','${catId}','${eventoId}')">
               💰 Pagar</button>` : ''}
-          ${!cancelado && i.statusPagamento === 'pago' ? `
+          ${i.statusPagamento === 'pago' ? `
             <button class="btn btn-ghost btn-sm" style="font-size:11px;"
               title="Editar pagamento"
               onclick="TorneioModule.openModalPagamento('${i.id}','${catId}','${eventoId}')">✏️</button>
             <button class="btn btn-ghost btn-sm danger" style="font-size:11px;"
               title="Estornar pagamento"
               onclick="TorneioModule._estornarPagamento('${i.id}','${catId}','${eventoId}')">↩</button>` : ''}
-          ${!cancelado && i.statusPagamento === 'isento' ? `
+          ${i.statusPagamento === 'isento' ? `
             <button class="btn btn-ghost btn-sm" style="font-size:11px;"
               title="Editar"
               onclick="TorneioModule.openModalPagamento('${i.id}','${catId}','${eventoId}')">✏️</button>` : ''}
-          ${!cancelado ? `
-            <button class="btn btn-ghost btn-sm danger" title="Cancelar inscrição"
-              onclick="TorneioModule._cancelarInscricao('${i.id}','${catId}','${eventoId}')">✕</button>` : ''}
+          <button class="btn btn-ghost btn-sm danger" title="Remover inscrição"
+            onclick="TorneioModule._cancelarInscricao('${i.id}','${catId}','${eventoId}')">✕</button>
         </td>
       </tr>`;
     }).join('');
 
-    // Banner de conflito de sexo
-    const conflitos = inscs.filter(i => {
-      if (i.status === 'cancelado') return false;
+    // Banner de conflito de sexo (sobre inscrições ativas)
+    const conflitos = ativas.filter(i => {
       const p = Storage.getById(this.SK_PART, i.participanteId);
       return restringeSexo && p?.sexo && p.sexo !== sexoCat;
     });
@@ -1390,7 +1385,7 @@ const TorneioModule = {
         </div>
         <div style="color:#7f1d1d;margin-bottom:8px;">
           Esta é uma categoria <strong>${sexoLabel}</strong>, mas há participantes de outro sexo inscritos.
-          Cancele as inscrições incorretas abaixo.
+          Remova as inscrições incorretas usando o botão ✕ ao lado de cada participante.
         </div>
         <div style="font-size:12px;color:#b91c1c;">
           ${conflitos.map(i => {
@@ -1406,11 +1401,10 @@ const TorneioModule = {
 
       <div class="filters-bar" style="margin-bottom:12px;padding:10px 16px;
         background:var(--bg-secondary);border-radius:10px;border:1px solid var(--card-border);">
-        <span>👤 <strong>${inscs.length}</strong> inscrito${inscs.length !== 1 ? 's' : ''}</span>
+        <span>👤 <strong>${ativas.length}</strong> inscrito${ativas.length !== 1 ? 's' : ''}</span>
         ${pagas.length  ? `<span style="color:var(--color-success);">✅ ${pagas.length} pago${pagas.length !== 1 ? 's' : ''}</span>` : ''}
         ${pend.length   ? `<span style="color:var(--color-warning);">⏳ ${pend.length} pendente${pend.length !== 1 ? 's' : ''}</span>` : ''}
         ${isentas.length? `<span style="color:var(--text-muted);">🎁 ${isentas.length} isento${isentas.length !== 1 ? 's' : ''}</span>` : ''}
-        ${canc          ? `<span style="color:var(--text-muted);">✕ ${canc} cancelado${canc !== 1 ? 's' : ''}</span>` : ''}
       </div>
 
       <div class="table-card">
@@ -1656,11 +1650,35 @@ const TorneioModule = {
   },
 
   _cancelarInscricao(inscId, catId, eventoId) {
-    UI.confirm('Cancelar esta inscrição?', 'Confirmar', 'Cancelar Inscrição')
+    const insc      = Storage.getById(this.SK_INSC, inscId);
+    const pagou     = insc?.statusPagamento === 'pago';
+    const partidas  = Storage.getAll(this.SK_PARTIDA).filter(p => p.categoriaId === catId);
+    const temChaves = partidas.length > 0;
+
+    let msg;
+    if (temChaves && pagou) {
+      msg = '⚠️ Esta inscrição possui pagamento registrado e a categoria já tem chaves/partidas geradas.\n\nAo confirmar:\n• O registro de pagamento será perdido\n• Todas as chaves e resultados da categoria serão apagados\n\nConfirma a remoção?';
+    } else if (temChaves) {
+      msg = '⚠️ Esta categoria já possui chaves e partidas geradas.\n\nAo remover este participante, todas as chaves e resultados serão apagados e precisarão ser gerados novamente.\n\nConfirma?';
+    } else if (pagou) {
+      msg = '⚠️ Esta inscrição possui pagamento registrado. Ao remover, o registro de pagamento será perdido permanentemente. Confirma a remoção?';
+    } else {
+      msg = 'Remover esta inscrição da categoria? A ação não pode ser desfeita.';
+    }
+
+    UI.confirm(msg, 'Confirmar', 'Remover Inscrição')
       .then(ok => {
         if (!ok) return;
-        Storage.update(this.SK_INSC, inscId, { status: 'cancelado', statusPagamento: 'cancelado' });
-        UI.toast('Inscrição cancelada.', 'success');
+        if (temChaves) {
+          partidas.forEach(p => Storage.delete(this.SK_PARTIDA, p.id));
+        }
+        Storage.delete(this.SK_INSC, inscId);
+        UI.toast(
+          temChaves
+            ? 'Inscrição removida e chaves apagadas. Gere novamente quando quiser.'
+            : 'Inscrição removida.',
+          'success'
+        );
         this.abrirCategoria(catId, eventoId);
       });
   },
