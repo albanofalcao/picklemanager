@@ -415,7 +415,7 @@ const TorneioModule = {
           ${pago ? `<span style="color:var(--color-success);">✓ ${pago} pagos</span>` : ''}
           ${pend ? `<span style="color:var(--color-warning);">⏳ ${pend} pendentes</span>` : ''}
           <div style="margin-left:auto;display:flex;gap:6px;">
-            <button class="btn btn-secondary btn-sm"
+            <button class="btn btn-primary btn-sm"
               onclick="TorneioModule._switchCatTab('${cat.id}','${evento.id}','inscricoes')">
               👤 Inscrições</button>
             <button class="btn btn-primary btn-sm"
