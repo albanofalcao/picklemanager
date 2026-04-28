@@ -1262,6 +1262,8 @@ const TorneioModule = {
   },
 
   _renderInscricoesList(catId, eventoId, inscs) {
+    const cat = Storage.getById(this.SK_CAT, catId);
+
     if (!inscs.length) {
       return `
         <div class="empty-state" style="padding:40px 0;">
@@ -1271,65 +1273,351 @@ const TorneioModule = {
         </div>`;
     }
 
-    const pago    = inscs.filter(i => i.statusPagamento === 'pago').length;
-    const pend    = inscs.filter(i => i.statusPagamento === 'pendente').length;
-    const canc    = inscs.filter(i => i.status === 'cancelado').length;
+    const ativas = inscs.filter(i => i.status !== 'cancelado');
+    const pagas  = ativas.filter(i => i.statusPagamento === 'pago');
+    const isentas= ativas.filter(i => i.statusPagamento === 'isento');
+    const pend   = ativas.filter(i => i.statusPagamento === 'pendente');
+    const canc   = inscs.filter(i => i.status === 'cancelado').length;
+
+    const metodosLabel = {
+      pix:           '🔵 Pix',
+      dinheiro:      '💵 Dinheiro',
+      cartao_debito: '💳 Débito',
+      cartao_credito:'💳 Crédito',
+      transferencia: '🏦 Transf.',
+      outro:         '📝 Outro',
+    };
 
     const rows = inscs.map(i => {
-      const part = Storage.getById(this.SK_PART, i.participanteId);
-      const nome = part?.nome || i.nomeParticipante || '—';
-
-      const stPag = {
-        pago:      { label: 'Pago',     badge: 'badge-success' },
-        pendente:  { label: 'Pendente', badge: 'badge-warning' },
-        cancelado: { label: 'Cancelado',badge: 'badge-error'   },
-      }[i.statusPagamento] || { label: i.statusPagamento, badge: 'badge-gray' };
+      const part    = Storage.getById(this.SK_PART, i.participanteId);
+      const nome    = part?.nome || i.nomeParticipante || '—';
+      const cancelado = i.status === 'cancelado';
 
       const origem = i.origem === 'secretaria'
-        ? '<span style="font-size:11px;color:var(--text-muted);">🏢 Secretaria</span>'
-        : '<span style="font-size:11px;color:var(--text-muted);">🌐 Online</span>';
+        ? '<span style="font-size:11px;color:var(--text-muted);">🏢</span>'
+        : '<span style="font-size:11px;color:var(--text-muted);">🌐</span>';
 
-      return `<tr>
+      // Coluna de pagamento — varia por status
+      let pagamentoCell = '';
+      if (cancelado) {
+        pagamentoCell = `<span class="badge badge-error">Cancelado</span>`;
+      } else if (i.statusPagamento === 'pago') {
+        const metLabel = metodosLabel[i.metodoPagamento] || i.metodoPagamento || '';
+        const dataStr  = i.dataPagamento
+          ? new Date(i.dataPagamento + 'T12:00:00').toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit' })
+          : '';
+        const valorStr = i.valorPago != null
+          ? `R$ ${(+i.valorPago).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+          : '';
+        pagamentoCell = `
+          <div style="display:flex;flex-direction:column;gap:2px;">
+            <span class="badge badge-success" style="width:fit-content;">✅ Pago</span>
+            <span style="font-size:11px;color:var(--text-muted);">
+              ${[valorStr, metLabel, dataStr].filter(Boolean).join(' · ')}
+            </span>
+          </div>`;
+      } else if (i.statusPagamento === 'isento') {
+        pagamentoCell = `<span class="badge badge-gray">🎁 Isento</span>`;
+      } else {
+        const taxa = cat?.taxaInscricao || 0;
+        pagamentoCell = `
+          <div style="display:flex;flex-direction:column;gap:4px;">
+            <span class="badge badge-warning">⏳ Pendente</span>
+            ${taxa > 0 ? `<span style="font-size:11px;color:var(--text-muted);">
+              R$ ${taxa.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} a receber
+            </span>` : ''}
+          </div>`;
+      }
+
+      return `<tr class="${cancelado ? 'row-cancelado' : ''}">
         <td>
-          <strong>${UI.escape(nome)}</strong><br>
-          <span style="font-size:11px;color:var(--text-muted);">${UI.escape(part?.email || i.email || '')}</span>
+          <div style="display:flex;align-items:center;gap:6px;">
+            ${origem}
+            <div>
+              <strong>${UI.escape(nome)}</strong>
+              ${part?.email || i.email
+                ? `<div style="font-size:11px;color:var(--text-muted);">${UI.escape(part?.email || i.email)}</div>`
+                : ''}
+            </div>
+          </div>
         </td>
-        <td style="font-size:12px;">${UI.escape(part?.telefone || i.telefone || '—')}</td>
-        <td>${origem}</td>
-        <td><span class="badge ${stPag.badge}">${stPag.label}</span></td>
+        <td style="font-size:12px;color:var(--text-muted);">${UI.escape(part?.telefone || i.telefone || '—')}</td>
+        <td>${pagamentoCell}</td>
         <td class="aluno-row-actions">
-          ${i.statusPagamento !== 'pago' && i.status !== 'cancelado' ? `
-          <button class="btn btn-ghost btn-sm" title="Confirmar pagamento"
-            onclick="TorneioModule._confirmarPagamento('${i.id}','${catId}','${eventoId}')">✅ Pago</button>` : ''}
-          ${i.status !== 'cancelado' ? `
-          <button class="btn btn-ghost btn-sm danger" title="Cancelar inscrição"
-            onclick="TorneioModule._cancelarInscricao('${i.id}','${catId}','${eventoId}')">✕</button>` : ''}
+          ${!cancelado && i.statusPagamento !== 'pago' ? `
+            <button class="btn btn-primary btn-sm" style="font-size:12px;"
+              onclick="TorneioModule.openModalPagamento('${i.id}','${catId}','${eventoId}')">
+              💰 Pagar</button>` : ''}
+          ${!cancelado && i.statusPagamento === 'pago' ? `
+            <button class="btn btn-ghost btn-sm" style="font-size:11px;"
+              title="Editar pagamento"
+              onclick="TorneioModule.openModalPagamento('${i.id}','${catId}','${eventoId}')">✏️</button>
+            <button class="btn btn-ghost btn-sm danger" style="font-size:11px;"
+              title="Estornar pagamento"
+              onclick="TorneioModule._estornarPagamento('${i.id}','${catId}','${eventoId}')">↩</button>` : ''}
+          ${!cancelado && i.statusPagamento === 'isento' ? `
+            <button class="btn btn-ghost btn-sm" style="font-size:11px;"
+              title="Editar"
+              onclick="TorneioModule.openModalPagamento('${i.id}','${catId}','${eventoId}')">✏️</button>` : ''}
+          ${!cancelado ? `
+            <button class="btn btn-ghost btn-sm danger" title="Cancelar inscrição"
+              onclick="TorneioModule._cancelarInscricao('${i.id}','${catId}','${eventoId}')">✕</button>` : ''}
         </td>
       </tr>`;
     }).join('');
 
     return `
+      ${this._renderResumoFinanceiro(cat, inscs)}
+
       <div class="filters-bar" style="margin-bottom:12px;padding:10px 16px;
         background:var(--bg-secondary);border-radius:10px;border:1px solid var(--card-border);">
-        <span>👤 <strong>${inscs.length}</strong> inscrito${inscs.length > 1 ? 's' : ''}</span>
-        ${pago  ? `<span style="color:var(--color-success);">✅ ${pago} pago${pago > 1 ? 's' : ''}</span>` : ''}
-        ${pend  ? `<span style="color:var(--color-warning);">⏳ ${pend} pendente${pend > 1 ? 's' : ''}</span>` : ''}
-        ${canc  ? `<span style="color:var(--text-muted);">✕ ${canc} cancelado${canc > 1 ? 's' : ''}</span>` : ''}
+        <span>👤 <strong>${inscs.length}</strong> inscrito${inscs.length !== 1 ? 's' : ''}</span>
+        ${pagas.length  ? `<span style="color:var(--color-success);">✅ ${pagas.length} pago${pagas.length !== 1 ? 's' : ''}</span>` : ''}
+        ${pend.length   ? `<span style="color:var(--color-warning);">⏳ ${pend.length} pendente${pend.length !== 1 ? 's' : ''}</span>` : ''}
+        ${isentas.length? `<span style="color:var(--text-muted);">🎁 ${isentas.length} isento${isentas.length !== 1 ? 's' : ''}</span>` : ''}
+        ${canc          ? `<span style="color:var(--text-muted);">✕ ${canc} cancelado${canc !== 1 ? 's' : ''}</span>` : ''}
       </div>
+
       <div class="table-card">
         <table class="data-table">
           <thead><tr>
-            <th>Participante</th><th>Telefone</th><th>Origem</th><th>Pagamento</th><th></th>
+            <th>Participante</th><th>Telefone</th><th>Pagamento</th><th></th>
           </tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>`;
   },
 
-  _confirmarPagamento(inscId, catId, eventoId) {
-    Storage.update(this.SK_INSC, inscId, { statusPagamento: 'pago' });
-    UI.toast('Pagamento confirmado!', 'success');
+  /* ------------------------------------------------------------------ */
+  /*  Resumo financeiro da categoria                                      */
+  /* ------------------------------------------------------------------ */
+
+  _renderResumoFinanceiro(cat, inscs) {
+    const taxa = cat?.taxaInscricao || 0;
+    if (!taxa || taxa <= 0) return ''; // categoria gratuita — não exibe
+
+    const ativas  = inscs.filter(i => i.status !== 'cancelado');
+    const pagas   = ativas.filter(i => i.statusPagamento === 'pago');
+    const isentas = ativas.filter(i => i.statusPagamento === 'isento');
+    const pend    = ativas.filter(i => i.statusPagamento === 'pendente');
+
+    const totalArrecadado = pagas.reduce((s, i) => s + (i.valorPago != null ? +i.valorPago : taxa), 0);
+    const totalPendente   = pend.length * taxa;
+    const totalPrevisto   = (pagas.length + pend.length) * taxa;
+    const pct = totalPrevisto > 0 ? Math.min(100, Math.round(totalArrecadado / totalPrevisto * 100)) : 0;
+
+    const cor = pct === 100 ? 'var(--color-success)' : pct > 50 ? 'var(--color-warning)' : 'var(--color-danger,#ef4444)';
+
+    return `
+      <div class="card" style="margin-bottom:16px;padding:16px 20px;border-left:4px solid ${cor};">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
+          color:var(--text-muted);margin-bottom:12px;">💰 Receita da Categoria</div>
+        <div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:12px;">
+          <div>
+            <div style="font-size:22px;font-weight:800;color:${cor};">
+              R$ ${totalArrecadado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            </div>
+            <div style="font-size:12px;color:var(--text-muted);">
+              arrecadado · ${pagas.length} pago${pagas.length !== 1 ? 's' : ''}
+            </div>
+          </div>
+          ${totalPendente > 0 ? `
+          <div>
+            <div style="font-size:22px;font-weight:800;color:var(--color-warning);">
+              R$ ${totalPendente.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            </div>
+            <div style="font-size:12px;color:var(--text-muted);">
+              pendente · ${pend.length} inscrito${pend.length !== 1 ? 's' : ''}
+            </div>
+          </div>` : ''}
+          ${isentas.length ? `
+          <div>
+            <div style="font-size:22px;font-weight:800;color:var(--text-muted);">${isentas.length}</div>
+            <div style="font-size:12px;color:var(--text-muted);">isento${isentas.length !== 1 ? 's' : ''}</div>
+          </div>` : ''}
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+          <div style="flex:1;background:var(--card-border);border-radius:6px;height:8px;overflow:hidden;">
+            <div style="height:100%;width:${pct}%;background:${cor};border-radius:6px;transition:width .4s;"></div>
+          </div>
+          <span style="font-size:12px;font-weight:700;color:${cor};white-space:nowrap;">${pct}%</span>
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);">
+          Taxa: R$ ${taxa.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/pessoa
+          · Previsto: R$ ${totalPrevisto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+        </div>
+      </div>`;
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Modal — Registrar / editar pagamento                               */
+  /* ------------------------------------------------------------------ */
+
+  openModalPagamento(inscId, catId, eventoId) {
+    const insc = Storage.getById(this.SK_INSC, inscId);
+    const cat  = Storage.getById(this.SK_CAT,  catId);
+    if (!insc || !cat) return;
+
+    const part = Storage.getById(this.SK_PART, insc.participanteId);
+    const nome = part?.nome || insc.nomeParticipante || '—';
+    const taxa = cat.taxaInscricao || 0;
+    const hoje = new Date().toISOString().slice(0, 10);
+    const isEdicao = insc.statusPagamento === 'pago' || insc.statusPagamento === 'isento';
+
+    const metodos = [
+      ['pix',           '🔵 Pix'],
+      ['dinheiro',      '💵 Dinheiro'],
+      ['cartao_debito', '💳 Cartão Débito'],
+      ['cartao_credito','💳 Cartão Crédito'],
+      ['transferencia', '🏦 Transferência Bancária'],
+      ['outro',         '📝 Outro'],
+    ];
+    const metOpts = metodos
+      .map(([k, l]) => `<option value="${k}" ${(insc.metodoPagamento || 'pix') === k ? 'selected' : ''}>${l}</option>`)
+      .join('');
+
+    const isIsento = insc.statusPagamento === 'isento';
+
+    UI.openModal({
+      title:        isEdicao ? '✏️ Editar Pagamento' : '💰 Registrar Pagamento',
+      confirmLabel: isEdicao ? 'Salvar alteração'    : 'Confirmar Pagamento',
+      onConfirm:    () => this.salvarPagamento(inscId, catId, eventoId),
+      content: `
+        <div class="form-grid">
+
+          <!-- Identificação -->
+          <div style="background:var(--bg-secondary);border-radius:10px;
+            padding:12px 16px;display:flex;align-items:center;gap:10px;">
+            <div style="font-size:22px;">👤</div>
+            <div>
+              <div style="font-weight:700;font-size:14px;">${UI.escape(nome)}</div>
+              <div style="font-size:12px;color:var(--text-muted);">${UI.escape(cat.nome)}</div>
+            </div>
+            ${taxa > 0
+              ? `<div style="margin-left:auto;text-align:right;">
+                  <div style="font-size:13px;font-weight:700;">
+                    R$ ${taxa.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </div>
+                  <div style="font-size:11px;color:var(--text-muted);">taxa</div>
+                </div>`
+              : '<span class="badge badge-success" style="margin-left:auto;">Gratuita</span>'}
+          </div>
+
+          <!-- Toggle isento -->
+          <label id="pag-isento-label" style="display:flex;align-items:center;gap:10px;cursor:pointer;
+            padding:12px 14px;background:var(--bg-secondary);border-radius:10px;
+            border:2px solid ${isIsento ? 'var(--color-primary)' : 'transparent'};transition:border-color .15s;">
+            <input type="checkbox" id="pag-isento" ${isIsento ? 'checked' : ''}
+              style="width:16px;height:16px;accent-color:var(--color-primary);"
+              onchange="TorneioModule._toggleIsentoModal(this.checked)" />
+            <div>
+              <div style="font-weight:600;font-size:14px;">🎁 Isenção / Cortesia</div>
+              <div style="font-size:12px;color:var(--text-muted);">Marque se o participante não paga</div>
+            </div>
+          </label>
+
+          <!-- Campos de pagamento -->
+          <div id="pag-campos" ${isIsento ? 'style="display:none;"' : ''}>
+            <div class="form-grid">
+              <div class="form-grid-2">
+                <div class="form-group">
+                  <label class="form-label">Valor recebido (R$) <span class="required-star">*</span></label>
+                  <input id="pag-valor" type="number" class="form-input" min="0" step="0.01"
+                    value="${insc.valorPago != null ? insc.valorPago : taxa}"
+                    placeholder="${taxa > 0 ? taxa.toFixed(2) : '0.00'}" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Data do pagamento</label>
+                  <input id="pag-data" type="date" class="form-input"
+                    value="${insc.dataPagamento || hoje}" />
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Forma de pagamento</label>
+                <select id="pag-metodo" class="form-select">${metOpts}</select>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Referência / Comprovante</label>
+                <input id="pag-ref" type="text" class="form-input"
+                  placeholder="ID do Pix, nº do comprovante, recibo…"
+                  value="${UI.escape(insc.refPagamento || '')}" />
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Observação</label>
+                <input id="pag-obs" type="text" class="form-input" placeholder="opcional"
+                  value="${UI.escape(insc.observacaoPagamento || '')}" />
+              </div>
+            </div>
+          </div>
+
+        </div>`,
+    });
+    setTimeout(() => document.getElementById('pag-valor')?.focus(), 100);
+  },
+
+  _toggleIsentoModal(checked) {
+    const campos = document.getElementById('pag-campos');
+    const label  = document.getElementById('pag-isento-label');
+    if (campos) campos.style.display = checked ? 'none' : '';
+    if (label)  label.style.borderColor = checked ? 'var(--color-primary)' : 'transparent';
+  },
+
+  salvarPagamento(inscId, catId, eventoId) {
+    const g      = id => document.getElementById(id);
+    const isento = g('pag-isento')?.checked;
+
+    if (isento) {
+      Storage.update(this.SK_INSC, inscId, {
+        statusPagamento:     'isento',
+        valorPago:           0,
+        metodoPagamento:     '',
+        dataPagamento:       '',
+        refPagamento:        '',
+        observacaoPagamento: 'Isenção / cortesia',
+      });
+      UI.toast('Inscrição marcada como isenta!', 'success');
+      UI.closeModal();
+      this.abrirCategoria(catId, eventoId);
+      return;
+    }
+
+    const valor = parseFloat(g('pag-valor')?.value);
+    if (isNaN(valor) || valor < 0) { UI.toast('Informe o valor pago', 'error'); return; }
+
+    Storage.update(this.SK_INSC, inscId, {
+      statusPagamento:     'pago',
+      valorPago:           valor,
+      metodoPagamento:     g('pag-metodo')?.value              || 'pix',
+      dataPagamento:       g('pag-data')?.value                || new Date().toISOString().slice(0, 10),
+      refPagamento:        g('pag-ref')?.value.trim()          || '',
+      observacaoPagamento: g('pag-obs')?.value.trim()          || '',
+    });
+
+    UI.toast('Pagamento registrado!', 'success');
+    UI.closeModal();
     this.abrirCategoria(catId, eventoId);
+  },
+
+  _estornarPagamento(inscId, catId, eventoId) {
+    UI.confirm(
+      'Estornar este pagamento? O status voltará para "Pendente".',
+      'Confirmar Estorno', 'Estornar'
+    ).then(ok => {
+      if (!ok) return;
+      Storage.update(this.SK_INSC, inscId, {
+        statusPagamento:     'pendente',
+        valorPago:           null,
+        metodoPagamento:     '',
+        dataPagamento:       '',
+        refPagamento:        '',
+        observacaoPagamento: '',
+      });
+      UI.toast('Pagamento estornado. Status: Pendente.', 'success');
+      this.abrirCategoria(catId, eventoId);
+    });
   },
 
   _cancelarInscricao(inscId, catId, eventoId) {

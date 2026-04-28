@@ -5471,3 +5471,15 @@ tr.tarefa-concluida td { opacity: .6; }
   white-space: nowrap;
 }
 
+/* ================================================================
+   Torneios — Inscrições / Pagamentos
+   ================================================================ */
+tr.row-cancelado td {
+  opacity: .45;
+  text-decoration: line-through;
+}
+tr.row-cancelado td:last-child {
+  text-decoration: none;
+  opacity: 1;
+}
+
