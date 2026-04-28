@@ -10,6 +10,7 @@ const AlunoModule = {
     search:       '',
     filterStatus: '',
     filterNivel:  '',
+    filterSexo:   '',
   },
 
   STATUS: {
@@ -53,7 +54,9 @@ const AlunoModule = {
         (aluno.telefone && aluno.telefone.includes(q));
       const matchStatus = !filterStatus || aluno.status === filterStatus;
       const matchNivel  = !filterNivel  || aluno.nivel  === filterNivel;
-      return matchSearch && matchStatus && matchNivel;
+      const matchSexo   = !this._state.filterSexo ||
+        (this._state.filterSexo === 'nao_inf' ? !aluno.sexo : aluno.sexo === this._state.filterSexo);
+      return matchSearch && matchStatus && matchNivel && matchSexo;
     });
   },
 
@@ -149,6 +152,12 @@ const AlunoModule = {
           <option value="">Todos os níveis</option>
           ${ListasService.opts('alunos_nivel', this._state.filterNivel)}
         </select>
+        <select class="filter-select" onchange="AlunoModule.handleFilterSexo(this.value)">
+          <option value="">Todos os sexos</option>
+          <option value="masculino" ${this._state.filterSexo === 'masculino' ? 'selected' : ''}>♂ Masculino</option>
+          <option value="feminino"  ${this._state.filterSexo === 'feminino'  ? 'selected' : ''}>♀ Feminino</option>
+          <option value=""          ${this._state.filterSexo === 'nao_inf'   ? 'selected' : ''}>— Não informado</option>
+        </select>
         <span class="results-count">
           ${filtered.length} aluno${filtered.length !== 1 ? 's' : ''}
         </span>
@@ -218,6 +227,7 @@ const AlunoModule = {
           <td>${UI.escape(a.telefone || '—')}</td>
           <td>${idade !== '—' ? idade + ' anos' : '—'}</td>
           <td><span class="badge ${nivelBadge}">${UI.escape(nivelLabel)}</span></td>
+          <td style="font-size:12px;">${a.sexo === 'masculino' ? '♂ M' : a.sexo === 'feminino' ? '♀ F' : '<span style="color:var(--text-muted);">—</span>'}</td>
           <td><span class="badge ${status.badge}">${status.label}</span></td>
           <td class="text-muted text-sm">${cadastro}</td>
           <td class="aluno-row-actions">
@@ -238,6 +248,7 @@ const AlunoModule = {
               <th>Telefone</th>
               <th>Idade</th>
               <th>Nível</th>
+              <th>Sexo</th>
               <th>Status</th>
               <th>Cadastro</th>
               <th></th>
@@ -328,7 +339,15 @@ const AlunoModule = {
       </div>
     </div>
 
-    <div class="form-grid-2">
+    <div class="form-grid-3">
+      <div class="form-group">
+        <label class="form-label" for="a-sexo">Sexo</label>
+        <select id="a-sexo" class="form-select">
+          <option value="">— Não informado —</option>
+          <option value="masculino" ${aluno?.sexo === 'masculino' ? 'selected' : ''}>Masculino</option>
+          <option value="feminino"  ${aluno?.sexo === 'feminino'  ? 'selected' : ''}>Feminino</option>
+        </select>
+      </div>
       <div class="form-group">
         <label class="form-label" for="a-rs-instagram">
           <span style="color:#E1306C;">●</span> Instagram
@@ -556,6 +575,7 @@ const AlunoModule = {
       email:          gv('email'),
       dataNascimento: g('nascimento') ? g('nascimento').value : (ex.dataNascimento || ''),
       nivel:          gv('nivel')      || 'iniciante',
+      sexo:           gv('sexo',        'sexo'),
       status:         gv('status')     || 'ativo',
       ladoDominante:  gv('lado',        'ladoDominante'),
       observacoes:    gv('obs',         'observacoes'),
@@ -643,6 +663,11 @@ const AlunoModule = {
 
   handleFilterNivel(value) {
     this._state.filterNivel = value;
+    this._reRender();
+  },
+
+  handleFilterSexo(value) {
+    this._state.filterSexo = value;
     this._reRender();
   },
 
