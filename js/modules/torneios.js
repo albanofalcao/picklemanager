@@ -1732,6 +1732,8 @@ const TorneioModule = {
           if (temChaves) {
             partidas.forEach(p => Storage.delete(this.SK_PARTIDA, p.id));
           }
+          // Remove dupla vinculada (se for categoria de duplas)
+          if (insc?.duplaId) Storage.delete(this.SK_DUPLA, insc.duplaId);
           Storage.delete(this.SK_INSC, inscId);
           AppLogger.info('TorneioModule', 'Inscrição cancelada', {
             inscId, catId, eventoId,
@@ -1820,11 +1822,25 @@ const TorneioModule = {
           : `${alunos.length} aluno${alunos.length !== 1 ? 's' : ''} disponível${alunos.length !== 1 ? 'is' : ''}.`}
       </div>` : '';
 
+    const ehDupla = cat.tipoParticipacao === 'duplas';
+
     UI.openModal({
       title:        `➕ Inscrever em ${UI.escape(cat.nome)}`,
-      confirmLabel: 'Inscrever',
+      confirmLabel: ehDupla ? 'Inscrever Dupla' : 'Inscrever',
       onConfirm:    () => this._salvarInscricaoSecretaria(catId, eventoId),
-      content: `
+      content: ehDupla ? `
+        <div class="form-grid">
+          ${avisoHtml}
+          ${this._buildPartnerSection(1, alunos, restringeSexo, sexoCat, sexoLabel)}
+          ${this._buildPartnerSection(2, alunos, restringeSexo, sexoCat, sexoLabel)}
+          <div class="form-group">
+            <label class="form-label">Pagamento</label>
+            <select id="insc-pag" class="form-select">
+              <option value="pendente">Pendente</option>
+              <option value="pago">Pago (já recebido)</option>
+            </select>
+          </div>
+        </div>` : `
         <div class="form-grid">
           ${avisoHtml}
 
@@ -1923,15 +1939,217 @@ const TorneioModule = {
     sel.value = aluno?.sexo || '';
   },
 
+  /* Helpers para inscrição de DUPLAS */
+  _toggleTipoInscN(idx, tipo) {
+    const a = document.getElementById(`insc-aluno-sec-${idx}`);
+    const e = document.getElementById(`insc-ext-sec-${idx}`);
+    if (a) a.style.display = tipo === 'aluno'   ? '' : 'none';
+    if (e) e.style.display = tipo === 'externo' ? '' : 'none';
+  },
+
+  _onAlunoChangeN(idx, alunoId) {
+    const sel = document.getElementById(`insc-sexo-aluno-${idx}`);
+    if (!sel || sel.tagName !== 'SELECT') return;
+    if (!alunoId) { sel.value = ''; return; }
+    const aluno = Storage.getById('alunos', alunoId);
+    sel.value = aluno?.sexo || '';
+  },
+
+  _buildPartnerSection(idx, alunos, restringeSexo, sexoCat, sexoLabel) {
+    const alunoOpts = alunos
+      .map(a => `<option value="${a.id}">${UI.escape(a.nome)}</option>`)
+      .join('');
+
+    const sexoSelectAluno = restringeSexo
+      ? `<input type="hidden" id="insc-sexo-aluno-${idx}" value="${sexoCat}" />
+         <div style="padding:10px 12px;background:var(--bg-secondary);border-radius:8px;
+           font-size:13px;border:1px solid var(--card-border);">
+           <strong>${sexoLabel}</strong>
+           <span style="color:var(--text-muted);font-size:12px;margin-left:6px;">(definido pela categoria)</span>
+         </div>`
+      : `<select id="insc-sexo-aluno-${idx}" class="form-select">
+           <option value="">— Selecionar —</option>
+           <option value="masculino">♂ Masculino</option>
+           <option value="feminino">♀ Feminino</option>
+         </select>`;
+
+    const sexoSelectExt = restringeSexo
+      ? `<input type="hidden" id="insc-sexo-${idx}" value="${sexoCat}" />
+         <div style="padding:10px 12px;background:var(--bg-secondary);border-radius:8px;
+           font-size:13px;border:1px solid var(--card-border);">
+           <strong>${sexoLabel}</strong>
+         </div>`
+      : `<select id="insc-sexo-${idx}" class="form-select">
+           <option value="">—</option>
+           <option value="masculino">♂ Masculino</option>
+           <option value="feminino">♀ Feminino</option>
+         </select>`;
+
+    return `
+      <div style="border:1.5px solid var(--card-border);border-radius:10px;padding:14px;margin-bottom:10px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
+          color:var(--text-muted);margin-bottom:10px;">👤 Parceiro ${idx}</div>
+
+        <div style="display:flex;gap:20px;margin-bottom:10px;">
+          <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:14px;">
+            <input type="radio" name="insc-tipo-${idx}" value="aluno" checked
+              onchange="TorneioModule._toggleTipoInscN(${idx},'aluno')" /> Aluno da arena
+          </label>
+          <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:14px;">
+            <input type="radio" name="insc-tipo-${idx}" value="externo"
+              onchange="TorneioModule._toggleTipoInscN(${idx},'externo')" /> Externo
+          </label>
+        </div>
+
+        <div id="insc-aluno-sec-${idx}">
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Aluno <span class="required-star">*</span></label>
+              <select id="insc-aluno-id-${idx}" class="form-select"
+                onchange="TorneioModule._onAlunoChangeN(${idx},this.value)">
+                <option value="">— Selecionar —</option>
+                ${alunoOpts}
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Sexo</label>
+              ${sexoSelectAluno}
+            </div>
+          </div>
+        </div>
+
+        <div id="insc-ext-sec-${idx}" style="display:none;">
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Nome <span class="required-star">*</span></label>
+              <input id="insc-nome-${idx}" type="text" class="form-input" autocomplete="off" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">E-mail</label>
+              <input id="insc-email-${idx}" type="email" class="form-input" />
+            </div>
+          </div>
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label class="form-label">Telefone</label>
+              <input id="insc-tel-${idx}" type="tel" class="form-input" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Sexo</label>
+              ${sexoSelectExt}
+            </div>
+          </div>
+        </div>
+      </div>`;
+  },
+
+  _resolvePartnerData(idx, restringeSexo, sexoCat) {
+    const g    = id => document.getElementById(id);
+    const tipo = document.querySelector(`input[name="insc-tipo-${idx}"]:checked`)?.value || 'aluno';
+
+    if (tipo === 'aluno') {
+      const alunoId = g(`insc-aluno-id-${idx}`)?.value;
+      if (!alunoId) { UI.toast(`Selecione o aluno do Parceiro ${idx}`, 'error'); return null; }
+      const aluno = Storage.getById('alunos', alunoId);
+      if (!aluno)  { UI.toast('Aluno não encontrado', 'error'); return null; }
+
+      const sexoPart = g(`insc-sexo-aluno-${idx}`)?.value || '';
+      if (!sexoPart) { UI.toast(`Informe o sexo do Parceiro ${idx}`, 'error'); return null; }
+      if (restringeSexo && sexoPart !== sexoCat) {
+        const label = sexoCat === 'masculino' ? 'Masculino' : 'Feminino';
+        UI.toast(`Parceiro ${idx}: categoria restrita a ${label}.`, 'error');
+        return null;
+      }
+
+      let part = Storage.getAll(this.SK_PART).find(p => p.alunoId === alunoId);
+      if (!part) {
+        part = Storage.create(this.SK_PART, {
+          alunoId, nome: aluno.nome, sexo: aluno.sexo || '',
+          dataNascimento: aluno.dataNascimento || '', nivel: aluno.nivel || '',
+          telefone: aluno.telefone || '', email: aluno.email || '',
+        });
+      }
+      return { participanteId: part.id, nome: aluno.nome };
+    } else {
+      const nome = g(`insc-nome-${idx}`)?.value.trim();
+      if (!nome) { UI.toast(`Informe o nome do Parceiro ${idx}`, 'error'); return null; }
+
+      const sexoPart = g(`insc-sexo-${idx}`)?.value || '';
+      if (restringeSexo) {
+        const label = sexoCat === 'masculino' ? 'Masculino' : 'Feminino';
+        if (!sexoPart) { UI.toast(`Parceiro ${idx}: informe o sexo.`, 'error'); return null; }
+        if (sexoPart !== sexoCat) { UI.toast(`Parceiro ${idx}: categoria restrita a ${label}.`, 'error'); return null; }
+      }
+
+      const part = Storage.create(this.SK_PART, {
+        alunoId: null, nome,
+        email:    g(`insc-email-${idx}`)?.value.trim() || '',
+        telefone: g(`insc-tel-${idx}`)?.value.trim()   || '',
+        nivel: '', sexo: sexoPart, dataNascimento: '',
+      });
+      return { participanteId: part.id, nome };
+    }
+  },
+
   _salvarInscricaoSecretaria(catId, eventoId) {
     const g    = id => document.getElementById(id);
-    const tipo = document.querySelector('input[name="insc-tipo"]:checked')?.value || 'aluno';
     const pag  = g('insc-pag')?.value || 'pendente';
 
-    // Restrição de sexo da categoria
     const cat           = Storage.getById(this.SK_CAT, catId);
     const sexoCat       = cat ? this._getSexoCat(cat) : '';
     const restringeSexo = sexoCat === 'masculino' || sexoCat === 'feminino';
+
+    // ── DUPLAS ──────────────────────────────────────────────────────────────
+    if (cat?.tipoParticipacao === 'duplas') {
+      const p1 = this._resolvePartnerData(1, restringeSexo, sexoCat);
+      if (!p1) return;
+      const p2 = this._resolvePartnerData(2, restringeSexo, sexoCat);
+      if (!p2) return;
+
+      if (p1.participanteId === p2.participanteId) {
+        UI.toast('Os dois parceiros não podem ser o mesmo participante.', 'error');
+        return;
+      }
+
+      // Verifica se algum dos parceiros já está em outra dupla nesta categoria
+      const duplas = Storage.getAll(this.SK_DUPLA).filter(d => d.categoriaId === catId);
+      const conflito = duplas.find(d =>
+        d.part1Id === p1.participanteId || d.part2Id === p1.participanteId ||
+        d.part1Id === p2.participanteId || d.part2Id === p2.participanteId
+      );
+      if (conflito) {
+        UI.toast('Um dos parceiros já está inscrito em outra dupla nesta categoria.', 'error');
+        return;
+      }
+
+      const nomeDupla = `${p1.nome} / ${p2.nome}`;
+      const dupla = Storage.create(this.SK_DUPLA, {
+        categoriaId: catId, eventoId,
+        part1Id: p1.participanteId, part1Nome: p1.nome,
+        part2Id: p2.participanteId, part2Nome: p2.nome,
+        nome: nomeDupla,
+      });
+
+      Storage.create(this.SK_INSC, {
+        categoriaId: catId, eventoId,
+        participanteId:  p1.participanteId,
+        nomeParticipante: nomeDupla,
+        duplaId:         dupla.id,
+        statusPagamento: pag,
+        status:          'confirmado',
+        origem:          'secretaria',
+      });
+
+      UI.toast('Dupla inscrita com sucesso!', 'success');
+      UI.closeModal();
+      this.abrirCategoria(catId, eventoId);
+      return;
+    }
+
+    // ── SINGLES ─────────────────────────────────────────────────────────────
+    const tipo = document.querySelector('input[name="insc-tipo"]:checked')?.value || 'aluno';
+
+    // Restrição de sexo da categoria
 
     let participanteId, nomeParticipante, sexoPart;
 
@@ -2630,8 +2848,13 @@ const TorneioModule = {
         return;
       }
 
-      // Resolver participantes a partir das inscrições
+      // Resolver participantes (singles) ou duplas a partir das inscrições
+      const ehDupla = cat?.tipoParticipacao === 'duplas';
       const parts = inscs.map(i => {
+        if (ehDupla && i.duplaId) {
+          const d = Storage.getById(this.SK_DUPLA, i.duplaId);
+          return d ? { id: d.id, nome: d.nome } : null;
+        }
         const p = Storage.getById(this.SK_PART, i.participanteId);
         return p ? { id: p.id, nome: p.nome } : null;
       }).filter(Boolean);
