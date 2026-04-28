@@ -6,7 +6,7 @@
 const AdminModule = {
   STORAGE_KEY: 'usuarios',
 
-  _tab: 'usuarios', // 'usuarios' | 'perfis' | 'listas'
+  _tab: 'usuarios', // 'usuarios' | 'perfis' | 'listas' | 'config' | 'logs'
 
   _state: {
     search:       '',
@@ -88,12 +88,15 @@ const AdminModule = {
           onclick="AdminModule.switchTab('listas')">📝 Listas do Sistema</button>
         <button class="admin-tab ${this._tab === 'config' ? 'active' : ''}"
           onclick="AdminModule.switchTab('config')">⚙️ Configurações</button>
+        <button class="admin-tab ${this._tab === 'logs' ? 'active' : ''}"
+          onclick="AdminModule.switchTab('logs')" style="margin-left:auto;">🔍 Logs de Erros</button>
       </div>
 
       ${this._tab === 'usuarios' ? this._renderUsuarios(stats, filtered, session, perfilFilterOptions) : ''}
       ${this._tab === 'perfis'   ? this._renderPerfis()   : ''}
       ${this._tab === 'listas'   ? ListasModule.renderContent() : ''}
       ${this._tab === 'config'   ? this._renderConfig()   : ''}
+      ${this._tab === 'logs'     ? this._renderLogs()     : ''}
     `;
   },
 
@@ -843,5 +846,170 @@ const AdminModule = {
       UI.toast(`Bloqueio definido para ${min} minuto${min !== 1 ? 's' : ''}.`, 'success');
     }
     this.render();
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Aba Logs de Erros                                                   */
+  /* ------------------------------------------------------------------ */
+
+  _renderLogs() {
+    // Dispara o carregamento assíncrono após o render
+    setTimeout(() => this._loadLogs(), 0);
+    return `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+        <div>
+          <h3 style="margin:0;font-size:16px;font-weight:700;">🔍 Logs de Erros e Avisos</h3>
+          <p style="margin:4px 0 0;font-size:13px;color:var(--text-muted);">
+            Últimos 200 registros — capturados automaticamente pelo AppLogger
+          </p>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="AdminModule._loadLogs()" title="Recarregar">
+          🔄 Atualizar
+        </button>
+      </div>
+      <div id="admin-logs-container">
+        <div class="loading-state">
+          <span class="loading-spinner">⏳</span>
+          <p>Carregando logs…</p>
+        </div>
+      </div>`;
+  },
+
+  async _loadLogs() {
+    const container = document.getElementById('admin-logs-container');
+    if (!container) return;
+
+    if (!window.SupabaseClient) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon">⚠️</div>
+          <div class="empty-title">Supabase não disponível</div>
+          <div class="empty-desc">Os logs de erros requerem conexão com Supabase.</div>
+        </div>`;
+      return;
+    }
+
+    container.innerHTML = `<div class="loading-state"><span class="loading-spinner">⏳</span><p>Carregando…</p></div>`;
+
+    try {
+      const { data, error } = await SupabaseClient
+        .from('app_error_logs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(200);
+
+      if (error) throw error;
+
+      if (!data || !data.length) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-icon">✅</div>
+            <div class="empty-title">Nenhum log registrado</div>
+            <div class="empty-desc">Ótima notícia — nenhum erro ou aviso foi capturado ainda.</div>
+          </div>`;
+        return;
+      }
+
+      const errCount  = data.filter(l => l.level === 'error').length;
+      const warnCount = data.filter(l => l.level === 'warn').length;
+      const infoCount = data.filter(l => l.level === 'info').length;
+
+      const levelBadge = l => {
+        const map = { error: 'badge-danger', warn: 'badge-warning', info: 'badge-blue' };
+        return `<span class="badge ${map[l] || 'badge-gray'}" style="font-size:10px;">${l}</span>`;
+      };
+
+      const fmtDt = iso => {
+        if (!iso) return '—';
+        const d = new Date(iso);
+        return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+      };
+
+      const rows = data.map(log => {
+        const stackHtml = log.stack
+          ? `<details style="margin-top:4px;">
+               <summary style="font-size:11px;cursor:pointer;color:var(--text-muted);user-select:none;">
+                 ▸ stack trace
+               </summary>
+               <pre style="font-size:10px;white-space:pre-wrap;word-break:break-all;margin:4px 0 0;
+                 padding:8px;background:var(--gray-light,#f5f0e8);border-radius:4px;
+                 max-height:200px;overflow-y:auto;">${UI.escape(log.stack)}</pre>
+             </details>`
+          : '';
+
+        const ctxHtml = log.context && Object.keys(log.context).length
+          ? `<details style="margin-top:2px;">
+               <summary style="font-size:11px;cursor:pointer;color:var(--text-muted);user-select:none;">
+                 ▸ contexto
+               </summary>
+               <pre style="font-size:10px;white-space:pre-wrap;margin:4px 0 0;
+                 padding:8px;background:var(--gray-light,#f5f0e8);border-radius:4px;">${UI.escape(JSON.stringify(log.context, null, 2))}</pre>
+             </details>`
+          : '';
+
+        return `<tr>
+          <td style="white-space:nowrap;font-size:11px;color:var(--text-muted);">${fmtDt(log.created_at)}</td>
+          <td>${levelBadge(log.level)}</td>
+          <td style="font-size:12px;font-weight:600;white-space:nowrap;">${UI.escape(log.module || '—')}</td>
+          <td style="font-size:12px;">
+            ${UI.escape(log.message || '—')}
+            ${stackHtml}
+            ${ctxHtml}
+          </td>
+          <td style="font-size:12px;white-space:nowrap;">${UI.escape(log.user_login || '—')}</td>
+          <td style="font-size:11px;color:var(--text-muted);max-width:160px;overflow:hidden;
+            text-overflow:ellipsis;white-space:nowrap;" title="${UI.escape(log.url || '')}">
+            ${UI.escape(log.url || '—')}
+          </td>
+        </tr>`;
+      }).join('');
+
+      container.innerHTML = `
+        <div class="stats-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:20px;">
+          <div class="stat-card">
+            <div class="stat-icon" style="background:#fee2e2;color:#dc2626;">🔴</div>
+            <div class="stat-info">
+              <div class="stat-value" style="color:#dc2626;">${errCount}</div>
+              <div class="stat-label">Erros</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon amber">⚠️</div>
+            <div class="stat-info">
+              <div class="stat-value">${warnCount}</div>
+              <div class="stat-label">Avisos</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon blue">ℹ️</div>
+            <div class="stat-info">
+              <div class="stat-value">${infoCount}</div>
+              <div class="stat-label">Informativos</div>
+            </div>
+          </div>
+        </div>
+        <div class="table-card" style="overflow-x:auto;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Data/Hora</th>
+                <th>Nível</th>
+                <th>Módulo</th>
+                <th>Mensagem</th>
+                <th>Usuário</th>
+                <th>URL</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>`;
+    } catch (e) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon">❌</div>
+          <div class="empty-title">Erro ao carregar logs</div>
+          <div class="empty-desc">${UI.escape(e.message || String(e))}</div>
+        </div>`;
+    }
   },
 };

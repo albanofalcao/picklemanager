@@ -239,10 +239,17 @@
   <div class="toast-container" id="toast-container" aria-live="polite"></div>
 
   <!-- ========== SCRIPTS (order matters) ========== -->
+  <!-- Sentry — monitoramento de erros em tempo real (carrega antes de tudo) -->
+  <script
+    src="https://browser.sentry-cdn.com/8.38.0/bundle.min.js"
+    crossorigin="anonymous">
+  </script>
   <!-- SheetJS — geração de arquivos Excel (.xlsx) no browser -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="js/supabase.min.js"></script>
   <script src="js/supabase-config.js"></script>
+  <script src="js/sentry-config.js"></script>
+  <script src="js/logger.js"></script>
   <script src="js/db.js"></script>
   <script src="js/storage.js"></script>
   <script src="js/listas-service.js"></script>
@@ -265,7 +272,7 @@
   <script src="js/modules/manutencao.js?v=6"></script>
   <script src="js/modules/cadastros.js"></script>
   <script src="js/modules/listas.js"></script>
-  <script src="js/modules/admin.js"></script>
+  <script src="js/modules/admin.js?v=2"></script>
   <script src="js/modules/matriculas.js?v=14"></script>
   <script src="js/modules/torneios.js?v=21"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>

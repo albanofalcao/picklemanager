@@ -663,6 +663,7 @@ const App = {
 
   /** Initialize the full UI — called after successful authentication */
   initUI() {
+    AppLogger.initGlobalHandlers();
     UI.initModal();
     Auth.bindLockForm();
     InactivityLock.start();
