@@ -85,7 +85,6 @@ const App = {
     { route: 'dayuse',      icon: '🚪', label: 'Day Use'             },
     { route: 'financeiro',  icon: '💰', label: 'Financeiro'          },
     { route: 'manutencao',  icon: '🔧', label: 'Manutenção'          },
-    { route: 'relatorios',  icon: '📈', label: 'Relatórios'          },
     { route: 'cadastros',   icon: '🗂️', label: 'Cadastros'           },
     { route: 'admin',       icon: '⚙️', label: 'Administração'       },
   ],
@@ -97,15 +96,14 @@ const App = {
     { route: 'alunos',      icon: '👥', label: 'Alunos (rede)'        },
     { route: 'financeiro',  icon: '💰', label: 'Financeiro'           },
     { route: 'loja',        icon: '🛒', label: 'Loja Central'         },
-    { route: 'relatorios',  icon: '📈', label: 'Relatórios'           },
     { route: 'admin',       icon: '⚙️', label: 'Administração'        },
   ],
 
   SEED_PERFIS: [
-    { key: 'admin',         label: 'Administrador',    descricao: 'Acesso total ao sistema, incluindo gestão de usuários',    cor: 'badge-danger',  modulos: ['dashboard','arenas','alunos','matriculas','planos','professores','turmas','eventos','torneios','loja','dayuse','financeiro','manutencao','relatorios','cadastros','admin'] },
-    { key: 'gerente',       label: 'Gerente',          descricao: 'Acesso a todos os módulos operacionais',                   cor: 'badge-warning', modulos: ['dashboard','arenas','alunos','matriculas','planos','professores','turmas','eventos','torneios','loja','dayuse','financeiro','manutencao','relatorios','cadastros'] },
+    { key: 'admin',         label: 'Administrador',    descricao: 'Acesso total ao sistema, incluindo gestão de usuários',    cor: 'badge-danger',  modulos: ['dashboard','arenas','alunos','matriculas','planos','professores','turmas','eventos','torneios','loja','dayuse','financeiro','manutencao','cadastros','admin'] },
+    { key: 'gerente',       label: 'Gerente',          descricao: 'Acesso a todos os módulos operacionais',                   cor: 'badge-warning', modulos: ['dashboard','arenas','alunos','matriculas','planos','professores','turmas','eventos','torneios','loja','dayuse','financeiro','manutencao','cadastros'] },
     { key: 'recepcionista', label: 'Recepcionista',    descricao: 'Atendimento ao aluno, matrículas e turmas',               cor: 'badge-blue',    modulos: ['dashboard','alunos','matriculas','turmas','eventos','torneios','loja','dayuse','manutencao'] },
-    { key: 'financeiro',    label: 'Financeiro',       descricao: 'Controle financeiro e planos de contratação',              cor: 'badge-success', modulos: ['dashboard','financeiro','planos','alunos','loja','dayuse','relatorios','manutencao'] },
+    { key: 'financeiro',    label: 'Financeiro',       descricao: 'Controle financeiro e planos de contratação',              cor: 'badge-success', modulos: ['dashboard','financeiro','planos','alunos','loja','dayuse','manutencao'] },
     { key: 'manutencao',    label: 'Manutenção',       descricao: 'Gestão de arenas e chamados de manutenção',               cor: 'badge-gray',    modulos: ['dashboard','arenas','manutencao'] },
     { key: 'professor',     label: 'Professor',        descricao: 'Acesso às grades e aulas do próprio professor',            cor: 'badge-blue',    modulos: ['turmas','manutencao'] },
     { key: 'aluno',         label: 'Aluno',            descricao: 'Acesso às grades e aulas em que está inscrito',             cor: 'badge-success', modulos: ['turmas','manutencao'] },
@@ -551,10 +549,10 @@ const App = {
    */
   _migratePerfis() {
     const novosPorPerfil = {
-      admin:         ['relatorios', 'turmas', 'dayuse', 'loja', 'matriculas', 'manutencao'],
-      gerente:       ['relatorios', 'turmas', 'dayuse', 'loja', 'matriculas', 'manutencao'],
+      admin:         ['turmas', 'dayuse', 'loja', 'matriculas', 'manutencao'],
+      gerente:       ['turmas', 'dayuse', 'loja', 'matriculas', 'manutencao'],
       recepcionista: ['turmas', 'dayuse', 'loja', 'matriculas', 'manutencao'],
-      financeiro:    ['relatorios', 'dayuse', 'loja', 'manutencao'],
+      financeiro:    ['dayuse', 'loja', 'manutencao'],
       manutencao:    ['manutencao'],
       professor:     ['turmas', 'manutencao'],
       aluno:         ['turmas', 'manutencao'],
@@ -691,7 +689,6 @@ const App = {
       .add('loja',        () => Auth.hasPermission('loja')        ? LojaModule.render()              : this._forbidden())
       .add('financeiro',  () => Auth.hasPermission('financeiro')  ? FinanceiroModule.render()        : this._forbidden())
       .add('manutencao',  () => Auth.hasPermission('manutencao')  ? ManutencaoModule.render()        : this._forbidden())
-      .add('relatorios',  () => Auth.hasPermission('relatorios')  ? RelatoriosModule.render()        : this._forbidden())
       .add('cadastros',   () => Auth.hasPermission('cadastros')   ? CadastrosModule.render()         : this._forbidden())
       .add('dayuse',      () => Auth.hasPermission('dayuse')      ? DayUseModule.render()            : this._forbidden())
       .add('admin',       () => Auth.hasPermission('admin')       ? AdminModule.render()             : this._forbidden());

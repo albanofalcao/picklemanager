@@ -643,8 +643,11 @@ const TurmasModule = {
           ${statusOpts}
         </select>
         <span class="results-count">${aulas.length} aula${aulas.length !== 1 ? 's' : ''}</span>
-        <button class="btn btn-secondary btn-sm" onclick="TurmasModule._exportAulas()" title="Exportar para Excel">
-          ⬇ Excel
+        <button class="btn btn-secondary btn-sm" onclick="TurmasModule._exportAulas()" title="Exportar aulas para Excel">
+          ⬇ Aulas
+        </button>
+        <button class="btn btn-secondary btn-sm" onclick="TurmasModule._exportPresencas()" title="Exportar histórico de presenças para Excel">
+          ⬇ Presenças
         </button>
       </div>
       ${aulas.length ? `
@@ -3378,6 +3381,41 @@ const TurmasModule = {
     });
 
     ExportService.toXLSX('picklemanager_aulas', headers, rows, 'Aulas');
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Exportar Presenças para Excel                                       */
+  /* ------------------------------------------------------------------ */
+
+  _exportPresencas() {
+    const presencas = Storage.getAll('presencas');
+    if (!presencas.length) { UI.toast('Nenhuma presença registrada para exportar', 'warning'); return; }
+
+    const aulaMap = {};
+    Storage.getAll('aulas').forEach(a => { aulaMap[a.id] = a; });
+
+    const headers = ['Aula', 'Turma', 'Data', 'Professor', 'Aluno', 'Presença', 'Registrado em'];
+    const rows = presencas
+      .slice()
+      .sort((a, b) => {
+        const da = aulaMap[a.aulaId]?.data || '';
+        const db = aulaMap[b.aulaId]?.data || '';
+        return db.localeCompare(da);
+      })
+      .map(p => {
+        const aula = aulaMap[p.aulaId] || {};
+        return [
+          aula.titulo        || '',
+          aula.turmaNome     || '',
+          ExportService.fmtData(aula.data),
+          aula.professorNome || '',
+          p.alunoNome        || '',
+          p.presente ? 'Presente' : 'Ausente',
+          ExportService.fmtData(p.registradoEm),
+        ];
+      });
+
+    ExportService.toXLSX('picklemanager_presencas', headers, rows, 'Presenças');
   },
 };
 
