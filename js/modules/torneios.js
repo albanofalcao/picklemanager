@@ -781,6 +781,15 @@ const TorneioModule = {
             </div>
           </div>
 
+          <div class="form-group">
+            <label class="form-label">Restrição de sexo</label>
+            <select id="cc-sexo" class="form-select">
+              <option value=""         ${!cat.sexo || cat.sexo === '' ? 'selected' : ''}>— Sem restrição (Aberto/Misto) —</option>
+              <option value="masculino" ${cat.sexo === 'masculino' ? 'selected' : ''}>♂ Masculino — somente homens</option>
+              <option value="feminino"  ${cat.sexo === 'feminino'  ? 'selected' : ''}>♀ Feminino — somente mulheres</option>
+            </select>
+          </div>
+
         </div>`,
     });
 
@@ -817,6 +826,7 @@ const TorneioModule = {
       numSets:          g('cc-sets')?.value               || '1_set',
       tempoPartidaMin:  parseInt(g('cc-tempo')?.value)    || 25,
       formato:          g('cc-formato')?.value            || '',
+      sexo:             g('cc-sexo')?.value               || '',
     });
     UI.toast('Configuração salva!', 'success');
     UI.closeModal();
