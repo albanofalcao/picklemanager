@@ -1193,8 +1193,8 @@ document.addEventListener('DOMContentLoaded', () => {
   if (!hash || !hash.includes('access_token') || !hash.includes('type=recovery')) return;
   if (!SupabaseClient) return;
 
-  // Limpa o hash da URL imediatamente para evitar loop no próximo acesso
-  history.replaceState(null, '', window.location.pathname);
+  // NÃO limpa o hash agora — o Supabase precisa do token para estabelecer a sessão.
+  // O hash só é removido depois que a sessão for confirmada (dentro de _show).
 
   // Mostra tela de espera enquanto o Supabase processa o token
   SuperAdmin._showWrap(`
@@ -1211,6 +1211,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const _show = () => {
     if (_showed) return;
     _showed = true;
+    // Limpa o hash SÓ DEPOIS que a sessão foi estabelecida, para evitar loop no próximo acesso
+    history.replaceState(null, '', window.location.pathname);
     SuperAdmin._renderNovaSenha();
   };
 
