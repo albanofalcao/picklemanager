@@ -1107,7 +1107,7 @@ const AlunoModule = {
   /* ------------------------------------------------------------------ */
 
   _exportExcel() {
-    const filtered = this._getFiltered();
+    const filtered = this.getFiltered();
     if (!filtered.length) { UI.toast('Nenhum aluno para exportar', 'warning'); return; }
 
     const headers = ['Nome', 'CPF', 'E-mail', 'Telefone', 'Nascimento', 'Nível', 'Status', 'Instagram', 'Cadastro'];
