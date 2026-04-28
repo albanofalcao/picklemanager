@@ -161,9 +161,17 @@ const AlunoModule = {
         <span class="results-count">
           ${filtered.length} aluno${filtered.length !== 1 ? 's' : ''}
         </span>
-        <button class="btn btn-secondary btn-sm" onclick="AlunoModule._exportExcel()" title="Exportar para Excel">
-          ⬇ Excel
-        </button>
+        <div class="export-group">
+          <div class="export-group-col">
+            <span class="export-group-label">📥 Baixar planilha</span>
+            <span class="export-hint">registros do filtro atual</span>
+          </div>
+          <button class="btn-export"
+            onclick="AlunoModule._exportExcel()"
+            title="Exporta os alunos atualmente exibidos (respeitando busca e filtros ativos).&#10;&#10;Colunas incluídas:&#10;Nome · CPF · E-mail · Telefone · Data de Nasc. · Nível · Status · Instagram · Data de Cadastro">
+            Alunos <span class="export-fmt">.xlsx</span>
+          </button>
+        </div>
       </div>
 
       <div class="alunos-table-wrap" id="alunos-list">

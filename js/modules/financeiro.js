@@ -241,9 +241,17 @@ const FinanceiroModule = {
         <span class="results-count">
           ${filtered.length} lançamento${filtered.length !== 1 ? 's' : ''}
         </span>
-        <button class="btn btn-secondary btn-sm" onclick="FinanceiroModule._exportExcel()" title="Exportar para Excel">
-          ⬇ Excel
-        </button>
+        <div class="export-group">
+          <div class="export-group-col">
+            <span class="export-group-label">📥 Baixar planilha</span>
+            <span class="export-hint">registros do filtro atual</span>
+          </div>
+          <button class="btn-export"
+            onclick="FinanceiroModule._exportExcel()"
+            title="Exporta os lançamentos financeiros atualmente exibidos (respeitando filtros de período, tipo e status).&#10;&#10;Colunas incluídas:&#10;Data · Tipo · Descrição · Categoria · Valor (R$) · Forma de Pagamento · Status · Referência · Observações">
+            Financeiro <span class="export-fmt">.xlsx</span>
+          </button>
+        </div>
       </div>
 
       <div class="alunos-table-wrap" id="financeiro-list">

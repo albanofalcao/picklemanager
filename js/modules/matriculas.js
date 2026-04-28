@@ -153,9 +153,17 @@ const MatriculaModule = {
         <span class="results-count">
           ${filtered.length} matrícula${filtered.length !== 1 ? 's' : ''}
         </span>
-        <button class="btn btn-secondary btn-sm" onclick="MatriculaModule._exportExcel()" title="Exportar para Excel">
-          ⬇ Excel
-        </button>
+        <div class="export-group">
+          <div class="export-group-col">
+            <span class="export-group-label">📥 Baixar planilha</span>
+            <span class="export-hint">registros do filtro atual</span>
+          </div>
+          <button class="btn-export"
+            onclick="MatriculaModule._exportExcel()"
+            title="Exporta as matrículas atualmente exibidas (respeitando filtros de status e plano).&#10;&#10;Colunas incluídas:&#10;Aluno · Plano · Tipo · Valor (R$) · Forma de Pagamento · Início · Vencimento · Status · Observações">
+            Matrículas <span class="export-fmt">.xlsx</span>
+          </button>
+        </div>
       </div>
 
       <div class="alunos-table-wrap" id="matriculas-list">

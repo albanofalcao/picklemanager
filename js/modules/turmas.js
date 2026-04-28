@@ -643,12 +643,22 @@ const TurmasModule = {
           ${statusOpts}
         </select>
         <span class="results-count">${aulas.length} aula${aulas.length !== 1 ? 's' : ''}</span>
-        <button class="btn btn-secondary btn-sm" onclick="TurmasModule._exportAulas()" title="Exportar aulas para Excel">
-          ⬇ Aulas
-        </button>
-        <button class="btn btn-secondary btn-sm" onclick="TurmasModule._exportPresencas()" title="Exportar histórico de presenças para Excel">
-          ⬇ Presenças
-        </button>
+        <div class="export-group">
+          <div class="export-group-col">
+            <span class="export-group-label">📥 Baixar planilha</span>
+            <span class="export-hint">registros do filtro atual</span>
+          </div>
+          <button class="btn-export"
+            onclick="TurmasModule._exportAulas()"
+            title="Exporta as aulas atualmente exibidas (respeitando filtros de turma, status e período).&#10;&#10;Colunas incluídas:&#10;Título · Turma · Data · Início · Fim · Professor · Arena · Status · Nº de Alunos">
+            Aulas <span class="export-fmt">.xlsx</span>
+          </button>
+          <button class="btn-export"
+            onclick="TurmasModule._exportPresencas()"
+            title="Exporta o histórico completo de presenças de todos os alunos em todas as aulas.&#10;&#10;Colunas incluídas:&#10;Aula · Turma · Data · Professor · Aluno · Presença (Presente/Ausente) · Registrado em">
+            Presenças <span class="export-fmt">.xlsx</span>
+          </button>
+        </div>
       </div>
       ${aulas.length ? `
         <div class="table-card">
