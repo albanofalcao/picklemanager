@@ -2586,8 +2586,14 @@ const TorneioModule = {
         </div>`;
     }
 
-    const finalizadas = partidas.filter(p => p.status === 'finalizado').length;
-    const totalReais  = partidas.filter(p => !p.isBye).length;
+    // Garante que vencedores de partidas finalizadas estejam propagados no bracket
+    this._propagarVencedoresPendentes(catId);
+
+    // Re-lê partidas após propagação (pode ter atualizado slots da final)
+    const partidasAtualizadas = Storage.getAll(this.SK_PARTIDA).filter(p => p.categoriaId === catId);
+
+    const finalizadas = partidasAtualizadas.filter(p => p.status === 'finalizado').length;
+    const totalReais  = partidasAtualizadas.filter(p => !p.isBye).length;
 
     return `
       <div style="display:flex;align-items:center;justify-content:space-between;
@@ -2599,8 +2605,8 @@ const TorneioModule = {
           onclick="TorneioModule._resetarChaves('${catId}','${eventoId}')">🔄 Regenerar Chaves</button>
       </div>
       ${cat.formato === 'round_robin'
-        ? this._renderTabelaRoundRobin(catId, eventoId, partidas, inscAtivas)
-        : this._renderBracketEliminatoria(catId, eventoId, partidas, inscAtivas)}
+        ? this._renderTabelaRoundRobin(catId, eventoId, partidasAtualizadas, inscAtivas)
+        : this._renderBracketEliminatoria(catId, eventoId, partidasAtualizadas, inscAtivas)}
     `;
   },
 
@@ -3214,6 +3220,26 @@ const TorneioModule = {
   /* ================================================================== */
   /*  Utilitários                                                         */
   /* ================================================================== */
+
+  /**
+   * Percorre partidas finalizadas e garante que o vencedor esteja
+   * propagado na próxima partida do bracket. Corrige automaticamente
+   * brackets onde o avanço falhou silenciosamente.
+   */
+  _propagarVencedoresPendentes(catId) {
+    const partidas = Storage.getAll(this.SK_PARTIDA).filter(p => p.categoriaId === catId);
+    partidas
+      .filter(p => p.status === 'finalizado' && p.proximoMatchId && p.vencedorId)
+      .forEach(p => {
+        const next = partidas.find(n => n.id === p.proximoMatchId);
+        if (!next) return;
+        const slot = p.proximoSlot; // 1 ou 2
+        // Só propaga se o slot ainda estiver vazio
+        if (!next[`part${slot}Id`]) {
+          this._avancarVencedor(p, { id: p.vencedorId, nome: p.vencedorNome });
+        }
+      });
+  },
 
   /** Retorna label legível para o valor de numSets */
   _numSetsLabel(numSets) {
