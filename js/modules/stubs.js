@@ -483,40 +483,11 @@ function renderDashboard() {
   const area = document.getElementById('content-area');
   if (!area) return;
 
-  const session        = Auth.getCurrentUser();
   const alunoStats     = AlunoModule.getStats();
   const aulaStats      = TurmasModule.getAulaStats();
   const finStats       = FinanceiroModule.getStats();
   const manutStats     = ManutencaoModule.getStats();
   const matStats       = MatriculaModule.getStats();
-
-  // ── Notificações agrupadas ──────────────────────────────
-  const notifs = Notifications.getAll();
-
-  const nivelConfig = {
-    error:   { cor: '#ef4444', bg: '#fee2e2', borda: '#fca5a5', label: 'Urgente'  },
-    warning: { cor: '#f59e0b', bg: '#fef3c7', borda: '#fcd34d', label: 'Atenção'  },
-    info:    { cor: '#3b82f6', bg: '#dbeafe', borda: '#93c5fd', label: 'Info'     },
-  };
-
-  const alertasHtml = notifs.length
-    ? notifs.map(n => {
-        const cfg = nivelConfig[n.nivel] || nivelConfig.info;
-        return `
-          <div class="dash-alerta" onclick="Router.navigate('${n.rota}')"
-            style="border-left:3px solid ${cfg.cor};">
-            <span class="dash-alerta-icon">${n.icon}</span>
-            <div class="dash-alerta-body">
-              <div class="dash-alerta-titulo" style="color:${cfg.cor};">${UI.escape(n.titulo)}</div>
-              <div class="dash-alerta-desc">${UI.escape(n.desc)}</div>
-            </div>
-            <span class="dash-alerta-badge" style="background:${cfg.cor};">${cfg.label}</span>
-          </div>`;
-      }).join('')
-    : `<div class="dash-tudo-ok">
-        <span style="font-size:36px;">✅</span>
-        <p>Tudo em dia! Nenhum alerta no momento.</p>
-      </div>`;
 
   // ── Agenda do dia (hoje e amanhã) ──────────────────────
   const hoje   = new Date().toISOString().slice(0, 10);
@@ -600,27 +571,12 @@ function renderDashboard() {
       </div>
     </div>
 
-    <!-- Layout principal: 2 colunas -->
+    <!-- Layout: Próximas Aulas (larga) + 2 gráficos -->
     <div class="dash-main-grid">
 
-      <!-- Coluna esquerda: Alertas + Próximas aulas -->
+      <!-- Coluna esquerda: Agenda -->
       <div class="dash-col-left">
-
-        <!-- Painel de Alertas -->
         <div class="dash-panel">
-          <div class="dash-panel-header">
-            <span class="dash-panel-title">🔔 Alertas &amp; Pendências</span>
-            <span class="badge ${notifs.length > 0 ? 'badge-danger' : 'badge-success'}" style="font-size:11px;">
-              ${notifs.length > 0 ? notifs.length + ' alerta' + (notifs.length > 1 ? 's' : '') : 'Tudo ok'}
-            </span>
-          </div>
-          <div class="dash-alertas-list">
-            ${alertasHtml}
-          </div>
-        </div>
-
-        <!-- Próximas aulas -->
-        <div class="dash-panel" style="margin-top:20px;">
           <div class="dash-panel-header">
             <span class="dash-panel-title">🏸 Próximas Aulas</span>
             <button class="btn btn-ghost btn-sm" onclick="Router.navigate('turmas')" style="font-size:12px;">Ver todas →</button>
@@ -629,28 +585,17 @@ function renderDashboard() {
             ${aulasHtml}
           </div>
         </div>
-
       </div>
 
-      <!-- Coluna direita: Gráficos + Vencimentos -->
+      <!-- Coluna direita: Gráficos -->
       <div class="dash-col-right">
 
         <div class="dash-panel">
           <div class="dash-panel-header">
             <span class="dash-panel-title">💰 Financeiro — Mês Atual</span>
           </div>
-          <div class="dash-chart-wrap" style="height:160px;">
+          <div class="dash-chart-wrap" style="height:180px;">
             <canvas id="chart-financeiro"></canvas>
-          </div>
-        </div>
-
-        <div class="dash-panel" style="margin-top:20px;">
-          <div class="dash-panel-header">
-            <span class="dash-panel-title">📅 Vencimentos Próximos</span>
-            <button class="btn btn-ghost btn-sm" onclick="Router.navigate('matriculas')" style="font-size:12px;">Ver todas →</button>
-          </div>
-          <div id="dash-vencimentos-list">
-            ${_buildVencimentosHtml()}
           </div>
         </div>
 
@@ -658,7 +603,7 @@ function renderDashboard() {
           <div class="dash-panel-header">
             <span class="dash-panel-title">👥 Alunos por Nível</span>
           </div>
-          <div class="dash-chart-wrap" style="height:180px;">
+          <div class="dash-chart-wrap" style="height:200px;">
             <canvas id="chart-niveis"></canvas>
           </div>
         </div>
