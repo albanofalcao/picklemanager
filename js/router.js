@@ -8,6 +8,7 @@ const Router = {
 
   /** Page title map for each route */
   _titles: {
+    home:        'Início',
     dashboard:   'Dashboard',
     arenas:      'Arenas',
     alunos:      'Alunos',
@@ -51,7 +52,7 @@ const Router = {
   /** Read the current hash and dispatch to the matching handler */
   _handleRoute() {
     const hash  = window.location.hash.replace(/^#\/?/, '').trim();
-    const route = hash || 'dashboard';
+    const route = hash || 'home';
 
     // Update active nav item
     document.querySelectorAll('.nav-item').forEach(el => {
@@ -106,6 +107,6 @@ const Router = {
 
   /** Return the current route name */
   current() {
-    return window.location.hash.replace(/^#\/?/, '').trim() || 'dashboard';
+    return window.location.hash.replace(/^#\/?/, '').trim() || 'home';
   },
 };

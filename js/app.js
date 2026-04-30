@@ -73,6 +73,7 @@ const SaldoService = {
 const App = {
 
   NAV_ITEMS: [
+    { route: 'home',        icon: '🏠', label: 'Início'               },
     { route: 'dashboard',   icon: '📊', label: 'Dashboard'            },
     { route: 'alunos',      icon: '👥', label: 'Alunos'              },
     { route: 'matriculas',  icon: '🎫', label: 'Matrículas'          },
@@ -91,6 +92,7 @@ const App = {
 
   // Nav específico para o tenant Matriz (visão consolidada)
   NAV_ITEMS_MATRIZ: [
+    { route: 'home',        icon: '🏠', label: 'Início'               },
     { route: 'dashboard',   icon: '📊', label: 'Dashboard'            },
     { route: 'arenas',      icon: '🏫', label: 'Arenas'               },
     { route: 'alunos',      icon: '👥', label: 'Alunos (rede)'        },
@@ -678,6 +680,7 @@ const App = {
     setInterval(() => this.updateDate(), 60000);
 
     Router
+      .add('home',        () => renderHome())
       .add('dashboard',   () => Auth.hasPermission('dashboard')   ? renderStub('dashboard')          : this._forbidden())
       .add('arenas',      () => Auth.hasPermission('arenas')      ? ArenaModule.render()             : this._forbidden())
       .add('alunos',      () => Auth.hasPermission('alunos')      ? AlunoModule.render()             : this._forbidden())
