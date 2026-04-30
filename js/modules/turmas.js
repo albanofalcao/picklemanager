@@ -1663,6 +1663,7 @@ const TurmasModule = {
       content,
       confirmLabel: id ? 'Salvar alterações' : 'Criar Turma',
       onConfirm:    () => this.saveTurma(id),
+      wide:         true,   // formulário longo — modal larga evita overflow
     });
   },
 
@@ -1717,8 +1718,29 @@ const TurmasModule = {
     };
 
     if (id) {
+      // Verifica se o professor mudou para propagar às aulas futuras
+      const turmaAntes = Storage.getById(this.SK, id);
+      const profMudou  = turmaAntes && turmaAntes.professorId !== record.professorId;
+
       Storage.update(this.SK, id, record);
-      UI.toast(`Turma "${record.nome}" atualizada!`, 'success');
+
+      // Propaga professor para aulas futuras (agendadas a partir de hoje)
+      if (profMudou && record.professorId) {
+        const hoje      = new Date().toISOString().slice(0, 10);
+        const aulasFut  = Storage.getAll(this.SK_AULA)
+          .filter(a => a.turmaId === id && a.status === 'agendada' && (a.data || '') >= hoje);
+        aulasFut.forEach(a => Storage.update(this.SK_AULA, a.id, {
+          professorId:   record.professorId,
+          professorNome: record.professorNome,
+        }));
+        const n = aulasFut.length;
+        UI.toast(
+          `Turma "${record.nome}" atualizada! Professor propagado para ${n} aula${n !== 1 ? 's' : ''} futura${n !== 1 ? 's' : ''}.`,
+          'success'
+        );
+      } else {
+        UI.toast(`Turma "${record.nome}" atualizada!`, 'success');
+      }
     } else {
       Storage.create(this.SK, record);
       UI.toast(`Turma "${record.nome}" criada!`, 'success');
@@ -2622,7 +2644,7 @@ const TurmasModule = {
         <div class="detalhe-section">
           <div class="detalhe-section-title">👥 Frequência dos Alunos</div>
           <button class="btn btn-secondary"
-            onclick="UI.closeModal();PresencaModule.abrirModal('${id}')">
+            onclick="UI.closeModal();TurmasModule.abrirPresencaRapida('${id}')">
             Registrar / Ver Frequência
             ${pStats.total ? `<span class="badge badge-success" style="margin-left:6px;">${pStats.presentes}/${pStats.total}</span>` : ''}
           </button>

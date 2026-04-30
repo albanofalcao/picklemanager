@@ -89,6 +89,7 @@ const UI = {
 
     titleEl.textContent = title;
     bodyEl.innerHTML = content;
+    bodyEl.scrollTop = 0;        // garante que o modal sempre abre no topo
     dialog.classList.toggle('modal-wide', !!wide);
     if (cancelBtn) cancelBtn.textContent = cancelLabel;
 
