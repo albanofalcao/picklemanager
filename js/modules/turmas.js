@@ -683,7 +683,7 @@ const TurmasModule = {
     if (!aula) return;
 
     const inscritos = aula.turmaId
-      ? this.getAlunosInscritos(aula.turmaId)
+      ? this.getAlunosInscritos(aula.turmaId, aula.data || null)
       : [];
 
     if (!inscritos.length) {
@@ -2870,17 +2870,35 @@ const TurmasModule = {
         `<option value="${a.id}" data-nome="${UI.escape(a.nome)}" data-nivel="${UI.escape(a.nivel || '')}">${UI.escape(a.nome)}</option>`
       ).join('');
 
+    const hoje = new Date().toISOString().slice(0, 10);
     const listaHtml = inscritos.length
       ? `<div class="inscricao-list">
-           ${inscritos.map(i => `
+           ${inscritos.map(i => {
+             const mat = Storage.getAll('matriculas')
+               .find(m => m.alunoId === i.alunoId && m.status === 'ativa');
+             const semMat   = !mat;
+             const vencido  = mat && mat.dataFim && mat.dataFim < hoje;
+             const contratoLabel = semMat
+               ? 'Sem matrícula ativa'
+               : (mat.dataFim ? `Contrato até ${this._fmtDataCurta(mat.dataFim)}` : 'Contrato indeterminado');
+             const badge = vencido
+               ? `<span class="badge badge-danger" style="font-size:0.6rem;margin-left:4px;" title="Contrato vencido">Vencido</span>`
+               : semMat
+                 ? `<span class="badge badge-warning" style="font-size:0.6rem;margin-left:4px;" title="Sem matrícula ativa">Sem matrícula</span>`
+                 : '';
+             return `
              <div class="inscricao-item">
                <div style="flex:1;min-width:0;">
-                 <div class="inscricao-nome">${UI.escape(i.alunoNome)}</div>
-                 <div class="inscricao-sub">Inscrito em ${this._fmtDataCurta(i.dataInscricao?.slice(0,10))}</div>
+                 <div class="inscricao-nome">${UI.escape(i.alunoNome)}${badge}</div>
+                 <div class="inscricao-sub">
+                   Inscrito em ${this._fmtDataCurta(i.dataInscricao?.slice(0,10))}
+                   &nbsp;·&nbsp; <span style="color:${vencido || semMat ? 'var(--color-danger,#ef4444)' : 'var(--text-muted)'}">${contratoLabel}</span>
+                 </div>
                </div>
                <button class="btn btn-ghost btn-sm danger"
                  onclick="TurmasModule._removerInscricao('${i.id}','${turmaId}')" title="Remover da turma">✕</button>
-             </div>`).join('')}
+             </div>`;
+           }).join('')}
          </div>`
       : `<div class="empty-state" style="padding:24px 16px;">
            <div class="empty-icon" style="font-size:28px;">👤</div>
@@ -2962,9 +2980,32 @@ const TurmasModule = {
     if (modalBody) modalBody.innerHTML = this._renderInscricoes(turmaId);
   },
 
-  /** Retorna alunos ativos inscritos numa turma */
-  getAlunosInscritos(turmaId) {
-    return Storage.getAll(this.SK_INSCR).filter(i => i.turmaId === turmaId && i.status === 'ativo');
+  /**
+   * Verifica se o aluno possui matrícula ativa cobrindo uma data específica.
+   * - status === 'ativa'
+   * - dataInicio <= data (ou ausente)
+   * - dataFim   >= data (ou ausente → contrato indeterminado)
+   */
+  _matriculaAtivaEmData(alunoId, data) {
+    if (!data) return true;
+    return Storage.getAll('matriculas').some(m =>
+      m.alunoId === alunoId &&
+      m.status  === 'ativa' &&
+      (!m.dataInicio || m.dataInicio <= data) &&
+      (!m.dataFim    || m.dataFim   >= data)
+    );
+  },
+
+  /**
+   * Retorna alunos ativos inscritos numa turma.
+   * Se aulaData for fornecido, filtra apenas os alunos cujo contrato
+   * cobre aquela data (janela contratada).
+   */
+  getAlunosInscritos(turmaId, aulaData = null) {
+    const inscr = Storage.getAll(this.SK_INSCR)
+      .filter(i => i.turmaId === turmaId && i.status === 'ativo');
+    if (!aulaData) return inscr;
+    return inscr.filter(i => this._matriculaAtivaEmData(i.alunoId, aulaData));
   },
 
   /* ================================================================== */
