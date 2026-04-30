@@ -184,8 +184,8 @@ const TurmasModule = {
     // Aluno tem view própria com todas as grades disponíveis
     if (isAluno) return this._renderTurmasAluno(session);
 
-    // Pré-filtra por professor vinculado
-    let base = Storage.getAll(this.SK);
+    // Pré-filtra por professor vinculado; mini-turmas avulsas nunca aparecem na aba Grades
+    let base = Storage.getAll(this.SK).filter(t => t.tipo !== 'avulsa');
     if (isProfessor) {
       base = base.filter(t =>
         session.professorId ? t.professorId === session.professorId : t.professorNome === session.nome
@@ -325,8 +325,9 @@ const TurmasModule = {
   /* ================================================================== */
 
   _renderTurmasAluno(session) {
+    // Mini-turmas avulsas não devem aparecer na lista de inscrição do aluno
     const grades = Storage.getAll(this.SK)
-      .filter(t => t.status === 'ativa')
+      .filter(t => t.status === 'ativa' && t.tipo !== 'avulsa')
       .sort((a, b) => a.nome.localeCompare(b.nome));
 
     const inscricoes = Storage.getAll(this.SK_INSCR)
@@ -461,7 +462,8 @@ const TurmasModule = {
       }
       aulas = aulas.filter(a => minhasTurmas.has(a.turmaId));
     } else if (this._state.aulaFilterTurma === '__avulsa__') {
-      aulas = aulas.filter(a => !a.turmaId);
+      // Inclui avulsas legadas (!turmaId) E mini-turmas avulsas (avulsa: true)
+      aulas = aulas.filter(a => !a.turmaId || !!a.avulsa);
     } else if (this._state.aulaFilterTurma) {
       aulas = aulas.filter(a => a.turmaId === this._state.aulaFilterTurma);
     }
@@ -493,8 +495,8 @@ const TurmasModule = {
     // Guarda para exportação
     this._aulasFiltered = aulas;
 
-    // Opções de turma para o filtro
-    const turmas = Storage.getAll(this.SK).sort((a, b) => a.nome.localeCompare(b.nome));
+    // Opções de turma para o filtro — mini-turmas avulsas não aparecem como opção de filtro
+    const turmas = Storage.getAll(this.SK).filter(t => t.tipo !== 'avulsa').sort((a, b) => a.nome.localeCompare(b.nome));
     const minhaLabel = isProfessor ? 'Minhas turmas' : isAluno ? 'Minhas turmas' : '';
     let turmaOpts = `<option value="">Todas as turmas</option>`;
     if (isProfessor || isAluno) {
@@ -528,8 +530,12 @@ const TurmasModule = {
         ? `<span class="badge badge-success" style="font-size:0.7rem;">${pStats.presentes}/${pStats.total}</span>`
         : '<span class="text-muted text-sm">—</span>';
 
-      // Alunos alocados nesta aula específica
-      const alocados = Storage.getAll('aulaAlunos').filter(aa => aa.aulaId === a.id && aa.status === 'ativo');
+      // Para mini-turmas avulsas os alunos estão em turmaAlunos; para o resto em aulaAlunos
+      const alocados = (a.avulsa && a.turmaId)
+        ? Storage.getAll(this.SK_INSCR)
+            .filter(i => i.turmaId === a.turmaId && i.status === 'ativo')
+            .map(i => ({ alunoNome: i.alunoNome }))
+        : Storage.getAll('aulaAlunos').filter(aa => aa.aulaId === a.id && aa.status === 'ativo');
       const vagasAula = a.vagas || 0;
       const vagasLivresAula = vagasAula > 0 ? Math.max(0, vagasAula - alocados.length) : null;
       const vagasBadgeAula = vagasAula > 0
@@ -543,10 +549,16 @@ const TurmasModule = {
 
       // Botões de ação rápida
       let acoes = '';
-      // Botão alocar aluno (só para admin/recepcionista)
+      // Botão de alunos (só admin/recepcionista)
       if (!isProfessor && !isAluno) {
-        acoes += `<button class="btn btn-ghost btn-sm" title="Alocar alunos"
-          onclick="TurmasModule.openModalAlocarAluno('${a.id}')">👥 ${vagasBadgeAula} ＋</button>`;
+        if (a.avulsa && a.turmaId) {
+          // Mini-turma avulsa: gerenciar via matrícula na série (turmaAlunos)
+          acoes += `<button class="btn btn-ghost btn-sm" title="Gerenciar alunos da série"
+            onclick="TurmasModule.openModalAlunos('${a.turmaId}')">👥 ${vagasBadgeAula} ＋</button>`;
+        } else {
+          acoes += `<button class="btn btn-ghost btn-sm" title="Alocar alunos"
+            onclick="TurmasModule.openModalAlocarAluno('${a.id}')">👥 ${vagasBadgeAula} ＋</button>`;
+        }
       }
       if (a.status === 'agendada' || a.status === 'em_andamento') {
         acoes += `<button class="btn btn-ghost btn-sm" title="Lançar presença"
@@ -583,8 +595,11 @@ const TurmasModule = {
       acoes += `<button class="btn btn-ghost btn-sm" title="Detalhe"
         onclick="TurmasModule.openModalAulaDetalhe('${a.id}')">👁</button>`;
       if (!isAluno) {
-        acoes += `<button class="btn btn-ghost btn-sm" title="Repetir aula"
-          onclick="TurmasModule.openModalRepetirAula('${a.id}')">🔁</button>`;
+        const isSerie = !!(a.avulsa && a.turmaId);
+        acoes += `<button class="btn btn-ghost btn-sm"
+          title="${isSerie ? 'Agendar sessão extra' : 'Repetir aula'}"
+          onclick="TurmasModule.openModalRepetirAula('${a.id}')">
+          ${isSerie ? '➕' : '🔁'}</button>`;
         acoes += `<button class="btn btn-ghost btn-sm" title="Editar"
           onclick="TurmasModule.openModalAula('${a.id}')">✏️</button>`;
         acoes += `<button class="btn btn-ghost btn-sm danger" title="Excluir aula"
@@ -597,7 +612,7 @@ const TurmasModule = {
             <div class="aluno-nome">${UI.escape(a.titulo)}</div>
             <div class="aluno-sub">${UI.escape(a.nivel ? (this.NIVEL[a.nivel] || a.nivel) : '')}</div>
             <div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:3px;">
-              ${!a.turmaId  ? `<span class="badge badge-gray" style="font-size:0.65rem;">Avulsa</span>` : ''}
+              ${(!a.turmaId || a.avulsa)  ? `<span class="badge badge-gray" style="font-size:0.65rem;">Avulsa</span>` : ''}
               ${a.experimental ? `<span class="badge" style="font-size:0.65rem;background:#f59e0b20;color:#b45309;">🧪 Exp.</span>` : ''}
               ${a.esporte   ? `<span class="badge badge-blue" style="font-size:0.65rem;">${UI.escape(a.esporte)}</span>` : ''}
               ${a.tipoplano ? `<span class="badge badge-success" style="font-size:0.65rem;">${UI.escape(a.tipoplano)}</span>` : ''}
@@ -682,9 +697,12 @@ const TurmasModule = {
     const aula = Storage.getById(this.SK_AULA, aulaId);
     if (!aula) return;
 
+    // Avulsas legadas (!turmaId) usam aulaAlunos como fallback
     const inscritos = aula.turmaId
       ? this.getAlunosInscritos(aula.turmaId, aula.data || null)
-      : [];
+      : Storage.getAll('aulaAlunos')
+          .filter(aa => aa.aulaId === aulaId && aa.status === 'ativo')
+          .map(aa => ({ alunoId: aa.alunoId, alunoNome: aa.alunoNome }));
 
     if (!inscritos.length) {
       UI.toast('Nenhum aluno inscrito nesta turma. Adicione alunos antes de lançar presença.', 'warning');
@@ -1061,7 +1079,7 @@ const TurmasModule = {
     }
 
     const arenas = Storage.getAll('arenas').sort((a,b) => a.nome.localeCompare(b.nome));
-    const turmas = Storage.getAll(this.SK).sort((a,b) => a.nome.localeCompare(b.nome));
+    const turmas = Storage.getAll(this.SK).filter(t => t.tipo !== 'avulsa').sort((a,b) => a.nome.localeCompare(b.nome));
 
     const arenaOpts = `<option value="">Todas as arenas</option>` +
       arenas.map(a => `<option value="${a.id}" ${this._state.calFilterArena===a.id?'selected':''}>${UI.escape(a.nome)}</option>`).join('');
@@ -1165,7 +1183,7 @@ const TurmasModule = {
     return Storage.getAll(this.SK_AULA).filter(a => {
       if (!a.data || a.data < ini || a.data > fim) return false;
       if (this._state.calFilterArena && a.arenaId !== this._state.calFilterArena) return false;
-      if (this._state.calFilterTurma === '__avulsa__') { if (a.turmaId) return false; }
+      if (this._state.calFilterTurma === '__avulsa__') { if (a.turmaId && !a.avulsa) return false; }
       else if (this._state.calFilterTurma && a.turmaId !== this._state.calFilterTurma) return false;
       return true;
     }).sort((a,b) => (a.horarioInicio||'').localeCompare(b.horarioInicio||''));
@@ -1869,24 +1887,40 @@ const TurmasModule = {
     const aula = Storage.getById(this.SK_AULA, aulaId);
     if (!aula) return;
 
+    // Detecta se é uma série avulsa (mini-turma) ou aula legada/avulsa
+    const isSerie = !!(aula.avulsa && aula.turmaId);
+
     const [y, m, d] = (aula.data || '').split('-');
     const dataFmt = aula.data ? `${d}/${m}/${y}` : '—';
     const hora = [aula.horarioInicio, aula.horarioFim].filter(Boolean).join(' – ') || '—';
 
-    // Verifica se a aula original tem alunos alocados
-    const alunosOrigem = Storage.getAll('aulaAlunos').filter(aa => aa.aulaId === aulaId && aa.status === 'ativo');
+    // Para séries avulsas os alunos estão em turmaAlunos; para legadas em aulaAlunos
+    const alunosOrigem = isSerie
+      ? []
+      : Storage.getAll('aulaAlunos').filter(aa => aa.aulaId === aulaId && aa.status === 'ativo');
     const temAlunos = alunosOrigem.length > 0;
+
+    const nSerie = isSerie
+      ? Storage.getAll(this.SK_INSCR).filter(i => i.turmaId === aula.turmaId && i.status === 'ativo').length
+      : 0;
 
     const content = `
       <div class="form-grid">
         <div class="cadastro-tab-info">
-          🔁 Criará cópias de <strong>${UI.escape(aula.titulo)}</strong>
-          (${dataFmt} · ${hora}) com o mesmo professor, arena, quadra e horário.
-          Conflitos de quadra ou professor serão automaticamente ignorados.
+          ${isSerie
+            ? `➕ Agendará novas sessões para a série <strong>${UI.escape(aula.titulo)}</strong>
+               (${dataFmt} · ${hora}). Os <strong>${nSerie} aluno${nSerie !== 1 ? 's' : ''}</strong>
+               matriculado${nSerie !== 1 ? 's' : ''} nesta série participarão automaticamente,
+               respeitando a janela de contrato de cada um.
+               Conflitos de quadra ou professor são ignorados.`
+            : `🔁 Criará cópias de <strong>${UI.escape(aula.titulo)}</strong>
+               (${dataFmt} · ${hora}) com o mesmo professor, arena, quadra e horário.
+               Conflitos de quadra ou professor serão automaticamente ignorados.`
+          }
         </div>
         <div class="form-grid-2">
           <div class="form-group">
-            <label class="form-label" for="rep-qtd">Número de repetições</label>
+            <label class="form-label" for="rep-qtd">${isSerie ? 'Número de sessões' : 'Número de repetições'}</label>
             <input id="rep-qtd" type="number" class="form-input" min="1" max="52" value="4"
               oninput="TurmasModule._atualizarPreviewRep('${aulaId}')" />
           </div>
@@ -1900,7 +1934,7 @@ const TurmasModule = {
             </select>
           </div>
         </div>
-        ${temAlunos ? `
+        ${!isSerie && temAlunos ? `
         <div class="form-group" style="background:var(--gray-light);border-radius:8px;padding:12px;">
           <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
             <input type="checkbox" id="rep-copiar-alunos" checked
@@ -1918,9 +1952,9 @@ const TurmasModule = {
       </div>`;
 
     UI.openModal({
-      title:        `🔁 Repetir Aula — ${aula.titulo}`,
+      title:        isSerie ? `➕ Sessão Extra — ${aula.titulo}` : `🔁 Repetir Aula — ${aula.titulo}`,
       content,
-      confirmLabel: 'Criar repetições',
+      confirmLabel: isSerie ? 'Agendar sessões' : 'Criar repetições',
       onConfirm:    () => this._repetirAula(aulaId),
     });
 
@@ -2206,7 +2240,8 @@ const TurmasModule = {
     const isEdit = !!aula;
     const v      = (f, fb = '') => aula ? UI.escape(String(aula[f] ?? fb)) : fb;
 
-    const turmas = Storage.getAll(this.SK);
+    // Mini-turmas avulsas não aparecem no seletor (são criadas automaticamente)
+    const turmas = Storage.getAll(this.SK).filter(t => t.tipo !== 'avulsa');
     const turmaOpts = `<option value="">— Avulsa (sem turma) —</option>` +
       turmas.map(t =>
         `<option value="${t.id}" data-nome="${UI.escape(t.nome)}"
@@ -2244,6 +2279,7 @@ const TurmasModule = {
 
     const content = `
       <input id="au-current-id" type="hidden" value="${id || ''}" />
+      <input id="au-mini-turma-id" type="hidden" value="${(aula?.avulsa && aula?.turmaId) ? aula.turmaId : ''}" />
       <div class="au-modal-layout">
         <div class="au-form-col">
           <div class="form-grid">
@@ -2300,12 +2336,12 @@ const TurmasModule = {
               </div>
             </div>
 
-            <div id="au-data-wrap" class="form-group" ${aula && aula.turmaId ? 'style="display:none"' : ''}>
+            <div id="au-data-wrap" class="form-group" ${aula && aula.turmaId && !aula.avulsa ? 'style="display:none"' : ''}>
               <label class="form-label" for="au-data">Data <span class="required-star">*</span></label>
               <input id="au-data" type="date" class="form-input" value="${v('data')}"
                 onchange="TurmasModule._updateDayViewModal()" />
             </div>
-            <div id="au-data-info" ${aula && aula.turmaId ? '' : 'style="display:none"'}>
+            <div id="au-data-info" ${aula && aula.turmaId && !aula.avulsa ? '' : 'style="display:none"'}>
               <div class="cadastro-tab-info">
                 📅 Aula vinculada à grade — as datas são geradas automaticamente pelo botão <strong>Gerar Aulas</strong> na aba Grade.
               </div>
@@ -2529,21 +2565,87 @@ const TurmasModule = {
     }
 
     if (id) {
+      // Se é edição de mini-turma avulsa: sincroniza também a turma-pai
+      const miniTurmaId = document.getElementById('au-mini-turma-id')?.value || '';
+      if (isAvulsa && miniTurmaId) {
+        Storage.update(this.SK, miniTurmaId, {
+          nome:          record.titulo,
+          nivel:         record.nivel,
+          esporte:       record.esporte,
+          tipoplano:     record.tipoplano,
+          professorId:   record.professorId,
+          professorNome: record.professorNome,
+          arenaId:       record.arenaId,
+          arenaNome:     record.arenaNome,
+          quadraId:      record.quadraId   || '',
+          quadraNome:    record.quadraNome || '',
+          horarioInicio: record.horarioInicio,
+          horarioFim:    record.horarioFim,
+          vagas:         record.vagas,
+          observacoes:   record.observacoes,
+        });
+        // Preserva vínculo com a mini-turma existente
+        record.turmaId   = miniTurmaId;
+        record.turmaNome = '';
+        record.avulsa    = true;
+      }
       Storage.update(this.SK_AULA, id, record);
       UI.toast(`Aula "${record.titulo}" atualizada!`, 'success');
     } else {
+      if (isAvulsa) {
+        // Cria mini-turma silenciosa (tipo: 'avulsa') para esta série
+        const minTurma = Storage.create(this.SK, {
+          nome:          record.titulo,
+          tipo:          'avulsa',
+          nivel:         record.nivel         || '',
+          esporte:       record.esporte       || '',
+          tipoplano:     record.tipoplano     || '',
+          professorId:   record.professorId   || '',
+          professorNome: record.professorNome || '',
+          arenaId:       record.arenaId       || '',
+          arenaNome:     record.arenaNome     || '',
+          quadraId:      record.quadraId      || '',
+          quadraNome:    record.quadraNome    || '',
+          horarioInicio: record.horarioInicio || '',
+          horarioFim:    record.horarioFim    || '',
+          vagas:         record.vagas         || 4,
+          status:        'ativa',
+          diasSemana:    [],
+          observacoes:   record.observacoes   || '',
+        });
+        if (minTurma) {
+          record.turmaId   = minTurma.id;
+          record.turmaNome = '';      // vazio → badge "Avulsa" continua aparecendo
+          record.avulsa    = true;    // flag para roteamento de presença, botões etc.
+        }
+      }
+
       const novaAula = Storage.create(this.SK_AULA, record);
-      // Alocar alunos selecionados (somente criação de avulsa)
+
+      // Alunos selecionados no form
       if (novaAula) {
         const alunosSel = document.getElementById('au-alunos-sel');
         if (alunosSel) {
           Array.from(alunosSel.selectedOptions).forEach(opt => {
-            Storage.create('aulaAlunos', {
-              aulaId:    novaAula.id,
-              alunoId:   opt.value,
-              alunoNome: opt.dataset.nome || opt.textContent.trim(),
-              status:    'ativo',
-            });
+            if (record.turmaId && record.avulsa) {
+              // Mini-turma avulsa: matrícula na série (turmaAlunos) — respeita janela de contrato
+              Storage.create(this.SK_INSCR, {
+                turmaId:       record.turmaId,
+                turmaNome:     record.titulo,
+                alunoId:       opt.value,
+                alunoNome:     opt.dataset.nome || opt.textContent.trim(),
+                dataInscricao: new Date().toISOString(),
+                status:        'ativo',
+              });
+            } else {
+              // Grade vinculada ou legacy: alocação direta na aula
+              Storage.create('aulaAlunos', {
+                aulaId:    novaAula.id,
+                alunoId:   opt.value,
+                alunoNome: opt.dataset.nome || opt.textContent.trim(),
+                status:    'ativo',
+              });
+            }
           });
         }
       }
@@ -2618,8 +2720,10 @@ const TurmasModule = {
           ${aula.experimental ? `<span class="badge" style="background:#f59e0b20;color:#b45309;">🧪 Experimental</span>` : ''}
           <span style="flex:1;"></span>
           ${isAdmin ? `
-            <button class="btn btn-ghost btn-sm" title="Repetir aula"
-              onclick="UI.closeModal();TurmasModule.openModalRepetirAula('${id}')">🔁</button>
+            <button class="btn btn-ghost btn-sm"
+              title="${aula.avulsa && aula.turmaId ? 'Agendar sessão extra' : 'Repetir aula'}"
+              onclick="UI.closeModal();TurmasModule.openModalRepetirAula('${id}')">
+              ${aula.avulsa && aula.turmaId ? '➕' : '🔁'}</button>
             <button class="btn btn-ghost btn-sm" title="Editar"
               onclick="UI.closeModal();TurmasModule.openModalAula('${id}')">✏️</button>
             <button class="btn btn-ghost btn-sm danger" title="Excluir aula"
