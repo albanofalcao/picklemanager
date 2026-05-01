@@ -97,14 +97,21 @@ const UI = {
       footerEl.style.display = 'none';
     } else {
       footerEl.style.display = '';
-      confirmBtn.textContent = confirmLabel;
 
-      // Remove old listener by cloning
-      const newConfirm = confirmBtn.cloneNode(true);
-      confirmBtn.parentNode.replaceChild(newConfirm, confirmBtn);
+      // Esconde o botão de confirmação quando confirmLabel é null
+      if (confirmLabel === null) {
+        confirmBtn.style.display = 'none';
+      } else {
+        confirmBtn.style.display = '';
+        confirmBtn.textContent = confirmLabel;
 
-      if (typeof onConfirm === 'function') {
-        newConfirm.addEventListener('click', onConfirm);
+        // Remove old listener by cloning
+        const newConfirm = confirmBtn.cloneNode(true);
+        confirmBtn.parentNode.replaceChild(newConfirm, confirmBtn);
+
+        if (typeof onConfirm === 'function') {
+          newConfirm.addEventListener('click', onConfirm);
+        }
       }
     }
 
