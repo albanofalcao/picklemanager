@@ -703,9 +703,11 @@ tr.tarefa-concluida td { opacity: .6; }
   max-width: 580px;
   display: flex;
   flex-direction: column;
-  /* Altura máxima = viewport - padding do overlay */
-  height: calc(100vh - 40px);
-  max-height: calc(100vh - 40px);
+  /* height: auto → modal encolhe para o conteúdo; max-height limita ao viewport.
+     dvh (dynamic viewport height) desconta barra de endereço em mobile;
+     fallback para vh em browsers antigos. */
+  height: auto;
+  max-height: min(calc(100dvh - 40px), calc(100vh - 40px));
   overflow: hidden;
   transform: scale(0.94) translateY(8px);
   transition: transform 0.25s ease;
@@ -719,8 +721,7 @@ tr.tarefa-concluida td { opacity: .6; }
 .modal-dialog.modal-xl   { max-width: 960px; }
 .confirm-dialog {
   max-width: 400px;
-  height: auto;
-  max-height: calc(100vh - 40px);
+  max-height: min(calc(100dvh - 40px), calc(100vh - 40px));
 }
 
 .modal-header {
@@ -745,16 +746,21 @@ tr.tarefa-concluida td { opacity: .6; }
 
 .modal-body {
   padding: 20px 24px;
-  flex: 1 1 0%;     /* base 0 — cresce para preencher, nunca extrapola */
-  min-height: 0;    /* flex pode encolher abaixo do conteúdo */
-  overflow-y: auto; /* body rola */
+  flex: 1 1 auto;   /* base auto → modal encolhe ao tamanho do conteúdo;
+                       flex-grow:1 permite expandir se o pai tiver espaço */
+  min-height: 0;    /* flex pode encolher abaixo do conteúdo natural */
+  overflow-y: auto; /* body rola quando conteúdo excede max-height do dialog */
   overflow-x: hidden;
 }
+/* Grid containers e suas células: min-width:0 evita que conteúdo largo
+   vaze para fora do grid dentro do modal */
 .modal-body .form-grid,
 .modal-body .form-grid-2,
-.modal-body .form-grid-3 { min-width: 0; }
-.modal-body details       { min-width: 0; width: 100%; }
-.modal-body details > div { min-width: 0; }
+.modal-body .form-grid-3     { min-width: 0; }
+.modal-body .form-grid-2 > *,
+.modal-body .form-grid-3 > * { min-width: 0; overflow: hidden; }
+.modal-body details           { min-width: 0; width: 100%; }
+.modal-body details > div     { min-width: 0; }
 
 .modal-footer {
   display: flex;
@@ -771,9 +777,45 @@ tr.tarefa-concluida td { opacity: .6; }
 .form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .form-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
 
+/* Viewport ≤ 500px: todos os grids para coluna única */
 @media (max-width: 500px) {
   .form-grid-2 { grid-template-columns: 1fr; }
   .form-grid-3 { grid-template-columns: 1fr; }
+}
+
+/* Dentro do modal o conteúdo é mais estreito que o viewport (~532px no modal padrão,
+   ~700px no modal-wide). Quebra mais cedo para evitar colunas espremidas. */
+@media (max-width: 620px) {
+  .modal-body .form-grid-2 { grid-template-columns: 1fr; }
+  .modal-body .form-grid-3 { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 480px) {
+  .modal-body .form-grid-3 { grid-template-columns: 1fr; }
+}
+
+/* Modal responsivo — mobile: tela quase cheia, sem padding lateral excessivo */
+@media (max-width: 600px) {
+  .modal-overlay {
+    padding: 0;
+    align-items: flex-end; /* sheet modal sobe da base */
+  }
+  .modal-dialog {
+    max-width: 100%;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0; /* arredonda só o topo */
+    max-height: min(92dvh, 92vh);
+  }
+  .modal-dialog.modal-wide,
+  .modal-dialog.modal-xl {
+    max-height: min(96dvh, 96vh);
+  }
+  .modal-body {
+    padding: 16px;
+  }
+  .modal-header,
+  .modal-footer {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
 }
 
 .form-group { display: flex; flex-direction: column; gap: 5px; }
@@ -1783,11 +1825,57 @@ tr.tarefa-concluida td { opacity: .6; }
   display: flex;
   gap: 4px;
   justify-content: flex-end;
+  align-items: center;
+  flex-wrap: nowrap;
   white-space: nowrap;
-  min-width: max-content;
+}
+
+/* Botão de ação expressivo — substitui btn-ghost btn-sm nas linhas de aula */
+.aula-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 34px;
+  min-width: 34px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--card-border);
+  background: var(--bg-secondary, #f5f2ea);
+  color: var(--text-primary);
+  font-size: 16px;        /* emoji maior */
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 0.15s, transform 0.1s;
+  white-space: nowrap;
+  line-height: 1;
+}
+.aula-action-btn .aula-btn-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .3px;
+  text-transform: uppercase;
+}
+.aula-action-btn:hover  { filter: brightness(0.92); transform: translateY(-1px); }
+.aula-action-btn:active { filter: brightness(0.85); transform: translateY(0);    }
+
+/* Coluna de ações: largura mínima para o conteúdo, nunca encolhe */
+.data-table thead th:last-child,
+.data-table tbody td:last-child {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+[data-theme="dark"] .aula-action-btn {
+  background: #1e3a30;
+  border-color: #2a4a3e;
+  color: #d4f0e8;
 }
 
 .alunos-table-wrap { overflow-x: auto; }
+
+/* Tabela de aulas tem muitas colunas + botões expressivos — garante largura mínima para não apertar */
+.aulas-table { min-width: 820px; }
 
 .aula-row-cancelada td { opacity: 0.5; text-decoration: line-through; }
 .aula-row-cancelada .badge { text-decoration: none; }
@@ -4805,8 +4893,14 @@ tr.tarefa-concluida td { opacity: .6; }
    Two-column Aula modal layout (form + day-view)
    ============================================================ */
 
+/* modal-xl (ex.: grade de turmas) — mantém full-height porque usa
+   colunas paralelas com scroll independente */
+.modal-dialog.modal-xl {
+  height: min(calc(100dvh - 40px), calc(100vh - 40px));
+}
 /* No modal-xl, o modal-body não rola — cada coluna rola por conta */
 .modal-dialog.modal-xl .modal-body {
+  flex: 1 1 0%;  /* override: base 0 para preencher espaço restante */
   overflow: hidden;
   padding: 0;
 }

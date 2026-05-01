@@ -537,6 +537,10 @@ const TurmasModule = {
       const _aaExtra     = Storage.getAll('aulaAlunos')
         .filter(aa => aa.aulaId === a.id && aa.status === 'ativo' && !_tmIds.has(aa.alunoId));
       const alocados     = [..._tmInscritos, ..._aaExtra];
+      // Inclui aluno experimental caso ainda não esteja na lista da grade/aula
+      if (a.experimental && a.alunoExperimentalId && !alocados.some(x => x.alunoId === a.alunoExperimentalId)) {
+        alocados.push({ alunoId: a.alunoExperimentalId, alunoNome: a.alunoExperimentalNome || '?', experimental: true });
+      }
       const vagasAula = a.vagas || 0;
       const vagasLivresAula = vagasAula > 0 ? Math.max(0, vagasAula - alocados.length) : null;
       const vagasBadgeAula = vagasAula > 0
@@ -548,65 +552,73 @@ const TurmasModule = {
           ).join('') + (alocados.length > 4 ? `<span class="turma-aluno-chip">+${alocados.length - 4}</span>` : '')
         : '<span class="text-muted text-sm">Nenhum alocado</span>';
 
-      // Botões de ação rápida
+      // ── Botões de ação — máx 4 por linha ────────────────────────────
+      // Agendada:      👥 · ▶ INICIAR · 📋 · 👁
+      // Em andamento:  👥 · 📋 · ■ CONCLUIR · 👁
+      // Concluída:     👥 · ✏️ · 👁
+      // + 🧪 pendente: substitui ✏️ por 🧪 AVALIAR
+      // ✏️ e 🗑️ sempre disponíveis dentro do 👁
+      const _btn = (icon, title, onclick, style = '') =>
+        `<button class="aula-action-btn" title="${title}" onclick="${onclick}" ${style ? `style="${style}"` : ''}>${icon}</button>`;
+
       let acoes = '';
-      // Botão de alunos (só admin/recepcionista)
+
+      // 1. 👥 Alunos — sempre (admin/recepção), sem contador (vagas já na col. Alunos)
       if (!isProfessor && !isAluno) {
-        if (a.turmaId) {
-          // Grade ou avulsa: inscrição via turmaAlunos (aparece em todas as aulas da grade)
-          acoes += `<button class="btn btn-ghost btn-sm" title="Gerenciar alunos"
-            onclick="TurmasModule.openModalAlunos('${a.turmaId}')">👥 ${vagasBadgeAula} ＋</button>`;
+        const _fnAlunos = a.turmaId
+          ? `TurmasModule.openModalAlunos('${a.turmaId}')`
+          : `TurmasModule.openModalAlocarAluno('${a.id}')`;
+        acoes += _btn('👥', 'Gerenciar alunos', _fnAlunos,
+          'background:#dcfce7;color:#166534;border-color:#86efac;');
+      }
+
+      if (!isAluno) {
+        if (a.status === 'agendada') {
+          // ▶ INICIAR · 📋
+          acoes += _btn('▶ <span class="aula-btn-label">Iniciar</span>', 'Iniciar aula',
+            `TurmasModule.professorCheckin('${a.id}')`,
+            'background:#16a34a;color:#fff;border-color:#15803d;');
+          acoes += _btn('📋', 'Lançar presença',
+            `TurmasModule.abrirPresencaRapida('${a.id}')`,
+            'background:#e0e7ff;color:#3730a3;border-color:#a5b4fc;');
+
+        } else if (a.status === 'em_andamento') {
+          // 📋 · ■ CONCLUIR
+          acoes += _btn('📋', 'Lançar presença',
+            `TurmasModule.abrirPresencaRapida('${a.id}')`,
+            'background:#e0e7ff;color:#3730a3;border-color:#a5b4fc;');
+          acoes += _btn('■ <span class="aula-btn-label">Concluir</span>', 'Concluir aula',
+            `TurmasModule.professorCheckout('${a.id}')`,
+            'background:#f97316;color:#fff;border-color:#ea580c;');
+
+        } else if (a.experimental && a.avaliacaoStatus === 'pendente') {
+          // 🧪 AVALIAR (pós-aula experimental)
+          acoes += _btn('🧪 <span class="aula-btn-label">Avaliar</span>', 'Avaliar aula experimental',
+            `TurmasModule.abrirAvaliacaoExperimental('${a.id}')`,
+            'background:#f59e0b;color:#fff;border-color:#d97706;');
+
         } else {
-          // Legacy sem turmaId: alocação direta na aula (aulaAlunos)
-          acoes += `<button class="btn btn-ghost btn-sm" title="Alocar alunos"
-            onclick="TurmasModule.openModalAlocarAluno('${a.id}')">👥 ${vagasBadgeAula} ＋</button>`;
+          // Concluída / Cancelada — ✏️ editar
+          acoes += _btn('✏️', 'Editar',
+            `TurmasModule.openModalAula('${a.id}')`,
+            'background:#dbeafe;color:#1e40af;border-color:#93c5fd;');
         }
       }
-      if (a.status === 'agendada' || a.status === 'em_andamento') {
-        acoes += `<button class="btn btn-ghost btn-sm" title="Lançar presença"
-          onclick="TurmasModule.abrirPresencaRapida('${a.id}')">📋</button>`;
-      }
-      if (a.status === 'agendada') {
-        acoes += `<button class="btn btn-ghost btn-sm" title="Iniciar aula"
-          onclick="TurmasModule.professorCheckin('${a.id}')">▶</button>`;
-      }
-      if (a.status === 'em_andamento') {
-        acoes += `<button class="btn btn-ghost btn-sm" title="Concluir aula"
-          onclick="TurmasModule.professorCheckout('${a.id}')">■</button>`;
-      }
-      // Botão reposição: aluno vê nas suas aulas agendadas; admin/recepção vê em todas
+
+      // Aluno: reposição (se inscrito e agendada)
       if (isAluno && a.status === 'agendada') {
         const estaInscrito = a.turmaId && Storage.getAll(this.SK_INSCR).find(i =>
           i.turmaId === a.turmaId &&
           (session.alunoId ? i.alunoId === session.alunoId : i.alunoNome === session.nome)
         );
         if (estaInscrito) {
-          acoes += `<button class="btn btn-ghost btn-sm" title="Solicitar reposição"
-            onclick="TurmasModule.solicitarReposicao('${a.id}')">🔄</button>`;
+          acoes += _btn('🔄', 'Solicitar reposição', `TurmasModule.solicitarReposicao('${a.id}')`);
         }
-      } else if (!isAluno && !isProfessor && a.status === 'agendada') {
-        acoes += `<button class="btn btn-ghost btn-sm" title="Agendar reposição"
-          onclick="TurmasModule.solicitarReposicaoAdmin('${a.id}')">🔄</button>`;
       }
-      // Botão avaliar aula experimental pendente
-      if (!isAluno && a.experimental && a.avaliacaoStatus === 'pendente') {
-        acoes += `<button class="btn btn-sm" title="Avaliar aula experimental"
-          style="background:#f59e0b;color:#fff;font-size:11px;"
-          onclick="TurmasModule.abrirAvaliacaoExperimental('${a.id}')">🧪 Avaliar</button>`;
-      }
-      acoes += `<button class="btn btn-ghost btn-sm" title="Detalhe"
-        onclick="TurmasModule.openModalAulaDetalhe('${a.id}')">👁</button>`;
-      if (!isAluno) {
-        const isSerie = !!(a.avulsa && a.turmaId);
-        acoes += `<button class="btn btn-ghost btn-sm"
-          title="${isSerie ? 'Agendar sessão extra' : 'Repetir aula'}"
-          onclick="TurmasModule.openModalRepetirAula('${a.id}')">
-          ${isSerie ? '➕' : '🔁'}</button>`;
-        acoes += `<button class="btn btn-ghost btn-sm" title="Editar"
-          onclick="TurmasModule.openModalAula('${a.id}')">✏️</button>`;
-        acoes += `<button class="btn btn-ghost btn-sm danger" title="Excluir aula"
-          onclick="TurmasModule.deleteAula('${a.id}')">🗑️</button>`;
-      }
+
+      // 👁 Detalhe — sempre (contém ✏️ 🗑️ 🔄 🔁)
+      acoes += _btn('👁', 'Detalhe', `TurmasModule.openModalAulaDetalhe('${a.id}')`);
+
 
       return `
         <tr ${isHoje ? 'style="background:var(--today-row,rgba(59,130,246,0.05));"' : ''}>
@@ -623,13 +635,16 @@ const TurmasModule = {
           <td>
             <div style="font-size:13px;font-weight:600;">${UI.escape(a.turmaNome || '—')}</div>
             <div class="aluno-sub">${UI.escape(a.quadraNome ? `${a.arenaNome || ''} — ${a.quadraNome}` : (a.arenaNome || '—'))}</div>
+            ${a.professorNome ? `<div class="aluno-sub" style="margin-top:2px;">👤 ${UI.escape(a.professorNome)}</div>` : ''}
           </td>
           <td>
             <div style="font-weight:600;">${dataFmt}${isHoje ? ' <span class="badge badge-blue" style="font-size:0.65rem;">Hoje</span>' : ''}</div>
             <div class="aluno-sub">${UI.escape(hora)}</div>
           </td>
-          <td><div class="turma-alunos-chips">${alunosHtml}</div></td>
-          <td>${UI.escape(a.professorNome || '—')}</td>
+          <td>
+            <div class="turma-alunos-chips">${alunosHtml}</div>
+            ${vagasAula > 0 ? `<div class="aluno-sub" style="margin-top:2px;">${alocados.length}/${vagasAula} vagas</div>` : ''}
+          </td>
           <td><span class="badge ${st.badge}">${st.label}</span></td>
           <td>${presTag}</td>
           <td class="aluno-row-actions">${acoes}</td>
@@ -679,10 +694,10 @@ const TurmasModule = {
       </div>
       ${aulas.length ? `
         <div class="table-card">
-          <table class="data-table">
+          <table class="data-table aulas-table">
             <thead><tr>
-              <th>Aula</th><th>Turma</th><th>Período</th>
-              <th>Alunos</th><th>Professor</th><th>Status</th><th>Presença</th><th></th>
+              <th>Aula</th><th>Turma / Professor</th><th>Período</th>
+              <th>Alunos</th><th>Status</th><th>Presença</th><th></th>
             </tr></thead>
             <tbody>${rows}</tbody>
           </table>
@@ -707,7 +722,8 @@ const TurmasModule = {
       .map(aa => ({ alunoId: aa.alunoId, alunoNome: aa.alunoNome }));
     const inscritos = [..._tmList, ..._aaList];
 
-    if (!inscritos.length) {
+    const hasExperimental = aula.experimental && aula.alunoExperimentalId;
+    if (!inscritos.length && !hasExperimental) {
       UI.toast('Nenhum aluno inscrito nesta turma. Adicione alunos antes de lançar presença.', 'warning');
       return;
     }
@@ -721,13 +737,17 @@ const TurmasModule = {
     const repostos = Storage.getAll('reposicoes')
       .filter(r => r.aulaReposicaoId === aulaId && r.status === 'agendada');
 
-    // Combina inscritos regulares + alunos de reposição (sem duplicar)
+    // Combina inscritos regulares + alunos de reposição + aluno experimental (sem duplicar)
     const inscritosIds = new Set(inscritos.map(i => i.alunoId));
     const todosAlunos = [
       ...inscritos.map(i => ({ alunoId: i.alunoId, alunoNome: i.alunoNome, reposicao: false })),
       ...repostos.filter(r => !inscritosIds.has(r.alunoId))
                  .map(r => ({ alunoId: r.alunoId, alunoNome: r.alunoNome, reposicao: true, repId: r.id })),
     ];
+    // Aluno experimental: aparece na presença mesmo sem estar inscrito na grade
+    if (hasExperimental && !inscritosIds.has(aula.alunoExperimentalId)) {
+      todosAlunos.push({ alunoId: aula.alunoExperimentalId, alunoNome: aula.alunoExperimentalNome || '?', reposicao: false, experimental: true });
+    }
 
     const rows = todosAlunos.map((insc, idx) => {
       const reg      = presencas.find(p => p.aulaId === aulaId && p.alunoId === insc.alunoId);
@@ -735,12 +755,15 @@ const TurmasModule = {
       const repBadge = insc.reposicao
         ? `<span class="badge badge-warning" style="font-size:0.65rem;margin-left:6px;" title="Reposição">R</span>`
         : '';
+      const expBadge = insc.experimental
+        ? `<span class="badge" style="font-size:0.65rem;margin-left:6px;background:#f59e0b20;color:#b45309;" title="Aula experimental">🧪</span>`
+        : '';
       const initials = insc.alunoNome.trim().split(' ').slice(0,2).map(p => p[0]).join('').toUpperCase();
       return `
         <div class="presenca-row-card" id="prc-${idx}">
           <div class="presenca-row-aluno">
             <div class="presenca-avatar">${initials}</div>
-            <span class="presenca-nome">${UI.escape(insc.alunoNome)}${repBadge}</span>
+            <span class="presenca-nome">${UI.escape(insc.alunoNome)}${repBadge}${expBadge}</span>
           </div>
           <div class="presenca-toggle-group">
             <button type="button"
@@ -2740,12 +2763,16 @@ const TurmasModule = {
           ${aula.experimental ? `<span class="badge" style="background:#f59e0b20;color:#b45309;">🧪 Experimental</span>` : ''}
           <span style="flex:1;"></span>
           ${isAdmin ? `
+            ${aula.status === 'agendada' && aula.turmaId ? `
+              <button class="btn btn-ghost btn-sm" title="Agendar reposição"
+                onclick="UI.closeModal();TurmasModule.solicitarReposicaoAdmin('${id}')">🔄 Reposição</button>
+            ` : ''}
             <button class="btn btn-ghost btn-sm"
               title="${aula.avulsa && aula.turmaId ? 'Agendar sessão extra' : 'Repetir aula'}"
               onclick="UI.closeModal();TurmasModule.openModalRepetirAula('${id}')">
-              ${aula.avulsa && aula.turmaId ? '➕' : '🔁'}</button>
+              ${aula.avulsa && aula.turmaId ? '➕ Extra' : '🔁 Repetir'}</button>
             <button class="btn btn-ghost btn-sm" title="Editar"
-              onclick="UI.closeModal();TurmasModule.openModalAula('${id}')">✏️</button>
+              onclick="UI.closeModal();TurmasModule.openModalAula('${id}')">✏️ Editar</button>
             <button class="btn btn-ghost btn-sm danger" title="Excluir aula"
               onclick="UI.closeModal();TurmasModule.deleteAula('${id}')">🗑️ Excluir</button>
           ` : ''}
