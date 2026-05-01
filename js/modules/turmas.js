@@ -530,11 +530,13 @@ const TurmasModule = {
         ? `<span class="badge badge-success" style="font-size:0.7rem;">${pStats.presentes}/${pStats.total}</span>`
         : '<span class="text-muted text-sm">—</span>';
 
-      // Qualquer aula com turmaId (avulsa ou grade) lê alunos de turmaAlunos,
-      // filtrado por contrato ativo na data. Legacy sem turmaId usa aulaAlunos.
-      const alocados = a.turmaId
-        ? this.getAlunosInscritos(a.turmaId, a.data || null)
-        : Storage.getAll('aulaAlunos').filter(aa => aa.aulaId === a.id && aa.status === 'ativo');
+      // Mescla turmaAlunos (inscrições na grade) + aulaAlunos (alocações diretas legacy)
+      // sem duplicar o mesmo alunoId. Garante visibilidade de registros em ambas as fontes.
+      const _tmInscritos = a.turmaId ? this.getAlunosInscritos(a.turmaId, a.data || null) : [];
+      const _tmIds       = new Set(_tmInscritos.map(i => i.alunoId));
+      const _aaExtra     = Storage.getAll('aulaAlunos')
+        .filter(aa => aa.aulaId === a.id && aa.status === 'ativo' && !_tmIds.has(aa.alunoId));
+      const alocados     = [..._tmInscritos, ..._aaExtra];
       const vagasAula = a.vagas || 0;
       const vagasLivresAula = vagasAula > 0 ? Math.max(0, vagasAula - alocados.length) : null;
       const vagasBadgeAula = vagasAula > 0
@@ -697,12 +699,13 @@ const TurmasModule = {
     const aula = Storage.getById(this.SK_AULA, aulaId);
     if (!aula) return;
 
-    // Avulsas legadas (!turmaId) usam aulaAlunos como fallback
-    const inscritos = aula.turmaId
-      ? this.getAlunosInscritos(aula.turmaId, aula.data || null)
-      : Storage.getAll('aulaAlunos')
-          .filter(aa => aa.aulaId === aulaId && aa.status === 'ativo')
-          .map(aa => ({ alunoId: aa.alunoId, alunoNome: aa.alunoNome }));
+    // Mescla turmaAlunos + aulaAlunos (legacy) sem duplicar o mesmo alunoId
+    const _tmList  = aula.turmaId ? this.getAlunosInscritos(aula.turmaId, aula.data || null) : [];
+    const _tmIds   = new Set(_tmList.map(i => i.alunoId));
+    const _aaList  = Storage.getAll('aulaAlunos')
+      .filter(aa => aa.aulaId === aulaId && aa.status === 'ativo' && !_tmIds.has(aa.alunoId))
+      .map(aa => ({ alunoId: aa.alunoId, alunoNome: aa.alunoNome }));
+    const inscritos = [..._tmList, ..._aaList];
 
     if (!inscritos.length) {
       UI.toast('Nenhum aluno inscrito nesta turma. Adicione alunos antes de lançar presença.', 'warning');
