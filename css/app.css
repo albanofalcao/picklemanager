@@ -1865,8 +1865,14 @@ tr.tarefa-concluida td { opacity: .6; }
 
 .alunos-table-wrap { overflow-x: auto; }
 
-/* Tabela de aulas tem muitas colunas + botões expressivos — garante largura mínima para não apertar */
-.aulas-table { min-width: 820px; }
+/* Tabela de aulas — coluna de ações tem espaço garantido para 4 botões 36px */
+/* 4×36 + 3×4 (gaps) + 2×14 (padding td) = 184px */
+.aulas-table th:last-child,
+.aulas-table td:last-child {
+  min-width: 184px;
+  width: 184px;
+  text-align: right;
+}
 
 .aula-row-cancelada td { opacity: 0.5; text-decoration: line-through; }
 .aula-row-cancelada .badge { text-decoration: none; }
