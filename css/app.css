@@ -1821,13 +1821,12 @@ tr.tarefa-concluida td { opacity: .6; }
   border: 1px solid color-mix(in srgb, var(--accent-blue, #3b82f6) 30%, transparent);
 }
 
-.aluno-row-actions {
+/* wrapper interno do td de ações — flex no div, não no td */
+.aula-acoes-wrap {
   display: flex;
   gap: 4px;
   justify-content: flex-end;
   align-items: center;
-  flex-wrap: nowrap;
-  white-space: nowrap;
 }
 
 /* Botão de ação — ícone colorido, quadrado, sem texto */

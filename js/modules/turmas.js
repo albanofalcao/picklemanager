@@ -643,7 +643,7 @@ const TurmasModule = {
           </td>
           <td><span class="badge ${st.badge}">${st.label}</span></td>
           <td>${presTag}</td>
-          <td class="aluno-row-actions">${acoes}</td>
+          <td style="white-space:nowrap;text-align:right;width:1%;"><div class="aula-acoes-wrap">${acoes}</div></td>
         </tr>`;
     }).join('');
 
