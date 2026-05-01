@@ -281,9 +281,9 @@ const TurmasModule = {
         </td>
         <td>
           <div class="turma-alunos-cell">
-            <div class="turma-alunos-chips">${chipsHtml}</div>
+            <div class="turma-alunos-chips" data-turma-chips="${t.id}">${chipsHtml}</div>
             <button class="turma-add-aluno-btn" onclick="TurmasModule.openModalAlunos('${t.id}')" title="Gerenciar alunos">
-              ${vagasBadge} ＋
+              <span data-turma-vagas="${t.id}" class="turma-vagas-badge ${vagasLivre === 0 ? 'turma-vagas-cheia' : ''}">${vagas > 0 ? `${nInscritos}/${vagas}` : nInscritos}</span> ＋
             </button>
           </div>
         </td>
@@ -3088,9 +3088,10 @@ const TurmasModule = {
     });
 
     UI.toast(`${opt.dataset.nome} adicionado à turma!`, 'success');
-    // Atualiza o conteúdo do modal sem fechá-lo
+    // Atualiza o modal e re-renderiza o cronograma em background
     const modalBody = document.querySelector('.modal-body');
     if (modalBody) modalBody.innerHTML = this._renderInscricoes(turmaId);
+    this._refreshTurmaRow(turmaId);
   },
 
   async _removerInscricao(inscricaoId, turmaId) {
@@ -3102,6 +3103,33 @@ const TurmasModule = {
     UI.toast(`${inscr.alunoNome} removido da turma.`, 'success');
     const modalBody = document.querySelector('.modal-body');
     if (modalBody) modalBody.innerHTML = this._renderInscricoes(turmaId);
+    this._refreshTurmaRow(turmaId);
+  },
+
+  /** Atualiza os chips de alunos da linha da turma no cronograma sem re-render total */
+  _refreshTurmaRow(turmaId) {
+    const inscritos = Storage.getAll(this.SK_INSCR)
+      .filter(i => i.turmaId === turmaId && i.status === 'ativo');
+    const turma  = Storage.getById(this.SK, turmaId);
+    const vagas  = turma?.vagas || 0;
+    const livre  = vagas > 0 ? Math.max(0, vagas - inscritos.length) : null;
+
+    // Atualiza chips
+    const chipsEl = document.querySelector(`[data-turma-chips="${turmaId}"]`);
+    if (chipsEl) {
+      chipsEl.innerHTML = inscritos.length
+        ? inscritos.map(i =>
+            `<span class="turma-aluno-chip" title="${UI.escape(i.alunoNome)}">${UI.escape(i.alunoNome.split(' ')[0])}</span>`
+          ).join('')
+        : `<span class="turma-sem-alunos">Nenhum aluno inscrito</span>`;
+    }
+
+    // Atualiza badge de vagas
+    const vagasEl = document.querySelector(`[data-turma-vagas="${turmaId}"]`);
+    if (vagasEl) {
+      vagasEl.textContent = vagas > 0 ? `${inscritos.length}/${vagas}` : String(inscritos.length);
+      vagasEl.className = `turma-vagas-badge${livre === 0 ? ' turma-vagas-cheia' : ''}`;
+    }
   },
 
   /**
