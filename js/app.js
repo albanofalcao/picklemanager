@@ -821,6 +821,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     App.initUI();
     Notifications.init();
   } else {
-    Auth.showLogin();
+    // Mostra a tela inicial institucional (HomeKiosk) em vez do formulário de login
+    // diretamente. O botão "Entrar" no kiosk chama Auth.showLogin().
+    HomeKiosk.show();
   }
 });

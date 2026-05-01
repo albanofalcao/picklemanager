@@ -2,17 +2,21 @@
 
 /**
  * InactivityLock — Bloqueia a tela após período de inatividade.
+ * Após HOME_WAIT_MIN minutos com o lock ativo sem desbloqueio,
+ * faz logout automático e exibe a tela inicial (HomeKiosk).
  */
 const InactivityLock = {
   _timer:    null,
   _warnTimer:null,
   _warnCount:null,
+  _homeTimer:null,   // temporizador de retorno ao home pós-lock
   _locked:   false,
   _started:  false,
 
-  CONFIG_KEY: 'pm_inatividade_min',
-  DEFAULT_MIN: 10,    // minutos
-  WARN_SEC:    60,    // aviso N segundos antes
+  CONFIG_KEY:    'pm_inatividade_min',
+  DEFAULT_MIN:   10,   // minutos até o lock
+  WARN_SEC:      60,   // aviso N segundos antes do lock
+  HOME_WAIT_MIN:  5,   // minutos sem desbloquear → logout + HomeKiosk
 
   /* ------------------------------------------------------------------ */
 
@@ -47,6 +51,7 @@ const InactivityLock = {
     this._started = false;
     clearTimeout(this._timer);
     clearTimeout(this._warnTimer);
+    clearTimeout(this._homeTimer);
     clearInterval(this._warnCount);
     this._hideWarn();
     this._doUnlock();
@@ -93,10 +98,20 @@ const InactivityLock = {
     setTimeout(() => {
       document.getElementById('lock-senha')?.focus();
     }, 300);
+
+    // Temporizador de retorno ao home: se ninguém desbloquear em HOME_WAIT_MIN
+    // minutos, faz logout automático e exibe a tela inicial (HomeKiosk).
+    if (this.HOME_WAIT_MIN > 0) {
+      clearTimeout(this._homeTimer);
+      this._homeTimer = setTimeout(() => {
+        if (this._locked) Auth.logout();
+      }, this.HOME_WAIT_MIN * 60 * 1000);
+    }
   },
 
   _doUnlock() {
     this._locked = false;
+    clearTimeout(this._homeTimer);   // cancela retorno automático ao home
     const overlay = document.getElementById('lock-overlay');
     if (overlay) {
       overlay.classList.remove('open');
