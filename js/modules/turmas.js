@@ -3105,16 +3105,20 @@ const TurmasModule = {
   },
 
   /**
-   * Verifica se o aluno possui matrícula ativa cobrindo uma data específica.
-   * - status === 'ativa'
-   * - dataInicio <= data (ou ausente)
-   * - dataFim   >= data (ou ausente → contrato indeterminado)
+   * Verifica se o aluno pode participar de uma aula na data informada.
+   * Regra: se o aluno tem matrícula ativa, ela deve cobrir a data.
+   *        se não tem nenhuma matrícula ativa, aparece sem restrição
+   *        (a matrícula limita o período quando existe, não bloqueia sem ela).
    */
   _matriculaAtivaEmData(alunoId, data) {
     if (!data) return true;
-    return Storage.getAll('matriculas').some(m =>
-      m.alunoId === alunoId &&
-      m.status  === 'ativa' &&
+    const ativas = Storage.getAll('matriculas').filter(m =>
+      m.alunoId === alunoId && m.status === 'ativa'
+    );
+    // Sem matrícula cadastrada → sem restrição de período
+    if (!ativas.length) return true;
+    // Com matrícula → pelo menos uma deve cobrir a data
+    return ativas.some(m =>
       (!m.dataInicio || m.dataInicio <= data) &&
       (!m.dataFim    || m.dataFim   >= data)
     );
