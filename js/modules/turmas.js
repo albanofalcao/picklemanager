@@ -550,11 +550,12 @@ const TurmasModule = {
       let acoes = '';
       // Botão de alunos (só admin/recepcionista)
       if (!isProfessor && !isAluno) {
-        if (a.avulsa && a.turmaId) {
-          // Mini-turma avulsa: gerenciar via matrícula na série (turmaAlunos)
-          acoes += `<button class="btn btn-ghost btn-sm" title="Gerenciar alunos da série"
+        if (a.turmaId) {
+          // Grade ou avulsa: inscrição via turmaAlunos (aparece em todas as aulas da grade)
+          acoes += `<button class="btn btn-ghost btn-sm" title="Gerenciar alunos"
             onclick="TurmasModule.openModalAlunos('${a.turmaId}')">👥 ${vagasBadgeAula} ＋</button>`;
         } else {
+          // Legacy sem turmaId: alocação direta na aula (aulaAlunos)
           acoes += `<button class="btn btn-ghost btn-sm" title="Alocar alunos"
             onclick="TurmasModule.openModalAlocarAluno('${a.id}')">👥 ${vagasBadgeAula} ＋</button>`;
         }
