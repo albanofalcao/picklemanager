@@ -302,11 +302,19 @@ const MatriculaModule = {
           <select id="mat-plano" class="form-select" onchange="MatriculaModule._onPlanoChange()">${planoOpts}</select>
         </div>
 
-        <div class="form-group">
-          <label class="form-label" for="mat-inicio">Data de início <span class="required-star">*</span></label>
-          <input id="mat-inicio" type="date" class="form-input"
-            value="${v('dataInicio', hoje)}"
-            onchange="MatriculaModule._onPlanoChange()" />
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label" for="mat-inicio">Data de início <span class="required-star">*</span></label>
+            <input id="mat-inicio" type="date" class="form-input"
+              value="${v('dataInicio', hoje)}"
+              onchange="MatriculaModule._onPlanoChange()" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="mat-fim">Vigência até</label>
+            <input id="mat-fim" type="date" class="form-input"
+              value="${v('dataFim')}"
+              placeholder="Calculado pelo plano" />
+          </div>
         </div>
 
         <div class="form-grid-2">
@@ -395,6 +403,23 @@ const MatriculaModule = {
     if (valorEl && !valorEl.value && opt && opt.dataset.valor) {
       valorEl.value = opt.dataset.valor;
     }
+
+    // Calcula dataFim automaticamente pela duração do plano
+    const fimEl = document.getElementById('mat-fim');
+    if (fimEl && inicioEl.value && opt) {
+      const tipo = opt.dataset.tipo || '';
+      const MESES = { mensal: 1, trimestral: 3, semestral: 6, anual: 12 };
+      const meses = MESES[tipo];
+      if (meses) {
+        const ini  = new Date(inicioEl.value + 'T12:00:00');
+        ini.setMonth(ini.getMonth() + meses);
+        ini.setDate(ini.getDate() - 1); // último dia do período
+        fimEl.value = ini.toISOString().slice(0, 10);
+      } else if (tipo === 'avulso') {
+        fimEl.value = inicioEl.value; // válido só no dia
+      }
+      // pacote: sem cálculo automático — usuário define
+    }
   },
 
   /* ------------------------------------------------------------------ */
@@ -457,6 +482,7 @@ const MatriculaModule = {
       planoId:       planoSel.value,
       planoNome:     planoOpt ? (planoOpt.dataset.nome || planoOpt.textContent) : '',
       dataInicio:    inicio.value,
+      dataFim:       g('fim')       ? g('fim').value        : '',
       valorPago:           g('valor')    ? parseFloat(g('valor').value) || 0 : 0,
       formaPagamento:      g('fp')       ? g('fp').value       : '',
       numeroParcelas:      g('parcelas') ? parseInt(g('parcelas').value) || 1 : 1,
