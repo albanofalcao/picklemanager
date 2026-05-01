@@ -310,10 +310,18 @@ const MatriculaModule = {
               onchange="MatriculaModule._onPlanoChange()" />
           </div>
           <div class="form-group">
-            <label class="form-label" for="mat-fim">Vigência até</label>
-            <input id="mat-fim" type="date" class="form-input"
-              value="${v('dataFim')}"
-              placeholder="Calculado pelo plano" />
+            <label class="form-label" for="mat-duracao">Duração</label>
+            <select id="mat-duracao" class="form-select" onchange="MatriculaModule._onPlanoChange()">
+              <option value=""   ${!mat?.duracaoMeses                  ? 'selected' : ''}>— Indeterminado —</option>
+              <option value="1"  ${mat?.duracaoMeses === 1  ? 'selected' : ''}>Mensal (1 mês)</option>
+              <option value="3"  ${mat?.duracaoMeses === 3  ? 'selected' : ''}>Trimestral (3 meses)</option>
+              <option value="6"  ${mat?.duracaoMeses === 6  ? 'selected' : ''}>Semestral (6 meses)</option>
+              <option value="12" ${mat?.duracaoMeses === 12 ? 'selected' : ''}>Anual (12 meses)</option>
+            </select>
+            <div id="mat-fim-info" style="font-size:11px;color:var(--text-muted);margin-top:4px;min-height:16px;">
+              ${mat?.dataFim ? `Vence em: <strong>${MatriculaModule._fmtDate(mat.dataFim)}</strong>` : ''}
+            </div>
+            <input id="mat-fim" type="hidden" value="${v('dataFim')}" />
           </div>
         </div>
 
@@ -404,21 +412,29 @@ const MatriculaModule = {
       valorEl.value = opt.dataset.valor;
     }
 
-    // Calcula dataFim automaticamente pela duração do plano
-    const fimEl = document.getElementById('mat-fim');
-    if (fimEl && inicioEl.value && opt) {
-      const tipo = opt.dataset.tipo || '';
-      const MESES = { mensal: 1, trimestral: 3, semestral: 6, anual: 12 };
-      const meses = MESES[tipo];
-      if (meses) {
-        const ini  = new Date(inicioEl.value + 'T12:00:00');
-        ini.setMonth(ini.getMonth() + meses);
-        ini.setDate(ini.getDate() - 1); // último dia do período
-        fimEl.value = ini.toISOString().slice(0, 10);
-      } else if (tipo === 'avulso') {
-        fimEl.value = inicioEl.value; // válido só no dia
-      }
-      // pacote: sem cálculo automático — usuário define
+    // Pré-seleciona duração pelo tipo do plano (só se duracao ainda não foi escolhida)
+    const duracaoEl = document.getElementById('mat-duracao');
+    if (duracaoEl && opt) {
+      const TIPO_MESES = { mensal: '1', trimestral: '3', semestral: '6', anual: '12', avulso: '1' };
+      const mesesPlano = TIPO_MESES[opt.dataset.tipo || ''] || '';
+      if (!duracaoEl.value && mesesPlano) duracaoEl.value = mesesPlano;
+    }
+
+    // Calcula dataFim a partir do dataInicio + duração selecionada
+    const fimEl   = document.getElementById('mat-fim');
+    const infoEl  = document.getElementById('mat-fim-info');
+    const meses   = duracaoEl ? parseInt(duracaoEl.value, 10) : 0;
+
+    if (fimEl && inicioEl.value && meses > 0) {
+      const ini = new Date(inicioEl.value + 'T12:00:00');
+      ini.setMonth(ini.getMonth() + meses);
+      ini.setDate(ini.getDate() - 1); // último dia do período
+      const dataFim = ini.toISOString().slice(0, 10);
+      fimEl.value = dataFim;
+      if (infoEl) infoEl.innerHTML = `Vence em: <strong>${this._fmtDate(dataFim)}</strong>`;
+    } else if (fimEl) {
+      fimEl.value = '';
+      if (infoEl) infoEl.innerHTML = '<span style="color:var(--text-muted)">Sem data de vencimento</span>';
     }
   },
 
@@ -482,6 +498,7 @@ const MatriculaModule = {
       planoId:       planoSel.value,
       planoNome:     planoOpt ? (planoOpt.dataset.nome || planoOpt.textContent) : '',
       dataInicio:    inicio.value,
+      duracaoMeses:  g('duracao')   ? parseInt(g('duracao').value, 10) || 0 : 0,
       dataFim:       g('fim')       ? g('fim').value        : '',
       valorPago:           g('valor')    ? parseFloat(g('valor').value) || 0 : 0,
       formaPagamento:      g('fp')       ? g('fp').value       : '',
