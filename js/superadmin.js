@@ -76,7 +76,9 @@ const SuperAdmin = {
   async login(email, senha) {
     const btn = document.getElementById('sa-login-btn');
     if (btn) { btn.disabled = true; btn.textContent = 'Entrando…'; }
-    const { error } = await SupabaseClient.auth.signInWithPassword({ email, password: senha });
+
+    const { data, error } = await SupabaseClient.auth.signInWithPassword({ email, password: senha });
+
     if (error) {
       if (btn) { btn.disabled = false; btn.textContent = 'Entrar'; }
       const msgMap = {
@@ -86,7 +88,14 @@ const SuperAdmin = {
         'Too many requests':         'Muitas tentativas. Aguarde alguns minutos.',
       };
       this._renderLogin(msgMap[error.message] || ('Erro Supabase: ' + error.message));
+      return;
     }
+
+    // Chama _onLogin diretamente — não depende do onAuthStateChange
+    if (data?.user) {
+      await this._onLogin(data.user);
+    }
+    if (btn) { btn.disabled = false; btn.textContent = 'Entrar'; }
   },
 
   async enviarRecuperacao() {
