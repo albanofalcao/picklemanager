@@ -102,6 +102,7 @@ const App = {
   ],
 
   SEED_PERFIS: [
+    { key: 'superadmin',    label: 'Super Admin',      descricao: 'Acesso total ao sistema e ao painel administrativo global', cor: 'badge-danger',  modulos: ['dashboard','arenas','alunos','matriculas','planos','professores','turmas','eventos','torneios','loja','dayuse','financeiro','manutencao','cadastros','admin'] },
     { key: 'admin',         label: 'Administrador',    descricao: 'Acesso total ao sistema, incluindo gestão de usuários',    cor: 'badge-danger',  modulos: ['dashboard','arenas','alunos','matriculas','planos','professores','turmas','eventos','torneios','loja','dayuse','financeiro','manutencao','cadastros','admin'] },
     { key: 'gerente',       label: 'Gerente',          descricao: 'Acesso a todos os módulos operacionais',                   cor: 'badge-warning', modulos: ['dashboard','arenas','alunos','matriculas','planos','professores','turmas','eventos','torneios','loja','dayuse','financeiro','manutencao','cadastros'] },
     { key: 'recepcionista', label: 'Recepcionista',    descricao: 'Atendimento ao aluno, matrículas e turmas',               cor: 'badge-blue',    modulos: ['dashboard','alunos','matriculas','turmas','eventos','torneios','loja','dayuse','manutencao'] },
@@ -551,6 +552,7 @@ const App = {
    */
   _migratePerfis() {
     const novosPorPerfil = {
+      superadmin:    ['dashboard','arenas','alunos','matriculas','planos','professores','turmas','eventos','torneios','loja','dayuse','financeiro','manutencao','cadastros','admin'],
       admin:         ['turmas', 'dayuse', 'loja', 'matriculas', 'manutencao'],
       gerente:       ['turmas', 'dayuse', 'loja', 'matriculas', 'manutencao'],
       recepcionista: ['turmas', 'dayuse', 'loja', 'matriculas', 'manutencao'],

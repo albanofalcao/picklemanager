@@ -35,8 +35,13 @@ const SuperAdmin = {
 
     SupabaseClient.auth.onAuthStateChange(async (event, session) => {
       if (event === 'PASSWORD_RECOVERY') { this._renderNovaSenha(); return; }
-      if (event === 'SIGNED_IN' && !this._user) await this._onLogin(session.user); // só se ainda não logado
-      if (event === 'SIGNED_OUT') { this._user = null; this._renderLogin(); }
+
+      // Só reage se o painel SA está visível (evita interferir no login normal do app)
+      const saWrap  = document.getElementById('sa-wrap');
+      const saAtivo = saWrap && saWrap.style.display !== 'none';
+
+      if (event === 'SIGNED_IN' && !this._user && saAtivo) await this._onLogin(session.user);
+      if (event === 'SIGNED_OUT' && saAtivo) { this._user = null; this._renderLogin(); }
     });
   },
 
@@ -47,13 +52,24 @@ const SuperAdmin = {
       .eq('auth_id', authUser.id)
       .single();
 
-    if (!usuario || usuario.perfil !== 'superadmin') {
+    // Registro existe, mas não é superadmin → nega acesso
+    if (usuario && usuario.perfil !== 'superadmin') {
       await SupabaseClient.auth.signOut();
       this._renderLogin('Acesso negado — usuário não é superadmin.');
       return;
     }
 
-    this._user = usuario;
+    // Sem registro na tabela → fallback com dados do Supabase Auth
+    // (permite acesso se autenticou com sucesso, sem necessidade de cadastro manual)
+    const userFallback = usuario || {
+      id:      'sa_' + authUser.id.slice(0, 8),
+      nome:    authUser.user_metadata?.nome || authUser.email?.split('@')[0] || 'Admin',
+      email:   authUser.email,
+      perfil:  'superadmin',
+      auth_id: authUser.id,
+    };
+
+    this._user = userFallback;
     this._showPanel();
   },
 
