@@ -138,7 +138,9 @@
 
     <!-- SIDEBAR -->
     <aside class="sidebar" id="sidebar">
-      <div class="sidebar-brand">
+      <div class="sidebar-brand" onclick="HomeKiosk.show()" title="Ir para tela inicial"
+        style="cursor:pointer;" role="button" tabindex="0"
+        onkeydown="if(event.key==='Enter')HomeKiosk.show()">
         <span class="brand-icon"><img src="img/pickleball-paddle.svg" alt="Pickleball" style="width:28px;height:28px;vertical-align:middle;"></span>
         <div class="brand-text">
           <span class="brand-name">PickleManager</span>
@@ -285,7 +287,7 @@
   <script src="js/superadmin.js?v=9"></script>
   <script src="js/portal.js?v=2"></script>
   <script src="js/home-kiosk.js"></script>
-  <script src="js/app.js?v=5"></script>
+  <script src="js/app.js?v=6"></script>
 
 </body>
 </html>

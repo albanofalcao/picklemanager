@@ -34,10 +34,14 @@ const HomeKiosk = {
     if (el) el.remove();
   },
 
-  /** Fecha a tela kiosk e abre o formulário de login */
+  /** Fecha a tela kiosk: volta ao app se há sessão ativa, senão abre login */
   goLogin() {
     this.hide();
-    Auth.showLogin();
+    if (Auth.getSession()) {
+      document.getElementById('app-layout')?.style.removeProperty('display');
+    } else {
+      Auth.showLogin();
+    }
   },
 
   /* ------------------------------------------------------------------ */
