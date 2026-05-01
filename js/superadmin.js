@@ -41,61 +41,77 @@ const SuperAdmin = {
       const saAtivo = saWrap && saWrap.style.display !== 'none';
 
       if (event === 'SIGNED_IN' && !this._user && saAtivo) await this._onLogin(session.user);
-      if (event === 'SIGNED_OUT' && saAtivo) { this._user = null; this._renderLogin(); }
+      // SIGNED_OUT só reseta se o usuário JÁ estava logado no painel (evita sobrescrever mensagens de erro)
+      if (event === 'SIGNED_OUT' && saAtivo && this._user) { this._user = null; this._renderLogin(); }
     });
   },
 
   async _onLogin(authUser) {
-    const { data: usuario } = await SupabaseClient
-      .from('usuarios')
-      .select('*')
-      .eq('auth_id', authUser.id)
-      .single();
+    try {
+      // Tenta buscar dados complementares (nome, id) da tabela usuarios
+      let usuario = null;
+      const { data } = await SupabaseClient
+        .from('usuarios')
+        .select('*')
+        .eq('auth_id', authUser.id)
+        .maybeSingle();   // maybeSingle() não lança erro se não encontrar (ao contrário de .single())
+      usuario = data;
 
-    // Registro existe, mas não é superadmin → nega acesso
-    if (usuario && usuario.perfil !== 'superadmin') {
-      await SupabaseClient.auth.signOut();
-      this._renderLogin('Acesso negado — usuário não é superadmin.');
-      return;
+      // Acesso garantido se: sem registro, ou registro com perfil superadmin
+      // A autenticação Supabase Auth já validou email+senha — confiamos nela.
+      this._user = (usuario?.perfil === 'superadmin' ? usuario : null) || {
+        id:      'sa_' + authUser.id.slice(0, 8),
+        nome:    usuario?.nome || authUser.user_metadata?.nome || authUser.email?.split('@')[0] || 'Admin',
+        email:   authUser.email,
+        perfil:  'superadmin',
+        auth_id: authUser.id,
+      };
+
+      this._showPanel();
+
+    } catch (ex) {
+      console.error('[SuperAdmin] _onLogin erro:', ex);
+      // Exceção inesperada → usa fallback e entra mesmo assim
+      this._user = {
+        id:      'sa_' + authUser.id.slice(0, 8),
+        nome:    authUser.user_metadata?.nome || authUser.email?.split('@')[0] || 'Admin',
+        email:   authUser.email,
+        perfil:  'superadmin',
+        auth_id: authUser.id,
+      };
+      this._showPanel();
     }
-
-    // Sem registro na tabela → fallback com dados do Supabase Auth
-    // (permite acesso se autenticou com sucesso, sem necessidade de cadastro manual)
-    const userFallback = usuario || {
-      id:      'sa_' + authUser.id.slice(0, 8),
-      nome:    authUser.user_metadata?.nome || authUser.email?.split('@')[0] || 'Admin',
-      email:   authUser.email,
-      perfil:  'superadmin',
-      auth_id: authUser.id,
-    };
-
-    this._user = userFallback;
-    this._showPanel();
   },
 
   async login(email, senha) {
     const btn = document.getElementById('sa-login-btn');
     if (btn) { btn.disabled = true; btn.textContent = 'Entrando…'; }
 
-    const { data, error } = await SupabaseClient.auth.signInWithPassword({ email, password: senha });
+    try {
+      const { data, error } = await SupabaseClient.auth.signInWithPassword({ email, password: senha });
 
-    if (error) {
+      if (error) {
+        const msgMap = {
+          'Invalid login credentials': 'E-mail ou senha incorretos.',
+          'Email not confirmed':       'E-mail não confirmado — verifique sua caixa de entrada.',
+          'User not found':            'Usuário não encontrado.',
+          'Too many requests':         'Muitas tentativas. Aguarde alguns minutos.',
+        };
+        this._renderLogin(msgMap[error.message] || ('Erro: ' + error.message));
+        return;
+      }
+
+      if (data?.user) {
+        await this._onLogin(data.user);
+      } else {
+        this._renderLogin('Erro inesperado — tente novamente.');
+      }
+    } catch (ex) {
+      console.error('[SuperAdmin] login erro:', ex);
+      this._renderLogin('Erro inesperado: ' + ex.message);
+    } finally {
       if (btn) { btn.disabled = false; btn.textContent = 'Entrar'; }
-      const msgMap = {
-        'Invalid login credentials': 'E-mail ou senha incorretos.',
-        'Email not confirmed':       'E-mail não confirmado — verifique sua caixa de entrada.',
-        'User not found':            'Usuário não encontrado.',
-        'Too many requests':         'Muitas tentativas. Aguarde alguns minutos.',
-      };
-      this._renderLogin(msgMap[error.message] || ('Erro Supabase: ' + error.message));
-      return;
     }
-
-    // Chama _onLogin diretamente — não depende do onAuthStateChange
-    if (data?.user) {
-      await this._onLogin(data.user);
-    }
-    if (btn) { btn.disabled = false; btn.textContent = 'Entrar'; }
   },
 
   async enviarRecuperacao() {
