@@ -1830,35 +1830,26 @@ tr.tarefa-concluida td { opacity: .6; }
   white-space: nowrap;
 }
 
-/* Botão de ação expressivo — substitui btn-ghost btn-sm nas linhas de aula */
+/* Botão de ação — ícone colorido, quadrado, sem texto */
 .aula-action-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;          /* nunca deixa o flexbox esmagar o botão */
-  gap: 5px;
-  height: 34px;
-  min-width: 34px;
-  padding: 0 10px;
+  width: 36px;
+  height: 36px;
   border-radius: 8px;
   border: 1px solid var(--card-border);
   background: var(--bg-secondary, #f5f2ea);
   color: var(--text-primary);
-  font-size: 16px;
-  font-weight: 600;
+  font-size: 17px;
   cursor: pointer;
   transition: filter 0.15s, transform 0.1s;
-  white-space: nowrap;
+  flex-shrink: 0;
+  padding: 0;
   line-height: 1;
 }
-.aula-action-btn .aula-btn-label {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: .3px;
-  text-transform: uppercase;
-}
-.aula-action-btn:hover  { filter: brightness(0.92); transform: translateY(-1px); }
-.aula-action-btn:active { filter: brightness(0.85); transform: translateY(0);    }
+.aula-action-btn:hover  { filter: brightness(0.88); transform: translateY(-1px); }
+.aula-action-btn:active { filter: brightness(0.80); transform: translateY(0);    }
 
 /* Coluna de ações: largura mínima para o conteúdo, nunca encolhe */
 .data-table thead th:last-child,

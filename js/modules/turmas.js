@@ -574,31 +574,27 @@ const TurmasModule = {
 
       if (!isAluno) {
         if (a.status === 'agendada') {
-          // ▶ INICIAR · 📋
-          acoes += _btn('▶ <span class="aula-btn-label">Iniciar</span>', 'Iniciar aula',
+          acoes += _btn('▶', 'Iniciar aula',
             `TurmasModule.professorCheckin('${a.id}')`,
-            'background:#16a34a;color:#fff;border-color:#15803d;');
+            'background:#16a34a;color:#fff;border-color:#15803d;font-size:18px;');
           acoes += _btn('📋', 'Lançar presença',
             `TurmasModule.abrirPresencaRapida('${a.id}')`,
             'background:#e0e7ff;color:#3730a3;border-color:#a5b4fc;');
 
         } else if (a.status === 'em_andamento') {
-          // 📋 · ■ CONCLUIR
           acoes += _btn('📋', 'Lançar presença',
             `TurmasModule.abrirPresencaRapida('${a.id}')`,
             'background:#e0e7ff;color:#3730a3;border-color:#a5b4fc;');
-          acoes += _btn('■ <span class="aula-btn-label">Concluir</span>', 'Concluir aula',
+          acoes += _btn('⏹', 'Concluir aula',
             `TurmasModule.professorCheckout('${a.id}')`,
-            'background:#f97316;color:#fff;border-color:#ea580c;');
+            'background:#f97316;color:#fff;border-color:#ea580c;font-size:18px;');
 
         } else if (a.experimental && a.avaliacaoStatus === 'pendente') {
-          // 🧪 AVALIAR (pós-aula experimental)
-          acoes += _btn('🧪 <span class="aula-btn-label">Avaliar</span>', 'Avaliar aula experimental',
+          acoes += _btn('🧪', 'Avaliar aula experimental',
             `TurmasModule.abrirAvaliacaoExperimental('${a.id}')`,
             'background:#f59e0b;color:#fff;border-color:#d97706;');
 
         } else {
-          // Concluída / Cancelada — ✏️ editar
           acoes += _btn('✏️', 'Editar',
             `TurmasModule.openModalAula('${a.id}')`,
             'background:#dbeafe;color:#1e40af;border-color:#93c5fd;');
