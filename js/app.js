@@ -667,6 +667,9 @@ const App = {
 
   /** Initialize the full UI — called after successful authentication */
   initUI() {
+    // Garante que o layout principal está visível (pode ter sido ocultado pelo HomeKiosk)
+    document.getElementById('app-layout')?.style.removeProperty('display');
+
     AppLogger.initGlobalHandlers();
     UI.initModal();
     Auth.bindLockForm();
