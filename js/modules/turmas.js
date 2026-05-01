@@ -2464,6 +2464,11 @@ const TurmasModule = {
       document.getElementById('modal-dialog')?.classList.add('modal-xl');
       this._updateDayViewModal();
     });
+    // Aula vinculada à grade em modo edição: herda dados atuais da grade
+    // (professor, arena, quadra, horários, nível, esporte, tipoplano)
+    if (isEdit && aula.turmaId && !aula.avulsa) {
+      setTimeout(() => TurmasModule._onTurmaChangeAula(), 150);
+    }
   },
 
   saveAula(id = null) {
@@ -2637,8 +2642,20 @@ const TurmasModule = {
                 dataInscricao: new Date().toISOString(),
                 status:        'ativo',
               });
+            } else if (record.turmaId) {
+              // Aula vinculada à grade: inscreve na grade (turmaAlunos)
+              // → aluno aparecerá em TODAS as aulas da grade dentro do período contratado
+              // → filtrado automaticamente por _matriculaAtivaEmData em getAlunosInscritos
+              Storage.create(this.SK_INSCR, {
+                turmaId:       record.turmaId,
+                turmaNome:     record.turmaNome || record.titulo,
+                alunoId:       opt.value,
+                alunoNome:     opt.dataset.nome || opt.textContent.trim(),
+                dataInscricao: new Date().toISOString(),
+                status:        'ativo',
+              });
             } else {
-              // Grade vinculada ou legacy: alocação direta na aula
+              // Legacy (aula sem turmaId): alocação direta na aula
               Storage.create('aulaAlunos', {
                 aulaId:    novaAula.id,
                 alunoId:   opt.value,
@@ -3210,6 +3227,10 @@ const TurmasModule = {
     const hfEl = document.getElementById('au-hf');
     if (hiEl && turma.horarioInicio) hiEl.value = turma.horarioInicio;
     if (hfEl && turma.horarioFim)    hfEl.value = turma.horarioFim;
+
+    // Preenche título com o nome da grade (somente se o campo estiver vazio)
+    const tituloEl = document.getElementById('au-titulo');
+    if (tituloEl && !tituloEl.value.trim()) tituloEl.value = turma.nome;
 
     this._updateDayViewModal();
   },
