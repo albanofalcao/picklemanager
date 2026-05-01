@@ -282,7 +282,25 @@ const Auth = {
             });
             this.hideLogin(); App.initUI(); Notifications.init(); return;
           }
-        } catch (_) { /* silencioso */ } finally {
+          // Mostra o erro real do Supabase para facilitar diagnóstico
+          if (error && errEl) {
+            const msgMap = {
+              'Invalid login credentials':         '✕ E-mail ou senha incorretos.',
+              'Email not confirmed':               '✕ E-mail não confirmado. Verifique sua caixa de entrada.',
+              'User not found':                    '✕ Usuário não encontrado.',
+              'Too many requests':                 '✕ Muitas tentativas. Aguarde alguns minutos.',
+            };
+            const msg = msgMap[error.message] || ('✕ Supabase: ' + error.message);
+            errEl.textContent = msg;
+            errEl.style.display = 'flex';
+            if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Entrar →'; }
+            const senhaEl2 = document.getElementById('li-senha');
+            if (senhaEl2) { senhaEl2.value = ''; senhaEl2.focus(); }
+            return;
+          }
+        } catch (ex) {
+          console.error('[Auth] Supabase signIn exception:', ex);
+        } finally {
           if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Entrar →'; }
         }
       }

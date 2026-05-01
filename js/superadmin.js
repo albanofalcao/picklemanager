@@ -79,7 +79,13 @@ const SuperAdmin = {
     const { error } = await SupabaseClient.auth.signInWithPassword({ email, password: senha });
     if (error) {
       if (btn) { btn.disabled = false; btn.textContent = 'Entrar'; }
-      this._renderLogin('E-mail ou senha incorretos.');
+      const msgMap = {
+        'Invalid login credentials': 'E-mail ou senha incorretos.',
+        'Email not confirmed':       'E-mail não confirmado — verifique sua caixa de entrada.',
+        'User not found':            'Usuário não encontrado.',
+        'Too many requests':         'Muitas tentativas. Aguarde alguns minutos.',
+      };
+      this._renderLogin(msgMap[error.message] || ('Erro Supabase: ' + error.message));
     }
   },
 
