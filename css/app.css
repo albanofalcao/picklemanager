@@ -1865,12 +1865,13 @@ tr.tarefa-concluida td { opacity: .6; }
 
 .alunos-table-wrap { overflow-x: auto; }
 
-/* Tabela de aulas — coluna de ações tem espaço garantido para 4 botões 36px */
-/* 4×36 + 3×4 (gaps) + 2×14 (padding td) = 184px */
-.aulas-table th:last-child,
-.aulas-table td:last-child {
-  min-width: 184px;
-  width: 184px;
+/* Tabela de aulas — coluna de ações: espaço garantido para 4 botões 36px + buffer
+   Especificidade 0,3,1 supera .data-table tbody td:last-child (0,2,2) que força width:1%.
+   Cálculo: 4×36 + 3×4 (gaps) + 2×14 (padding td) = 184px + 16px buffer = 200px */
+.data-table.aulas-table th:last-child,
+.data-table.aulas-table td:last-child {
+  min-width: 200px;
+  width: 200px;
   text-align: right;
 }
 
