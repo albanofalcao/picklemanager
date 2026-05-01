@@ -530,11 +530,10 @@ const TurmasModule = {
         ? `<span class="badge badge-success" style="font-size:0.7rem;">${pStats.presentes}/${pStats.total}</span>`
         : '<span class="text-muted text-sm">—</span>';
 
-      // Para mini-turmas avulsas os alunos estão em turmaAlunos; para o resto em aulaAlunos
-      const alocados = (a.avulsa && a.turmaId)
-        ? Storage.getAll(this.SK_INSCR)
-            .filter(i => i.turmaId === a.turmaId && i.status === 'ativo')
-            .map(i => ({ alunoNome: i.alunoNome }))
+      // Qualquer aula com turmaId (avulsa ou grade) lê alunos de turmaAlunos,
+      // filtrado por contrato ativo na data. Legacy sem turmaId usa aulaAlunos.
+      const alocados = a.turmaId
+        ? this.getAlunosInscritos(a.turmaId, a.data || null)
         : Storage.getAll('aulaAlunos').filter(aa => aa.aulaId === a.id && aa.status === 'ativo');
       const vagasAula = a.vagas || 0;
       const vagasLivresAula = vagasAula > 0 ? Math.max(0, vagasAula - alocados.length) : null;
