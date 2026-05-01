@@ -390,10 +390,10 @@ const SuperAdmin = {
     return `
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px;">
         <div>
-          <h1 style="margin:0;font-size:22px;font-weight:800;color:var(--text-primary);">Arenas Cadastradas</h1>
+          <h1 style="margin:0;font-size:22px;font-weight:800;color:var(--text-primary);">Bases Cadastradas</h1>
           <p style="margin:4px 0 0;color:var(--text-muted);font-size:13px;">Gestão de todos os clientes PickleManager</p>
         </div>
-        <button class="btn btn-primary" onclick="SuperAdmin._novoTenant()">+ Nova Arena</button>
+        <button class="btn btn-primary" onclick="SuperAdmin._novoTenant()">+ Nova Base</button>
       </div>
       <div id="sa-lista-wrap">
         <div style="text-align:center;padding:40px;color:var(--text-muted);">Carregando…</div>
@@ -438,12 +438,13 @@ const SuperAdmin = {
       matriz: 'background:#ede9fe;color:#6d28d9;',
       arena:  'background:#d1fae5;color:#065f46;',
     };
-    const TIPO_ICON = { matriz: '🏛️', arena: '🏫' };
+    const TIPO_ICON  = { matriz: '🏛️', arena: '🏢' };
+    const TIPO_LABEL = { matriz: 'Matriz / Rede', arena: 'Base' };
 
-    // Separa matrizes e arenas para exibição agrupada
+    // Separa matrizes e bases para exibição agrupada
     const matrizes = tenants.filter(t => t.tipo === 'matriz');
-    const arenas   = tenants.filter(t => t.tipo !== 'matriz');
-    const ordenados = [...matrizes, ...arenas];
+    const bases    = tenants.filter(t => t.tipo !== 'matriz');
+    const ordenados = [...matrizes, ...bases];
 
     wrap.innerHTML = ordenados.length ? `
       <div style="background:var(--card-bg);border-radius:var(--card-radius);overflow:hidden;
@@ -472,7 +473,7 @@ const SuperAdmin = {
                 </td>
                 <td style="padding:14px 18px;">
                   <span style="${TIPO_STYLE[t.tipo]||TIPO_STYLE.arena}padding:3px 10px;border-radius:var(--radius-full);font-size:12px;font-weight:700;">
-                    ${t.tipo||'arena'}
+                    ${TIPO_LABEL[t.tipo] || 'Base'}
                   </span>
                 </td>
                 <td style="padding:14px 18px;color:var(--text-secondary);">${this._esc(t.cidade||'—')}${t.estado?' / '+this._esc(t.estado):''}</td>
@@ -509,8 +510,8 @@ const SuperAdmin = {
     : `<div style="background:var(--card-bg);border-radius:var(--card-radius);padding:60px;text-align:center;
         box-shadow:var(--card-shadow);border:1px solid var(--card-border);">
         <div style="font-size:40px;margin-bottom:12px;">🏟️</div>
-        <div style="font-size:18px;font-weight:700;margin-bottom:8px;color:var(--text-primary);">Nenhuma arena cadastrada</div>
-        <div style="margin-bottom:20px;color:var(--text-muted);">Cadastre a primeira arena cliente.</div>
+        <div style="font-size:18px;font-weight:700;margin-bottom:8px;color:var(--text-primary);">Nenhuma base cadastrada</div>
+        <div style="margin-bottom:20px;color:var(--text-muted);">Cadastre a primeira base cliente.</div>
         <button class="btn btn-primary" onclick="SuperAdmin._novoTenant()">+ Cadastrar Base</button>
       </div>`;
     } catch(e) {
@@ -828,7 +829,7 @@ const SuperAdmin = {
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;">
           <button class="btn btn-secondary btn-sm" onclick="SuperAdmin._tab='lista';SuperAdmin._renderPanel()">← Voltar</button>
           <h1 style="margin:0;font-size:20px;font-weight:800;color:var(--text-primary);">
-            ${isEdit ? 'Editar Arena' : 'Nova Arena'}
+            ${isEdit ? 'Editar Base' : 'Nova Base'}
           </h1>
         </div>
 
@@ -837,9 +838,15 @@ const SuperAdmin = {
           <h3 style="margin:0 0 16px;font-size:14px;font-weight:700;color:var(--text-primary);
             border-bottom:1px solid var(--card-border);padding-bottom:10px;">Dados Básicos</h3>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-            ${this._campo('Nome da Base *', 'sa-nome', 'text', 'ex: Arena Pickle Centro')}
-            ${this._campo('Slug (URL) *', 'sa-slug', 'text', 'ex: arena-pickle-centro')}
-            ${this._select('Tipo', 'sa-tipo', ['arena','matriz'])}
+            ${this._campo('Nome da Base *', 'sa-nome', 'text', 'ex: Rede Pickle SP')}
+            ${this._campo('Slug (URL) *', 'sa-slug', 'text', 'ex: rede-pickle-sp')}
+            <div>
+              <label class="form-label" style="margin-bottom:5px;">Tipo</label>
+              <select id="sa-tipo" class="form-input" style="cursor:pointer;">
+                <option value="arena">Base</option>
+                <option value="matriz">Matriz / Rede</option>
+              </select>
+            </div>
             ${this._select('Status', 'sa-status', ['ativa','inativa','suspensa'])}
             ${this._select('Plano', 'sa-plano', ['basico','pro','premium'])}
             ${this._campo('Área total (m²)', 'sa-area', 'number', '0')}
@@ -868,7 +875,13 @@ const SuperAdmin = {
             ${this._campo('Vigência', 'sa-c-vigencia', 'date', '')}
             ${this._campo('Canal de aquisição', 'sa-canal', 'text', 'ex: indicação, Google Ads…')}
             ${this._campo('Data de onboarding', 'sa-c-onboard', 'date', '')}
-            ${this._select('Responsável cobrança', 'sa-resp-cob', ['arena','grupo'])}
+            <div>
+              <label class="form-label" style="margin-bottom:5px;">Responsável cobrança</label>
+              <select id="sa-resp-cob" class="form-input" style="cursor:pointer;">
+                <option value="arena">Base</option>
+                <option value="grupo">Grupo / Rede</option>
+              </select>
+            </div>
           </div>
           <div style="margin-top:14px;">
             <label class="form-label">Observações internas</label>
@@ -880,7 +893,7 @@ const SuperAdmin = {
         <div style="display:flex;gap:12px;justify-content:flex-end;">
           <button class="btn btn-secondary" onclick="SuperAdmin._tab='lista';SuperAdmin._renderPanel()">Cancelar</button>
           <button class="btn btn-primary" onclick="SuperAdmin._salvarTenant()">
-            ${isEdit ? '💾 Salvar alterações' : '✅ Cadastrar Arena'}
+            ${isEdit ? '💾 Salvar alterações' : '✅ Cadastrar Base'}
           </button>
         </div>
       </div>`;
@@ -1160,7 +1173,7 @@ const SuperAdmin = {
   },
 
   async _deletarTenant(id, nome) {
-    if (!confirm(`Excluir a arena "${nome}"? Esta ação não pode ser desfeita.`)) return;
+    if (!confirm(`Excluir a base "${nome}"? Esta ação não pode ser desfeita.`)) return;
     await SupabaseClient.from('tenants').delete().eq('id', id);
     this._tab = 'lista';
     this._renderPanel();
