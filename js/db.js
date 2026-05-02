@@ -313,17 +313,25 @@ const DB = {
     const { id: _id, createdAt, updatedAt, _tenantId, _tenantLabel, ...payload } = record;
     const softData = { ...payload, _deleted: true };
 
+    console.log('[DB.softDelete] tentando:', table, id, softData);
     SupabaseClient.from(table)
       .update({ data: softData, updated_at: new Date().toISOString() })
       .eq('id', id)
-      .then(({ error }) => {
-        if (error) {
-          console.error('[DB.softDelete]', key, id, error.message);
-          // Reverte o cache local — o dado NÃO foi marcado como excluído no banco
+      .select('id, data')          // força Supabase a devolver as linhas afetadas
+      .then(({ data: updated, error }) => {
+        console.log('[DB.softDelete] resposta:', { updated, error });
+
+        const ok = !error && updated && updated.length > 0;
+        if (!ok) {
+          const motivo = error ? error.message : '0 linhas afetadas (RLS ou id não encontrado)';
+          console.error('[DB.softDelete] FALHOU:', key, id, motivo);
+          // Reverte cache e avisa o usuário
           if (originalList) this._cache[key] = originalList;
           if (typeof UI !== 'undefined') {
-            UI.toast(`Falha ao excluir (${error.message}). Registro restaurado.`, 'error');
+            UI.toast(`Não foi possível excluir: ${motivo}`, 'error');
           }
+        } else {
+          console.log('[DB.softDelete] OK — _deleted gravado:', updated[0]?.data?._deleted);
         }
       });
   },
