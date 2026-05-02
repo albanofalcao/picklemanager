@@ -493,7 +493,7 @@ const TurmasModule = {
     }
 
     aulas = aulas.sort((a, b) => {
-      const d = (b.data || '').localeCompare(a.data || '');
+      const d = (a.data || '').localeCompare(b.data || '');
       return d !== 0 ? d : (a.horarioInicio || '').localeCompare(b.horarioInicio || '');
     });
 
@@ -1942,7 +1942,7 @@ const TurmasModule = {
   /*  Gerar aulas a partir do calendário da turma                        */
   /* ================================================================== */
 
-  openGerarAulas(turmaId) {
+  async openGerarAulas(turmaId) {
     const t = Storage.getById(this.SK, turmaId);
     if (!t) return;
 
@@ -1950,6 +1950,17 @@ const TurmasModule = {
     if (!diasNormGerar.length) {
       UI.toast('Configure os dias da semana na grade antes de gerar aulas.', 'warning');
       return;
+    }
+
+    // Guard: se a turma já tem aulas geradas, exige confirmação antes de prosseguir
+    const aulasExistentes = Storage.getAll(this.SK_AULA).filter(a => a.turmaId === turmaId);
+    if (aulasExistentes.length > 0) {
+      const ok = await UI.confirm(
+        `Esta turma já possui ${aulasExistentes.length} aula${aulasExistentes.length !== 1 ? 's' : ''} gerada${aulasExistentes.length !== 1 ? 's' : ''}. Ao gerar novamente, apenas datas ainda sem aula serão adicionadas (as existentes não são alteradas). Deseja continuar?`,
+        'Aulas já geradas',
+        'Continuar assim mesmo'
+      );
+      if (!ok) return;
     }
 
     const hoje    = new Date();
@@ -3590,7 +3601,14 @@ const TurmasModule = {
     const nomeAluno = aula.alunoExperimentalNome || 'Aluno';
     UI.toast(`✅ Avaliação concluída! Nível de ${nomeAluno} → ${nivelEl.value}.`, 'success');
     UI.closeModal();
-    this.render();
+
+    // Atualiza a view correta: portal (professor/aluno) ou layout admin (secretaria)
+    const portalEl = document.getElementById('portal-wrap');
+    if (portalEl && portalEl.style.display !== 'none') {
+      PortalModule._reRender();
+    } else {
+      this.render();
+    }
   },
 
   /** Exibe grades compatíveis com o nível avaliado */

@@ -144,7 +144,8 @@ const DB = {
     // Processa tabelas regulares
     for (const { table, data, error } of tableResults) {
       if (error) { console.warn('[DB] Erro ao carregar', table, ':', error.message); continue; }
-      const rows = (data || []).map(r => this._fromRow(r, isMatrizMode));
+      // Filtra soft-deletes: registros com data._deleted === true são ignorados
+      const rows = (data || []).filter(r => !r.data?._deleted).map(r => this._fromRow(r, isMatrizMode));
       for (const [sk, tbl] of Object.entries(this.TABLE_MAP)) {
         if (tbl === table && !this.CATALOG_KEYS.has(sk)) this._cache[sk] = rows;
       }
@@ -158,7 +159,7 @@ const DB = {
     } else {
       for (const sk of this.CATALOG_KEYS) {
         this._cache[sk] = (catRows || [])
-          .filter(r => r.tipo === sk)
+          .filter(r => r.tipo === sk && !r.data?._deleted)
           .map(r => this._fromRow(r, isMatrizMode));
       }
     }
@@ -213,9 +214,12 @@ const DB = {
       const list    = self._cache[key] || [];
       const next    = list.filter(r => r.id !== id);
       const removed = next.length < list.length;
+      if (!removed) return false;
+
       self._cache[key] = next;
-      if (removed) self._supabaseDelete(key, id);
-      return removed;
+      // Passa a lista original para rollback caso o Supabase rejeite o delete
+      self._supabaseDelete(key, id, list);
+      return true;
     };
 
     Storage.count = (key) => {
@@ -293,11 +297,35 @@ const DB = {
       .then(({ error }) => { if (error) console.error('[DB.update]', key, id, error.message); });
   },
 
-  _supabaseDelete(key, id) {
+  _supabaseDelete(key, id, originalList) {
     const table = this.TABLE_MAP[key];
     if (!table) return;
-    SupabaseClient.from(table).delete().eq('id', id)
-      .then(({ error }) => { if (error) console.error('[DB.delete]', key, id, error.message); });
+
+    // ─── Soft-delete via UPDATE ────────────────────────────────────────────
+    // O DELETE com anon key é bloqueado silenciosamente pelas políticas RLS do
+    // Supabase (retorna { error: null } mas apaga 0 linhas → dado volta no reload).
+    // Solução: UPDATE com _deleted:true no JSONB. O UPDATE é permitido pelo RLS
+    // e persiste corretamente. Na carga seguinte, linhas com _deleted são ignoradas.
+    const record = (originalList || []).find(r => r.id === id);
+    if (!record) return;
+
+    // Remove campos de sistema antes de regravar o payload
+    const { id: _id, createdAt, updatedAt, _tenantId, _tenantLabel, ...payload } = record;
+    const softData = { ...payload, _deleted: true };
+
+    SupabaseClient.from(table)
+      .update({ data: softData, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .then(({ error }) => {
+        if (error) {
+          console.error('[DB.softDelete]', key, id, error.message);
+          // Reverte o cache local — o dado NÃO foi marcado como excluído no banco
+          if (originalList) this._cache[key] = originalList;
+          if (typeof UI !== 'undefined') {
+            UI.toast(`Falha ao excluir (${error.message}). Registro restaurado.`, 'error');
+          }
+        }
+      });
   },
 
   /* ───────────────────────────────────────────────────────────────────
@@ -383,13 +411,13 @@ const DB = {
         .select('id, tipo, data, created_at, updated_at')
         .eq('tenant_id', this._tenantId)
         .eq('tipo', key);
-      this._cache[key] = (data || []).map(r => this._fromRow(r));
+      this._cache[key] = (data || []).filter(r => !r.data?._deleted).map(r => this._fromRow(r));
     } else {
       const { data } = await SupabaseClient
         .from(table)
         .select('id, data, created_at, updated_at')
         .eq('tenant_id', this._tenantId);
-      this._cache[key] = (data || []).map(r => this._fromRow(r));
+      this._cache[key] = (data || []).filter(r => !r.data?._deleted).map(r => this._fromRow(r));
     }
   },
 };

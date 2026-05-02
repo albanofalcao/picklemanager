@@ -90,7 +90,11 @@ const UI = {
     titleEl.textContent = title;
     bodyEl.innerHTML = content;
     bodyEl.scrollTop = 0;        // garante que o modal sempre abre no topo
-    dialog.classList.toggle('modal-wide', !!wide);
+    // Limpa todas as classes de tamanho antes de aplicar a correta.
+    // Necessário porque openModalAula adiciona 'modal-xl' manualmente via rAF;
+    // sem este reset, a classe persiste em modais menores abertos em seguida.
+    dialog.classList.remove('modal-wide', 'modal-xl');
+    if (wide) dialog.classList.add('modal-wide');
     if (cancelBtn) cancelBtn.textContent = cancelLabel;
 
     if (hideFooter) {

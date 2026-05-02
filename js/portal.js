@@ -291,6 +291,12 @@ const PortalModule = {
     } else if (a.status === 'concluida') {
       acoesBtns += `<button class="btn btn-ghost btn-sm" onclick="PortalModule.abrirPresenca('${a.id}')">📋 Ver frequência</button>`;
     }
+    // Avaliação experimental: visível ao professor quando a aula está concluída e avaliação pendente
+    if (a.experimental && a.avaliacaoStatus === 'pendente' && a.status === 'concluida') {
+      acoesBtns += `<button class="btn btn-primary btn-sm"
+        style="background:#f59e0b;border-color:#d97706;"
+        onclick="TurmasModule.abrirAvaliacaoExperimental('${a.id}')">🧪 Avaliar experimental</button>`;
+    }
 
     const dataLabel = !isHoje ? `<span>📅 ${this._fmtDataCurta(a.data)}</span>` : '';
 
