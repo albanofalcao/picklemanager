@@ -2764,24 +2764,24 @@ const TurmasModule = {
 
     const content = `
       <div class="form-grid">
-        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;">
+        <div style="display:flex;align-items:center;gap:6px;">
           <span class="badge ${st.badge}">${st.label}</span>
           ${aula.turmaNome ? `<span class="badge badge-blue">${UI.escape(aula.turmaNome)}</span>` : '<span class="badge badge-gray">Avulsa</span>'}
-          ${aula.experimental ? `<span class="badge" style="background:#f59e0b;color:#fff;font-weight:700;">🧪 Experimental</span>` : ''}
-          <span style="flex:1;"></span>
+          ${aula.experimental ? `<span class="badge" style="background:#f59e0b;color:#fff;font-weight:700;">🧪 Exp.</span>` : ''}
+          <span style="flex:1;min-width:0;"></span>
           ${isAdmin ? `
             ${aula.status === 'agendada' && aula.turmaId ? `
-              <button class="btn btn-ghost btn-sm" title="Agendar reposição"
-                onclick="UI.closeModal();TurmasModule.solicitarReposicaoAdmin('${id}')">🔄 Reposição</button>
+              <button class="aula-btn-ghost" title="Agendar reposição"
+                onclick="UI.closeModal();TurmasModule.solicitarReposicaoAdmin('${id}')">🔄</button>
             ` : ''}
-            <button class="btn btn-ghost btn-sm"
+            <button class="aula-btn-ghost"
               title="${aula.avulsa && aula.turmaId ? 'Agendar sessão extra' : 'Repetir aula'}"
               onclick="UI.closeModal();TurmasModule.openModalRepetirAula('${id}')">
-              ${aula.avulsa && aula.turmaId ? '➕ Extra' : '🔁 Repetir'}</button>
-            <button class="btn btn-ghost btn-sm" title="Editar"
-              onclick="UI.closeModal();TurmasModule.openModalAula('${id}')">✏️ Editar</button>
-            <button class="btn btn-ghost btn-sm danger" title="Excluir aula"
-              onclick="UI.closeModal();TurmasModule.deleteAula('${id}')">🗑️ Excluir</button>
+              ${aula.avulsa && aula.turmaId ? '➕' : '🔁'}</button>
+            <button class="aula-btn-ghost" title="Editar"
+              onclick="UI.closeModal();TurmasModule.openModalAula('${id}')">✏️</button>
+            <button class="aula-btn-ghost" title="Excluir aula" style="color:var(--red,#e53e3e);"
+              onclick="UI.closeModal();TurmasModule.deleteAula('${id}')">🗑️</button>
           ` : ''}
         </div>
 
