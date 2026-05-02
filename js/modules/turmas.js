@@ -572,6 +572,14 @@ const TurmasModule = {
           'background:#dcfce7;color:#166534;border-color:#86efac;');
       }
 
+      // Indicador 🧪 inativo (prof vê que a aula é experimental mesmo antes de concluir)
+      const _expPendente = a.experimental && a.avaliacaoStatus === 'pendente';
+      const _btnExpInativo = isProfessor && _expPendente
+        ? _btn('🧪', 'Aula experimental — conclua para avaliar',
+            `UI.toast('Conclua a aula primeiro para liberar a avaliação experimental.','info')`,
+            'background:#fef3c7;color:#92400e;border-color:#fcd34d;opacity:0.75;')
+        : '';
+
       if (!isAluno) {
         if (a.status === 'agendada') {
           acoes += _btn('▶', 'Iniciar aula',
@@ -580,6 +588,7 @@ const TurmasModule = {
           acoes += _btn('📋', 'Lançar presença',
             `TurmasModule.abrirPresencaRapida('${a.id}')`,
             'background:#e0e7ff;color:#3730a3;border-color:#a5b4fc;');
+          acoes += _btnExpInativo; // 🧪 inativo — visível ao professor se experimental
 
         } else if (a.status === 'em_andamento') {
           acoes += _btn('📋', 'Lançar presença',
@@ -588,8 +597,9 @@ const TurmasModule = {
           acoes += _btn('⏹', 'Concluir aula',
             `TurmasModule.professorCheckout('${a.id}')`,
             'background:#f97316;color:#fff;border-color:#ea580c;font-size:18px;');
+          acoes += _btnExpInativo; // 🧪 inativo — visível ao professor se experimental
 
-        } else if (a.experimental && a.avaliacaoStatus === 'pendente') {
+        } else if (_expPendente) {
           acoes += _btn('🧪', 'Avaliar aula experimental',
             `TurmasModule.abrirAvaliacaoExperimental('${a.id}')`,
             'background:#f59e0b;color:#fff;border-color:#d97706;');
@@ -623,7 +633,7 @@ const TurmasModule = {
             <div class="aluno-sub">${UI.escape(a.nivel ? (this.NIVEL[a.nivel] || a.nivel) : '')}</div>
             <div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:3px;">
               ${(!a.turmaId || a.avulsa)  ? `<span class="badge badge-gray" style="font-size:0.65rem;">Avulsa</span>` : ''}
-              ${a.experimental ? `<span class="badge" style="font-size:0.65rem;background:#f59e0b20;color:#b45309;">🧪 Exp.</span>` : ''}
+              ${a.experimental ? `<span class="badge" style="font-size:0.65rem;background:#f59e0b;color:#fff;font-weight:700;">🧪 Exp.</span>` : ''}
               ${a.esporte   ? `<span class="badge badge-blue" style="font-size:0.65rem;">${UI.escape(a.esporte)}</span>` : ''}
               ${a.tipoplano ? `<span class="badge badge-success" style="font-size:0.65rem;">${UI.escape(a.tipoplano)}</span>` : ''}
             </div>
@@ -752,7 +762,7 @@ const TurmasModule = {
         ? `<span class="badge badge-warning" style="font-size:0.65rem;margin-left:6px;" title="Reposição">R</span>`
         : '';
       const expBadge = insc.experimental
-        ? `<span class="badge" style="font-size:0.65rem;margin-left:6px;background:#f59e0b20;color:#b45309;" title="Aula experimental">🧪</span>`
+        ? `<span class="badge" style="font-size:0.65rem;margin-left:6px;background:#f59e0b;color:#fff;font-weight:700;" title="Aula experimental">🧪</span>`
         : '';
       const initials = insc.alunoNome.trim().split(' ').slice(0,2).map(p => p[0]).join('').toUpperCase();
       return `
@@ -2546,6 +2556,14 @@ const TurmasModule = {
     const expAlunoNome     = expAlunoSel?.selectedOptions[0]?.dataset.nome
                              || expAlunoSel?.selectedOptions[0]?.textContent.trim() || '';
 
+    // Aluno obrigatório quando experimental está marcado
+    if (isExperimental && !expAlunoId) {
+      if (expAlunoSel) expAlunoSel.classList.add('error');
+      UI.toast('🧪 Selecione o aluno avaliado para aula experimental.', 'warning');
+      return;
+    }
+    if (expAlunoSel) expAlunoSel.classList.remove('error');
+
     const record = {
       titulo:               tituloEl.value.trim(),
       nivel:                g('nivel')     ? g('nivel').value                    : 'iniciante',
@@ -2756,7 +2774,7 @@ const TurmasModule = {
         <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;">
           <span class="badge ${st.badge}">${st.label}</span>
           ${aula.turmaNome ? `<span class="badge badge-blue">${UI.escape(aula.turmaNome)}</span>` : '<span class="badge badge-gray">Avulsa</span>'}
-          ${aula.experimental ? `<span class="badge" style="background:#f59e0b20;color:#b45309;">🧪 Experimental</span>` : ''}
+          ${aula.experimental ? `<span class="badge" style="background:#f59e0b;color:#fff;font-weight:700;">🧪 Experimental</span>` : ''}
           <span style="flex:1;"></span>
           ${isAdmin ? `
             ${aula.status === 'agendada' && aula.turmaId ? `
