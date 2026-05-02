@@ -683,9 +683,12 @@ tr.tarefa-concluida td { opacity: .6; }
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.25s ease;
-  /* Grid centra o dialog; overlay NÃO rola */
-  display: grid;
-  place-items: center;
+  /* Flex centra o dialog; overlay NÃO rola.
+     Flex é mais previsível que grid para este caso: width:100%+max-width
+     no dialog funciona sem depender do track-sizing do grid. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 20px;
   overflow: hidden;
 }
@@ -701,7 +704,8 @@ tr.tarefa-concluida td { opacity: .6; }
   box-shadow: 0 20px 60px rgba(0,0,0,.2);
   width: 100%;
   max-width: 580px;
-  min-width: 0; /* grid item: sem isso min-content do conteúdo bate em cima do max-width e vence */
+  min-width: 0; /* flex item: sem isso min-content do conteúdo bate em cima do max-width e vence */
+  flex-shrink: 0; /* não encolhe além do max-width — o overlay tem espaço de sobra em desktop */
   display: flex;
   flex-direction: column;
   /* height: auto → modal encolhe para o conteúdo; max-height limita ao viewport.
@@ -738,6 +742,10 @@ tr.tarefa-concluida td { opacity: .6; }
   font-size: 17px;
   font-weight: 700;
   color: var(--text-primary);
+  min-width: 0;       /* flex item do header — permite encolher se título for longo */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .modal-close {
