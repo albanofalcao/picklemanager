@@ -701,6 +701,7 @@ tr.tarefa-concluida td { opacity: .6; }
   box-shadow: 0 20px 60px rgba(0,0,0,.2);
   width: 100%;
   max-width: 580px;
+  min-width: 0; /* grid item: sem isso min-content do conteúdo bate em cima do max-width e vence */
   display: flex;
   flex-direction: column;
   /* height: auto → modal encolhe para o conteúdo; max-height limita ao viewport.
