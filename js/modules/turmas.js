@@ -2797,6 +2797,15 @@ const TurmasModule = {
           </button>
         </div>
 
+        ${aula.experimental && aula.avaliacaoStatus === 'pendente' ? `
+          <div class="detalhe-section">
+            <div class="detalhe-section-title">🧪 Avaliação Experimental</div>
+            <button class="btn btn-primary" style="background:#f59e0b;border-color:#d97706;"
+              onclick="UI.closeModal();TurmasModule.abrirAvaliacaoExperimental('${id}')">
+              🧪 Avaliar aula experimental
+            </button>
+          </div>` : ''}
+
         ${aula.observacoes ? `
           <div class="detalhe-section">
             <div class="detalhe-section-title">📝 Observações</div>
