@@ -842,6 +842,7 @@ tr.tarefa-concluida td { opacity: .6; }
   transition: var(--transition);
   outline: none;
   width: 100%;
+  min-width: 0; /* evita overflow em flex rows — flex item não encolhe abaixo da largura intrínseca sem isso */
 }
 
 .form-select {
