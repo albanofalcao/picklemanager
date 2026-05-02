@@ -552,62 +552,55 @@ const TurmasModule = {
           ).join('') + (alocados.length > 4 ? `<span class="turma-aluno-chip">+${alocados.length - 4}</span>` : '')
         : '<span class="text-muted text-sm">Nenhum alocado</span>';
 
-      // ── Botões de ação — máx 4 por linha ────────────────────────────
-      // Agendada:      👥 · ▶ INICIAR · 📋 · 👁
-      // Em andamento:  👥 · 📋 · ■ CONCLUIR · 👁
-      // Concluída:     👥 · ✏️ · 👁
-      // + 🧪 pendente: substitui ✏️ por 🧪 AVALIAR
-      // ✏️ e 🗑️ sempre disponíveis dentro do 👁
-      const _btn = (icon, title, onclick, style = '') =>
-        `<button class="aula-action-btn" title="${title}" onclick="${onclick}" ${style ? `style="${style}"` : ''}>${icon}</button>`;
+      // ── Botões de ação ──────────────────────────────────────────────
+      // Ghost (ícone neutro, ação secundária): _btn(icon, title, onclick [, 'muted'])
+      // CTA   (pílula sólida, ação primária):  _cta(label, cls, title, onclick)
+      //   cls: 'green' = Iniciar | 'orange' = Concluir | 'amber' = Avaliar
+      const _btn = (icon, title, onclick, extra = '') =>
+        `<button class="aula-btn-ghost${extra ? ' ' + extra : ''}" title="${title}" onclick="${onclick}">${icon}</button>`;
+      const _cta = (label, cls, title, onclick) =>
+        `<button class="aula-btn-cta ${cls}" title="${title}" onclick="${onclick}">${label}</button>`;
 
       let acoes = '';
 
-      // 1. 👥 Alunos — sempre (admin/recepção), sem contador (vagas já na col. Alunos)
+      // 1. 👥 Alunos — sempre (admin/recepção)
       if (!isProfessor && !isAluno) {
         const _fnAlunos = a.turmaId
           ? `TurmasModule.openModalAlunos('${a.turmaId}')`
           : `TurmasModule.openModalAlocarAluno('${a.id}')`;
-        acoes += _btn('👥', 'Gerenciar alunos', _fnAlunos,
-          'background:#dcfce7;color:#166534;border-color:#86efac;');
+        acoes += _btn('👥', 'Gerenciar alunos', _fnAlunos);
       }
 
-      // Indicador 🧪 inativo (prof vê que a aula é experimental mesmo antes de concluir)
+      // Indicador 🧪 inativo — prof vê que a aula é experimental antes de concluir
       const _expPendente = a.experimental && a.avaliacaoStatus === 'pendente';
       const _btnExpInativo = isProfessor && _expPendente
         ? _btn('🧪', 'Aula experimental — conclua para avaliar',
             `UI.toast('Conclua a aula primeiro para liberar a avaliação experimental.','info')`,
-            'background:#fef3c7;color:#92400e;border-color:#fcd34d;opacity:0.75;')
+            'muted')
         : '';
 
       if (!isAluno) {
         if (a.status === 'agendada') {
-          acoes += _btn('▶', 'Iniciar aula',
-            `TurmasModule.professorCheckin('${a.id}')`,
-            'background:#16a34a;color:#fff;border-color:#15803d;font-size:18px;');
+          acoes += _cta('Iniciar', 'green', 'Iniciar aula',
+            `TurmasModule.professorCheckin('${a.id}')`);
           acoes += _btn('📋', 'Lançar presença',
-            `TurmasModule.abrirPresencaRapida('${a.id}')`,
-            'background:#e0e7ff;color:#3730a3;border-color:#a5b4fc;');
-          acoes += _btnExpInativo; // 🧪 inativo — visível ao professor se experimental
+            `TurmasModule.abrirPresencaRapida('${a.id}')`);
+          acoes += _btnExpInativo;
 
         } else if (a.status === 'em_andamento') {
           acoes += _btn('📋', 'Lançar presença',
-            `TurmasModule.abrirPresencaRapida('${a.id}')`,
-            'background:#e0e7ff;color:#3730a3;border-color:#a5b4fc;');
-          acoes += _btn('⏹', 'Concluir aula',
-            `TurmasModule.professorCheckout('${a.id}')`,
-            'background:#f97316;color:#fff;border-color:#ea580c;font-size:18px;');
-          acoes += _btnExpInativo; // 🧪 inativo — visível ao professor se experimental
+            `TurmasModule.abrirPresencaRapida('${a.id}')`);
+          acoes += _cta('Concluir', 'orange', 'Concluir aula',
+            `TurmasModule.professorCheckout('${a.id}')`);
+          acoes += _btnExpInativo;
 
         } else if (_expPendente) {
-          acoes += _btn('🧪', 'Avaliar aula experimental',
-            `TurmasModule.abrirAvaliacaoExperimental('${a.id}')`,
-            'background:#f59e0b;color:#fff;border-color:#d97706;');
+          acoes += _cta('Avaliar', 'amber', 'Avaliar aula experimental',
+            `TurmasModule.abrirAvaliacaoExperimental('${a.id}')`);
 
         } else {
           acoes += _btn('✏️', 'Editar',
-            `TurmasModule.openModalAula('${a.id}')`,
-            'background:#dbeafe;color:#1e40af;border-color:#93c5fd;');
+            `TurmasModule.openModalAula('${a.id}')`);
         }
       }
 

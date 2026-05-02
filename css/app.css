@@ -1822,7 +1822,7 @@ tr.tarefa-concluida td { opacity: .6; }
   border: 1px solid color-mix(in srgb, var(--accent-blue, #3b82f6) 30%, transparent);
 }
 
-/* wrapper interno do td de ações — flex no div, não no td */
+/* ── Ações da tabela de aulas ──────────────────────────────────── */
 .aula-acoes-wrap {
   display: flex;
   gap: 4px;
@@ -1830,26 +1830,56 @@ tr.tarefa-concluida td { opacity: .6; }
   align-items: center;
 }
 
-/* Botão de ação — ícone colorido, quadrado, sem texto */
-.aula-action-btn {
+/* Botão ghost — ícone neutro, ação secundária */
+.aula-btn-ghost {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  border: 1px solid var(--card-border);
-  background: var(--bg-secondary, #f5f2ea);
-  color: var(--text-primary);
-  font-size: 17px;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  border: 1.5px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
   cursor: pointer;
-  transition: filter 0.15s, transform 0.1s;
+  transition: background 0.12s, border-color 0.12s, color 0.12s, transform 0.1s;
   flex-shrink: 0;
   padding: 0;
   line-height: 1;
 }
-.aula-action-btn:hover  { filter: brightness(0.88); transform: translateY(-1px); }
-.aula-action-btn:active { filter: brightness(0.80); transform: translateY(0);    }
+.aula-btn-ghost:hover {
+  background: var(--bg-secondary);
+  border-color: var(--card-border);
+  color: var(--text-primary);
+  transform: translateY(-1px);
+}
+.aula-btn-ghost:active { transform: translateY(0); filter: brightness(0.88); }
+.aula-btn-ghost.muted  { opacity: 0.4; }
+
+/* Botão CTA — ação primária, pílula com rótulo de texto */
+.aula-btn-cta {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 13px;
+  border-radius: 14px;
+  border: none;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: filter 0.12s, transform 0.1s, box-shadow 0.12s;
+  flex-shrink: 0;
+  white-space: nowrap;
+  box-shadow: 0 1px 4px rgba(0,0,0,.18);
+}
+.aula-btn-cta:hover  { filter: brightness(0.9);  transform: translateY(-1px); box-shadow: 0 2px 7px rgba(0,0,0,.22); }
+.aula-btn-cta:active { filter: brightness(0.82); transform: translateY(0);    box-shadow: none; }
+.aula-btn-cta.green  { background: #16a34a; color: #fff; }
+.aula-btn-cta.orange { background: #ea580c; color: #fff; }
+.aula-btn-cta.amber  { background: #d97706; color: #fff; }
 
 /* Coluna de ações: largura mínima para o conteúdo, nunca encolhe */
 .data-table thead th:last-child,
@@ -1858,10 +1888,13 @@ tr.tarefa-concluida td { opacity: .6; }
   white-space: nowrap;
   text-align: right;
 }
-[data-theme="dark"] .aula-action-btn {
-  background: #1e3a30;
-  border-color: #2a4a3e;
-  color: #d4f0e8;
+
+/* dark mode */
+[data-theme="dark"] .aula-btn-ghost { color: var(--text-muted); }
+[data-theme="dark"] .aula-btn-ghost:hover {
+  background: rgba(255,255,255,.08);
+  border-color: rgba(255,255,255,.16);
+  color: var(--text-primary);
 }
 
 .alunos-table-wrap { overflow-x: auto; }
