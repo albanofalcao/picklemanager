@@ -3511,6 +3511,10 @@ tr.tarefa-concluida td { opacity: .6; }
 
 .inscricao-nome {
   flex: 1;
+  min-width: 0;          /* permite encolher em flex — sem isso o texto vaza */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
@@ -3520,6 +3524,9 @@ tr.tarefa-concluida td { opacity: .6; }
   font-size: 11px;
   color: var(--text-muted);
   margin-top: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ============================================================

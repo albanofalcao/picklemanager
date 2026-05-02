@@ -3090,9 +3090,9 @@ const TurmasModule = {
           <label class="form-label" style="margin-bottom:6px;">Adicionar aluno
             <span class="text-muted" style="font-size:11px;font-weight:400;margin-left:6px;">⚠️ Apenas alunos com matrícula ativa</span>
           </label>
-          <div style="display:flex;gap:8px;">
-            <select id="inscr-aluno-sel" class="form-select" style="flex:1;">${alunoOpts}</select>
-            <button class="btn btn-primary" onclick="TurmasModule._adicionarInscricao('${turmaId}')">Adicionar</button>
+          <div style="display:flex;gap:8px;overflow:hidden;">
+            <select id="inscr-aluno-sel" class="form-select" style="flex:1;min-width:0;">${alunoOpts}</select>
+            <button class="btn btn-primary" style="flex-shrink:0;" onclick="TurmasModule._adicionarInscricao('${turmaId}')">Adicionar</button>
           </div>
           ${alunosDisponiveis.length === 0 ? `<p class="text-muted" style="font-size:12px;margin-top:6px;">Nenhum aluno com matrícula ativa disponível. <a href="#" onclick="MatriculaModule && MatriculaModule.openModal(); return false;" style="color:var(--primary);">+ Nova matrícula</a></p>` : ''}
         </div>
