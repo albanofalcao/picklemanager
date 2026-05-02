@@ -127,7 +127,12 @@ const TurmasModule = {
     const btnHeader =
       this._state.tab === 'turmas'
         ? `<button class="btn btn-primary" onclick="TurmasModule.openModalTurma()">${svgPlus} Nova Turma</button>`
-        : (this._state.tab === 'calendario' || this._state.tab === 'aulas')
+        : this._state.tab === 'aulas'
+        ? `<div style="display:flex;gap:8px;">
+             <button class="btn btn-secondary" onclick="TurmasModule.openGerarAulasAvulsas()">📅 Em Lote</button>
+             <button class="btn btn-primary" onclick="TurmasModule.openModalAula()">${svgPlus} Nova Aula</button>
+           </div>`
+        : this._state.tab === 'calendario'
         ? `<button class="btn btn-primary" onclick="TurmasModule.openModalAula()">${svgPlus} Nova Aula</button>`
         : '';
 
@@ -2090,6 +2095,226 @@ const TurmasModule = {
     const skipMsg = skipped > 0 ? ` (${skipped} ignorada${skipped !== 1 ? 's' : ''} por conflito de quadra/professor)` : '';
     UI.toast(`${count} aula${count !== 1 ? 's' : ''} gerada${count !== 1 ? 's' : ''} com sucesso!${skipMsg}`, count > 0 ? 'success' : 'warning');
     // Vai para o calendário no mês de início
+    const dIni = new Date(ini + 'T12:00:00');
+    this._state.tab    = 'calendario';
+    this._state.calAno = dIni.getFullYear();
+    this._state.calMes = dIni.getMonth();
+    this.render();
+  },
+
+  /* ================================================================== */
+  /*  Gerar Aulas Avulsas em Lote (a partir de dias + período)          */
+  /* ================================================================== */
+
+  openGerarAulasAvulsas() {
+    const professores = Storage.getAll('professores').filter(p => p.status === 'ativo');
+    const profOpts = `<option value="">— Selecionar —</option>` +
+      professores.map(p =>
+        `<option value="${p.id}" data-nome="${UI.escape(p.nome)}">${UI.escape(p.nome)}</option>`
+      ).join('');
+
+    const arenas = Storage.getAll('arenas').filter(a => a.status === 'ativa');
+    const arenaOpts = `<option value="">— Selecionar —</option>` +
+      arenas.map(a =>
+        `<option value="${a.id}" data-nome="${UI.escape(a.nome)}">${UI.escape(a.nome)}</option>`
+      ).join('');
+
+    const nivelOpts = ListasService.opts('aulas_nivel', '');
+    const hoje = this._isoDate(new Date());
+
+    const DIAS = [
+      { k: 'seg', l: 'Seg' }, { k: 'ter', l: 'Ter' }, { k: 'qua', l: 'Qua' },
+      { k: 'qui', l: 'Qui' }, { k: 'sex', l: 'Sex' }, { k: 'sab', l: 'Sáb' },
+      { k: 'dom', l: 'Dom' },
+    ];
+    const diasHtml = DIAS.map(d =>
+      `<label style="display:flex;align-items:center;gap:5px;cursor:pointer;user-select:none;">
+         <input type="checkbox" class="gav-dia" value="${d.k}"
+           style="width:15px;height:15px;cursor:pointer;accent-color:var(--color-primary,#3b9e8f);"
+           onchange="TurmasModule._prevGerarAvulsas()" />
+         <span style="font-size:13px;font-weight:600;">${d.l}</span>
+       </label>`
+    ).join('');
+
+    const content = `
+      <div class="form-grid">
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label" for="gav-titulo">Título <span class="required-star">*</span></label>
+            <input id="gav-titulo" type="text" class="form-input" placeholder="ex: Aula Avulsa" autocomplete="off" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="gav-prof">Professor</label>
+            <select id="gav-prof" class="form-select">${profOpts}</select>
+          </div>
+        </div>
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label" for="gav-arena">Arena</label>
+            <select id="gav-arena" class="form-select" onchange="TurmasModule._onArenaChangeGav()">${arenaOpts}</select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="gav-quadra">Quadra</label>
+            <select id="gav-quadra" class="form-select">
+              <option value="">— Selecionar arena primeiro —</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label" for="gav-nivel">Nível</label>
+            <select id="gav-nivel" class="form-select">${nivelOpts}</select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="gav-vagas">Vagas</label>
+            <input id="gav-vagas" type="number" class="form-input" min="1" max="30" value="4" />
+          </div>
+        </div>
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label" for="gav-hi">Horário início <span class="required-star">*</span></label>
+            <input id="gav-hi" type="time" class="form-input" oninput="TurmasModule._prevGerarAvulsas()" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="gav-hf">Horário fim</label>
+            <input id="gav-hf" type="time" class="form-input" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Dias da semana <span class="required-star">*</span></label>
+          <div style="display:flex;flex-wrap:wrap;gap:16px;padding:10px 12px;
+                      background:var(--bg-secondary);border-radius:8px;
+                      border:1.5px solid var(--input-border);">
+            ${diasHtml}
+          </div>
+        </div>
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label" for="gav-ini">De <span class="required-star">*</span></label>
+            <input id="gav-ini" type="date" class="form-input" value="${hoje}"
+              oninput="TurmasModule._prevGerarAvulsas()" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="gav-fim">Até <span class="required-star">*</span></label>
+            <input id="gav-fim" type="date" class="form-input"
+              oninput="TurmasModule._prevGerarAvulsas()" />
+          </div>
+        </div>
+        <div id="gav-preview" style="font-size:12px;color:var(--text-muted);padding:10px 12px;
+             background:var(--bg-secondary);border-radius:8px;min-height:32px;display:none;"></div>
+      </div>`;
+
+    UI.openModal({
+      title:        '📅 Gerar Aulas Avulsas em Lote',
+      content,
+      confirmLabel: 'Gerar Aulas',
+      onConfirm:    () => this._gerarAulasAvulsas(),
+    });
+  },
+
+  _onArenaChangeGav() {
+    const arenaId = document.getElementById('gav-arena')?.value;
+    const sel     = document.getElementById('gav-quadra');
+    if (!sel) return;
+    if (!arenaId) {
+      sel.innerHTML = '<option value="">— Selecionar arena primeiro —</option>';
+      return;
+    }
+    const quadras = Storage.getAll('quadras').filter(q => q.arenaId === arenaId && q.status === 'disponivel');
+    sel.innerHTML = '<option value="">— Selecionar quadra —</option>' +
+      quadras.map(q =>
+        `<option value="${q.id}" data-nome="${UI.escape(q.nome)}">${UI.escape(q.nome)}</option>`
+      ).join('');
+  },
+
+  _prevGerarAvulsas() {
+    const ini     = document.getElementById('gav-ini')?.value;
+    const fim     = document.getElementById('gav-fim')?.value;
+    const preview = document.getElementById('gav-preview');
+    if (!preview) return;
+
+    const diasSel = [...document.querySelectorAll('.gav-dia:checked')].map(cb => cb.value);
+    if (!ini || !fim || !diasSel.length) { preview.style.display = 'none'; return; }
+
+    const diasJS = this._diasJS(diasSel);
+    const count  = this._contarOcorrencias(ini, fim, diasJS);
+
+    const dates = [];
+    const cur = new Date(ini + 'T12:00:00');
+    const end = new Date(fim + 'T12:00:00');
+    while (cur <= end && dates.length < 6) {
+      if (diasJS.includes(cur.getDay()))
+        dates.push(cur.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' }));
+      cur.setDate(cur.getDate() + 1);
+    }
+    const extra = count > 6 ? ` +${count - 6} mais…` : '';
+    preview.style.display = 'block';
+    preview.textContent   = `📅 ${count} aula${count !== 1 ? 's' : ''}: ${dates.join(' · ')}${extra}`;
+  },
+
+  _gerarAulasAvulsas() {
+    const titulo    = document.getElementById('gav-titulo')?.value?.trim();
+    const profSel   = document.getElementById('gav-prof');
+    const arenaSel  = document.getElementById('gav-arena');
+    const quadraSel = document.getElementById('gav-quadra');
+    const nivelSel  = document.getElementById('gav-nivel');
+    const vagas     = parseInt(document.getElementById('gav-vagas')?.value) || 4;
+    const hi        = document.getElementById('gav-hi')?.value;
+    const hf        = document.getElementById('gav-hf')?.value || '';
+    const ini       = document.getElementById('gav-ini')?.value;
+    const fim       = document.getElementById('gav-fim')?.value;
+    const diasSel   = [...document.querySelectorAll('.gav-dia:checked')].map(cb => cb.value);
+
+    if (!titulo)         { UI.toast('Informe o título da aula.', 'warning');              return; }
+    if (!hi)             { UI.toast('Informe o horário de início.', 'warning');           return; }
+    if (!diasSel.length) { UI.toast('Selecione ao menos um dia da semana.', 'warning');   return; }
+    if (!ini || !fim)    { UI.toast('Informe o período (De / Até).', 'warning');          return; }
+    if (ini > fim)       { UI.toast('A data início deve ser anterior ao fim.', 'warning'); return; }
+
+    const professorId   = profSel?.value  || '';
+    const professorNome = profSel?.options[profSel?.selectedIndex]?.dataset?.nome   || '';
+    const arenaId       = arenaSel?.value || '';
+    const arenaNome     = arenaSel?.options[arenaSel?.selectedIndex]?.dataset?.nome || '';
+    const quadraId      = quadraSel?.value || '';
+    const quadraNome    = quadraSel?.options[quadraSel?.selectedIndex]?.dataset?.nome || '';
+    const nivel         = nivelSel?.value  || '';
+
+    const diasJS = this._diasJS(diasSel);
+    let criadas = 0, conflitos = 0;
+    const cur = new Date(ini + 'T12:00:00');
+    const end = new Date(fim + 'T12:00:00');
+    let iter = 0;
+
+    while (cur <= end && iter++ < 400) {
+      if (diasJS.includes(cur.getDay())) {
+        const dataStr = this._isoDate(cur);
+        const confQ   = quadraId    ? this._verificarConflitoQuadra(quadraId, dataStr, hi, hf)       : false;
+        const confP   = professorId ? this._verificarConflitoProfessor(professorId, dataStr, hi, hf) : false;
+
+        if (confQ || confP) {
+          conflitos++;
+        } else {
+          Storage.create(this.SK_AULA, {
+            titulo, professorId, professorNome, arenaId, arenaNome,
+            quadraId, quadraNome, nivel, vagas,
+            horarioInicio: hi, horarioFim: hf,
+            data: dataStr, status: 'agendada',
+            avulsa: true, turmaId: null,
+          });
+          criadas++;
+        }
+      }
+      cur.setDate(cur.getDate() + 1);
+    }
+
+    UI.closeModal();
+    const skipMsg = conflitos > 0
+      ? ` (${conflitos} ignorada${conflitos !== 1 ? 's' : ''} por conflito)`
+      : '';
+    UI.toast(
+      `${criadas} aula${criadas !== 1 ? 's' : ''} avulsa${criadas !== 1 ? 's' : ''} gerada${criadas !== 1 ? 's' : ''}!${skipMsg}`,
+      criadas > 0 ? 'success' : 'warning'
+    );
     const dIni = new Date(ini + 'T12:00:00');
     this._state.tab    = 'calendario';
     this._state.calAno = dIni.getFullYear();
