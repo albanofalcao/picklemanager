@@ -163,9 +163,9 @@ const DB = {
       console.warn('[DB] Erro ao carregar catálogos:', catErr.message);
     } else {
       for (const sk of this.CATALOG_KEYS) {
-        this._cache[sk] = (catRows || [])
-          .filter(r => r.tipo === sk && !r.data?._deleted)
-          .map(r => this._fromRow(r, isMatrizMode));
+        const allCatRows = (catRows || []).filter(r => r.tipo === sk);
+        this._cache[sk]    = allCatRows.filter(r => !r.data?._deleted).map(r => this._fromRow(r, isMatrizMode));
+        this._rawCount[sk] = allCatRows.length; // total bruto (inclui soft-deleted)
       }
     }
   },
