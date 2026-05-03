@@ -542,10 +542,16 @@ const TurmasModule = {
       const _aaExtra     = Storage.getAll('aulaAlunos')
         .filter(aa => aa.aulaId === a.id && aa.status === 'ativo' && !_tmIds.has(aa.alunoId));
       const alocados     = [..._tmInscritos, ..._aaExtra];
-      // Inclui aluno experimental caso ainda não esteja na lista da grade/aula
-      if (a.experimental && a.alunoExperimentalId && !alocados.some(x => x.alunoId === a.alunoExperimentalId)) {
-        alocados.push({ alunoId: a.alunoExperimentalId, alunoNome: a.alunoExperimentalNome || '?', experimental: true });
-      }
+      // Inclui alunos experimentais (suporta formato array novo e legado de campo único)
+      const _expList = a.experimental
+        ? (a.alunosExperimentais?.length
+            ? a.alunosExperimentais
+            : a.alunoExperimentalId ? [{ id: a.alunoExperimentalId, nome: a.alunoExperimentalNome || '?' }] : [])
+        : [];
+      _expList.forEach(e => {
+        if (!alocados.some(x => x.alunoId === e.id))
+          alocados.push({ alunoId: e.id, alunoNome: e.nome, experimental: true });
+      });
       const vagasAula = a.vagas || 0;
       const vagasLivresAula = vagasAula > 0 ? Math.max(0, vagasAula - alocados.length) : null;
       const vagasBadgeAula = vagasAula > 0
@@ -726,7 +732,15 @@ const TurmasModule = {
       .map(aa => ({ alunoId: aa.alunoId, alunoNome: aa.alunoNome }));
     const inscritos = [..._tmList, ..._aaList];
 
-    const hasExperimental = aula.experimental && aula.alunoExperimentalId;
+    // Suporta formato array novo (alunosExperimentais) e legado (alunoExperimentalId)
+    const expList = aula.experimental
+      ? (aula.alunosExperimentais?.length
+          ? aula.alunosExperimentais
+          : aula.alunoExperimentalId
+            ? [{ id: aula.alunoExperimentalId, nome: aula.alunoExperimentalNome || '?' }]
+            : [])
+      : [];
+    const hasExperimental = expList.length > 0;
     if (!inscritos.length && !hasExperimental) {
       UI.toast('Nenhum aluno inscrito nesta turma. Adicione alunos antes de lançar presença.', 'warning');
       return;
@@ -741,23 +755,33 @@ const TurmasModule = {
     const repostos = Storage.getAll('reposicoes')
       .filter(r => r.aulaReposicaoId === aulaId && r.status === 'agendada');
 
-    // Combina inscritos regulares + alunos de reposição + aluno experimental (sem duplicar)
+    // Alunos de permuta nesta aula (chegando de outra turma/aula)
+    const permutados = Storage.getAll('permutas')
+      .filter(p => p.aulaPermutaId === aulaId && p.status === 'agendada');
+
+    // Combina inscritos regulares + alunos de reposição + alunos de permuta + aluno experimental
     const inscritosIds = new Set(inscritos.map(i => i.alunoId));
     const todosAlunos = [
       ...inscritos.map(i => ({ alunoId: i.alunoId, alunoNome: i.alunoNome, reposicao: false })),
       ...repostos.filter(r => !inscritosIds.has(r.alunoId))
                  .map(r => ({ alunoId: r.alunoId, alunoNome: r.alunoNome, reposicao: true, repId: r.id })),
+      ...permutados.filter(p => !inscritosIds.has(p.alunoId))
+                   .map(p => ({ alunoId: p.alunoId, alunoNome: p.alunoNome, permuta: true, permutaId: p.id })),
     ];
-    // Aluno experimental: aparece na presença mesmo sem estar inscrito na grade
-    if (hasExperimental && !inscritosIds.has(aula.alunoExperimentalId)) {
-      todosAlunos.push({ alunoId: aula.alunoExperimentalId, alunoNome: aula.alunoExperimentalNome || '?', reposicao: false, experimental: true });
-    }
+    // Alunos experimentais: aparecem na presença mesmo sem estar inscritos na grade
+    expList.forEach(e => {
+      if (!inscritosIds.has(e.id))
+        todosAlunos.push({ alunoId: e.id, alunoNome: e.nome, reposicao: false, experimental: true });
+    });
 
     const rows = todosAlunos.map((insc, idx) => {
       const reg      = presencas.find(p => p.aulaId === aulaId && p.alunoId === insc.alunoId);
       const presente = reg ? reg.presente : true;
       const repBadge = insc.reposicao
         ? `<span class="badge badge-warning" style="font-size:0.65rem;margin-left:6px;" title="Reposição">R</span>`
+        : '';
+      const permBadge = insc.permuta
+        ? `<span class="badge" style="font-size:0.65rem;margin-left:6px;background:#6366f1;color:#fff;font-weight:700;" title="Permuta">🔁</span>`
         : '';
       const expBadge = insc.experimental
         ? `<span class="badge" style="font-size:0.65rem;margin-left:6px;background:#f59e0b;color:#fff;font-weight:700;" title="Aula experimental">🧪</span>`
@@ -767,7 +791,7 @@ const TurmasModule = {
         <div class="presenca-row-card" id="prc-${idx}">
           <div class="presenca-row-aluno">
             <div class="presenca-avatar">${initials}</div>
-            <span class="presenca-nome">${UI.escape(insc.alunoNome)}${repBadge}${expBadge}</span>
+            <span class="presenca-nome">${UI.escape(insc.alunoNome)}${repBadge}${permBadge}${expBadge}</span>
           </div>
           <div class="presenca-toggle-group">
             <button type="button"
@@ -783,6 +807,7 @@ const TurmasModule = {
             data-aluno-id="${insc.alunoId}"
             data-aluno-nome="${UI.escape(insc.alunoNome)}"
             data-reposicao-id="${insc.repId || ''}"
+            data-permuta-id="${insc.permutaId || ''}"
             data-presente="${presente ? '1' : '0'}" />
         </div>`;
     }).join('');
@@ -851,6 +876,11 @@ const TurmasModule = {
       // Marca reposição como concluída se aluno esteve presente
       if (reposicaoId && presente) {
         Storage.update('reposicoes', reposicaoId, { status: 'concluida' });
+      }
+      // Marca permuta como concluída se aluno esteve presente
+      const permutaId = cb.dataset.permutaId;
+      if (permutaId && presente) {
+        Storage.update('permutas', permutaId, { status: 'concluida' });
       }
       salvos++;
     });
@@ -1088,6 +1118,129 @@ const TurmasModule = {
     UI.toast(`Reposição agendada para ${aulaRep.data.split('-').reverse().join('/')}!`, 'success');
     UI.closeModal();
     this._reRenderContent();
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Permuta de Aula                                                    */
+  /* ------------------------------------------------------------------ */
+
+  _modalPermuta(aulaId, alunoId, alunoNome, onConfirm) {
+    const jaTemPermuta = Storage.getAll('permutas').find(p =>
+      p.aulaOriginalId === aulaId && p.alunoId === alunoId && p.status === 'agendada'
+    );
+    if (jaTemPermuta) {
+      UI.toast('Você já tem uma permuta agendada para esta aula.', 'warning');
+      return;
+    }
+
+    const aula = Storage.getById(this.SK_AULA, aulaId);
+    if (!aula) return;
+
+    const [ay, am, ad] = (aula.data || '').split('-');
+    const dataFmt = aula.data ? `${ad}/${am}/${ay}` : '—';
+
+    const hoje   = new Date().toISOString().slice(0, 10);
+    const limite = new Date(aula.data + 'T00:00:00');
+    limite.setDate(limite.getDate() + 30);
+    const limStr = limite.toISOString().slice(0, 10);
+
+    // Aulas futuras com vagas disponíveis (qualquer turma, exceto a aula original)
+    const disponiveis = Storage.getAll(this.SK_AULA)
+      .filter(a =>
+        a.id !== aulaId &&
+        a.data > hoje &&
+        a.data <= limStr &&
+        a.status === 'agendada'
+      )
+      .map(a => {
+        const inscritos = Storage.getAll(this.SK_INSCR)
+          .filter(i => i.turmaId === a.turmaId && i.status === 'ativo').length;
+        const vagas = a.vagas > 0 ? Math.max(0, a.vagas - inscritos) : null;
+        return { ...a, _vagasDisp: vagas };
+      })
+      .filter(a => a._vagasDisp === null || a._vagasDisp > 0)
+      .sort((a, b) => a.data.localeCompare(b.data) || (a.horarioInicio || '').localeCompare(b.horarioInicio || ''));
+
+    const aulaOpts = disponiveis.map(a => {
+      const [dy, dm, dd] = (a.data || '').split('-');
+      const df  = `${dd}/${dm}/${dy}`;
+      const hr  = [a.horarioInicio, a.horarioFim].filter(Boolean).join(' – ');
+      const vgLabel = a._vagasDisp !== null ? `${a._vagasDisp} vaga${a._vagasDisp !== 1 ? 's' : ''}` : 'sem limite';
+      const turmaInfo = a.turmaNome ? ` · ${a.turmaNome}` : '';
+      return `<option value="${a.id}">${df} · ${hr}${turmaInfo} · ${vgLabel}</option>`;
+    }).join('');
+
+    const semVaga = !disponiveis.length;
+
+    const content = `
+      <div class="info-box" style="margin-bottom:12px;">
+        <div><strong>Aluno:</strong> ${UI.escape(alunoNome)}</div>
+        <div><strong>Aula a permutar:</strong> ${UI.escape(aula.titulo)} — ${dataFmt}</div>
+        <div><strong>Turma:</strong> ${UI.escape(aula.turmaNome || '—')}</div>
+      </div>
+      ${!semVaga ? `
+        <div class="form-group">
+          <label class="form-label">Escolha a aula substituta <span class="required-star">*</span></label>
+          <select id="perm-aula-sel" class="form-select">
+            <option value="">— Selecionar aula —</option>
+            ${aulaOpts}
+          </select>
+          <div class="form-hint" style="margin-top:4px;">Aulas com vagas disponíveis nos próximos 30 dias.</div>
+        </div>` : `
+        <div class="empty-state" style="padding:16px 0;">
+          <div class="empty-icon">📅</div>
+          <div class="empty-title" style="font-size:14px;">Nenhuma aula disponível</div>
+          <div class="empty-desc">Não há aulas com vagas disponíveis nos próximos 30 dias para permuta.</div>
+        </div>`}`;
+
+    UI.openModal({
+      title:        '🔁 Permutar Aula',
+      content,
+      confirmLabel: 'Confirmar Permuta',
+      cancelLabel:  !semVaga ? 'Cancelar' : 'Fechar',
+      hideFooter:   semVaga,
+      onConfirm:    () => onConfirm(aula),
+    });
+  },
+
+  solicitarPermuta(aulaId) {
+    const session   = Auth.getSession();
+    const alunoId   = session?.alunoId || session?.id;
+    const alunoNome = session?.nome;
+    this._modalPermuta(aulaId, alunoId, alunoNome, (aula) => {
+      this._confirmarPermuta(aulaId, alunoId, alunoNome, aula);
+    });
+  },
+
+  _confirmarPermuta(aulaOriginalId, alunoId, alunoNome, aulaOriginal) {
+    const sel = document.getElementById('perm-aula-sel');
+    if (!sel?.value) { UI.toast('Selecione uma aula substituta.', 'warning'); return; }
+
+    const aulaPermuta = Storage.getById(this.SK_AULA, sel.value);
+    if (!aulaPermuta) return;
+
+    const sess = Auth.getSession();
+    Storage.create('permutas', {
+      alunoId,
+      alunoNome,
+      turmaId:             aulaOriginal.turmaId   || '',
+      turmaNome:           aulaOriginal.turmaNome  || '',
+      aulaOriginalId,
+      aulaOriginalData:    aulaOriginal.data,
+      aulaPermutaId:       aulaPermuta.id,
+      aulaPermutaData:     aulaPermuta.data,
+      aulaPermutaTurma:    aulaPermuta.turmaNome   || '',
+      status:              'agendada',
+      registradoPor:       sess?.nome   || '',
+      registradoPorId:     sess?.id     || '',
+      registradoPorPerfil: sess?.perfil || '',
+      registradoEm:        new Date().toISOString(),
+    });
+
+    UI.toast(`Permuta agendada para ${aulaPermuta.data.split('-').reverse().join('/')}!`, 'success');
+    UI.closeModal();
+    if (typeof PortalModule !== 'undefined') PortalModule._reRender();
+    else this._reRenderContent?.();
   },
 
   /* ================================================================== */
@@ -2502,23 +2655,43 @@ const TurmasModule = {
                 const alunosExp = Storage.getAll('alunos')
                   .filter(a => a.status === 'ativo')
                   .sort((a, b) => a.nome.localeCompare(b.nome));
-                const expOpts = `<option value="">— Selecionar aluno —</option>` +
-                  alunosExp.map(a =>
-                    `<option value="${a.id}" data-nome="${UI.escape(a.nome)}"
-                      ${aula?.alunoExperimentalId === a.id ? 'selected' : ''}>${UI.escape(a.nome)}</option>`
-                  ).join('');
+                const jaSelect = aula?.alunosExperimentais?.map(e => e.id)
+                  || (aula?.alunoExperimentalId ? [aula.alunoExperimentalId] : []);
+                const checkboxes = alunosExp.map(a => `
+                  <label id="au-exp-item-${a.id}" class="exp-aluno-item"
+                    style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:7px;
+                           cursor:pointer;font-size:13px;transition:background .12s;
+                           ${jaSelect.includes(a.id) ? 'background:var(--color-primary-light,#e6f4f2);font-weight:600;' : ''}">
+                    <input type="checkbox" class="au-exp-chk"
+                      value="${a.id}" data-nome="${UI.escape(a.nome)}"
+                      ${jaSelect.includes(a.id) ? 'checked' : ''}
+                      onchange="TurmasModule._onExpAlunoChange(this)"
+                      style="width:15px;height:15px;cursor:pointer;accent-color:var(--color-primary,#3b9e8f);flex-shrink:0;" />
+                    ${UI.escape(a.nome)}
+                  </label>`).join('');
                 return `
                 <div class="form-group">
-                  <label class="form-label" for="au-exp-aluno">Aluno avaliado <span class="required-star">*</span></label>
-                  <select id="au-exp-aluno" class="form-select">${expOpts}</select>
+                  <label class="form-label">Alunos avaliados <span class="required-star">*</span></label>
+                  <input type="text" id="au-exp-search" class="form-input"
+                    placeholder="🔍 Buscar aluno…" autocomplete="off"
+                    oninput="TurmasModule._filtrarAlunosExpModal(this.value)"
+                    style="margin-bottom:6px;" />
+                  <div id="au-exp-alunos-list"
+                    style="max-height:160px;overflow-y:auto;border:1.5px solid var(--input-border);
+                           border-radius:8px;padding:4px;">
+                    ${checkboxes}
+                  </div>
+                  <div id="au-exp-sel-count" style="font-size:11px;color:var(--text-muted);margin-top:4px;">
+                    ${jaSelect.length} aluno${jaSelect.length !== 1 ? 's' : ''} selecionado${jaSelect.length !== 1 ? 's' : ''}
+                  </div>
                 </div>
                 <div class="form-group">
-                  <label class="form-label" for="au-exp-notas">Notas pré-avaliação</label>
+                  <label class="form-label" for="au-exp-notas">Notas gerais da sessão</label>
                   <textarea id="au-exp-notas" class="form-textarea" rows="2"
-                    placeholder="Observações iniciais sobre o aluno…">${aula ? UI.escape(aula.notasExperimental || '') : ''}</textarea>
+                    placeholder="Observações gerais da aula experimental…">${aula ? UI.escape(aula.notasExperimental || '') : ''}</textarea>
                 </div>
                 <div class="cadastro-tab-info" style="margin-top:0;">
-                  💡 Tem valor financeiro normal. Se o aluno fechar matrícula, pode ser compensada.
+                  💡 Tem valor financeiro normal. Se os alunos fecharem matrícula, pode ser compensada.
                 </div>`;
               })()}
             </div>
@@ -2629,18 +2802,17 @@ const TurmasModule = {
 
     const aulaAtual        = id ? Storage.getById(this.SK_AULA, id) : null;
     const isExperimental   = !!document.getElementById('au-experimental')?.checked;
-    const expAlunoSel      = document.getElementById('au-exp-aluno');
-    const expAlunoId       = expAlunoSel?.value || '';
-    const expAlunoNome     = expAlunoSel?.selectedOptions[0]?.dataset.nome
-                             || expAlunoSel?.selectedOptions[0]?.textContent.trim() || '';
+    const alunosExperimentais = Array.from(
+      document.querySelectorAll('.au-exp-chk:checked')
+    ).map(cb => ({ id: cb.value, nome: cb.dataset.nome || '' }));
 
-    // Aluno obrigatório quando experimental está marcado
-    if (isExperimental && !expAlunoId) {
-      if (expAlunoSel) expAlunoSel.classList.add('error');
-      UI.toast('🧪 Selecione o aluno avaliado para aula experimental.', 'warning');
+    // Pelo menos 1 aluno obrigatório quando experimental está marcado
+    if (isExperimental && !alunosExperimentais.length) {
+      document.getElementById('au-exp-alunos-list')?.classList.add('error');
+      UI.toast('🧪 Selecione ao menos um aluno para aula experimental.', 'warning');
       return;
     }
-    if (expAlunoSel) expAlunoSel.classList.remove('error');
+    document.getElementById('au-exp-alunos-list')?.classList.remove('error');
 
     const record = {
       titulo:               tituloEl.value.trim(),
@@ -2654,11 +2826,12 @@ const TurmasModule = {
       vagas:                g('vagas')     ? parseInt(g('vagas').value, 10) || 4 : 4,
       status:               g('status')    ? g('status').value                   : 'agendada',
       observacoes:          g('obs')       ? g('obs').value.trim()               : '',
-      experimental:         isExperimental,
-      alunoExperimentalId:  expAlunoId,
-      alunoExperimentalNome: expAlunoNome,
-      notasExperimental:    document.getElementById('au-exp-notas')?.value.trim() || '',
-      avaliacaoStatus:      aulaAtual?.avaliacaoStatus || (isExperimental ? 'pendente' : ''),
+      experimental:          isExperimental,
+      alunosExperimentais:   alunosExperimentais,
+      alunoExperimentalId:   alunosExperimentais[0]?.id   || '',  // compat legado
+      alunoExperimentalNome: alunosExperimentais[0]?.nome || '',  // compat legado
+      notasExperimental:     document.getElementById('au-exp-notas')?.value.trim() || '',
+      avaliacaoStatus:       aulaAtual?.avaliacaoStatus || (isExperimental ? 'pendente' : ''),
     };
 
     // ── Verificar conflito de quadra (bloqueia) ─────────────────────
@@ -2797,6 +2970,29 @@ const TurmasModule = {
     Array.from(sel.options).forEach(opt => {
       opt.style.display = !q || opt.text.toLowerCase().includes(q) ? '' : 'none';
     });
+  },
+
+  _filtrarAlunosExpModal(query) {
+    const list = document.getElementById('au-exp-alunos-list');
+    if (!list) return;
+    const q = query.toLowerCase().trim();
+    list.querySelectorAll('.exp-aluno-item').forEach(lbl => {
+      const nome = lbl.textContent.toLowerCase();
+      lbl.style.display = !q || nome.includes(q) ? '' : 'none';
+    });
+  },
+
+  _onExpAlunoChange(cb) {
+    // Destaca linha selecionada
+    const lbl = cb.closest('label');
+    if (lbl) {
+      lbl.style.background   = cb.checked ? 'var(--color-primary-light,#e6f4f2)' : '';
+      lbl.style.fontWeight   = cb.checked ? '600' : '';
+    }
+    // Atualiza contador
+    const total = document.querySelectorAll('.au-exp-chk:checked').length;
+    const cnt   = document.getElementById('au-exp-sel-count');
+    if (cnt) cnt.textContent = `${total} aluno${total !== 1 ? 's' : ''} selecionado${total !== 1 ? 's' : ''}`;
   },
 
   /* ================================================================== */
@@ -3557,90 +3753,162 @@ const TurmasModule = {
     const aula = Storage.getById(this.SK_AULA, aulaId);
     if (!aula || !aula.experimental) { UI.toast('Aula não é experimental.', 'warning'); return; }
 
-    const aluno = Storage.getById('alunos', aula.alunoExperimentalId);
-    const nomeAluno = aluno ? aluno.nome : (aula.alunoExperimentalNome || '—');
-    const nivelAtual = aluno?.nivel || 'não definido';
-    const nivelOpts  = ListasService.opts('aulas_nivel', aluno?.nivel || '');
+    // Suporta formato array novo e legado
+    const expList = aula.alunosExperimentais?.length
+      ? aula.alunosExperimentais
+      : aula.alunoExperimentalId
+        ? [{ id: aula.alunoExperimentalId, nome: aula.alunoExperimentalNome || '?' }]
+        : [];
+
+    if (!expList.length) { UI.toast('Nenhum aluno experimental vinculado à aula.', 'warning'); return; }
+
+    // Avaliações já existentes para esta aula
+    const avalExist = Storage.getAll('avaliacoes_experimentais').filter(av => av.aulaId === aulaId);
+    const avalMap   = {};
+    avalExist.forEach(av => { avalMap[av.alunoId] = av; });
+
+    const cards = expList.map((e, idx) => {
+      const aluno    = Storage.getById('alunos', e.id);
+      const nivelAtual = aluno?.nivel || '';
+      const avExist  = avalMap[e.id];
+      const nivelOpts = ListasService.opts('aulas_nivel', avExist?.nivelAvaliado || nivelAtual || '');
+      const initials  = e.nome.trim().split(' ').slice(0,2).map(p => p[0]).join('').toUpperCase();
+
+      return `
+        <div style="border:1px solid var(--card-border);border-radius:10px;padding:14px;margin-bottom:14px;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+            <div class="presenca-avatar" style="flex-shrink:0;">${initials}</div>
+            <div>
+              <div style="font-weight:700;font-size:14px;">${UI.escape(e.nome)}</div>
+              <div style="font-size:11px;color:var(--text-muted);">
+                Nível atual: <strong>${nivelAtual || 'não definido'}</strong>
+                ${avExist ? `&nbsp;·&nbsp;<span style="color:#10b981;font-weight:600;">✓ já avaliado</span>` : ''}
+              </div>
+            </div>
+          </div>
+
+          <div class="form-grid-2" style="gap:10px;margin-bottom:8px;">
+            <div class="form-group" style="margin-bottom:0;">
+              <label class="form-label" style="font-size:11px;">Nível avaliado <span class="required-star">*</span></label>
+              <select id="aval-nivel-${idx}" class="form-select" style="height:36px;"
+                onchange="TurmasModule._sugerirGradesCompativeis(this.value,document.getElementById('aval-grades-${idx}'))">
+                ${nivelOpts}
+              </select>
+            </div>
+            <div class="form-group" style="margin-bottom:0;display:flex;align-items:flex-end;padding-bottom:4px;">
+              <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;">
+                <input type="checkbox" id="aval-compensar-${idx}" style="width:14px;height:14px;"
+                  ${avExist?.compensar ? 'checked' : ''} />
+                Compensar se fechar matrícula
+              </label>
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-bottom:8px;">
+            <label class="form-label" style="font-size:11px;">Laudo / Observações</label>
+            <textarea id="aval-notas-${idx}" class="form-textarea" rows="2"
+              style="font-size:12px;"
+              placeholder="Desempenho, pontos fortes e a desenvolver…">${UI.escape(avExist?.notas || aula.notasExperimental || '')}</textarea>
+          </div>
+
+          <div id="aval-grades-${idx}" style="font-size:12px;"></div>
+
+          <input type="hidden" id="aval-aluno-id-${idx}"   value="${e.id}" />
+          <input type="hidden" id="aval-aluno-nome-${idx}" value="${UI.escape(e.nome)}" />
+        </div>`;
+    }).join('');
 
     const content = `
-      <div class="form-grid">
-        <div style="background:var(--gray-light);border-radius:8px;padding:12px;margin-bottom:4px;">
-          <div style="font-weight:600;font-size:14px;">${UI.escape(nomeAluno)}</div>
-          <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">
-            Nível atual: <strong>${nivelAtual}</strong>
-            ${aula.notasExperimental ? `<br>Notas pré-aula: ${UI.escape(aula.notasExperimental)}` : ''}
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label" for="aval-nivel">Nível avaliado <span class="required-star">*</span></label>
-          <select id="aval-nivel" class="form-select" onchange="TurmasModule._sugerirGradesCompativeis(this.value, document.getElementById('aval-grades'))">
-            ${nivelOpts}
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label" for="aval-notas">Laudo / Observações do professor</label>
-          <textarea id="aval-notas" class="form-textarea" rows="3"
-            placeholder="Descreva o desempenho, pontos fortes e a desenvolver…">${UI.escape(aula.notasExperimental || '')}</textarea>
-        </div>
-
-        <div class="form-group">
-          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">
-            <input type="checkbox" id="aval-compensar" style="width:16px;height:16px;"
-              ${aula.compensarSeFechar ? 'checked' : ''} />
-            Compensar aula se aluno fechar matrícula (desconto / abatimento)
-          </label>
-        </div>
-
-        <div id="aval-grades"></div>
-      </div>`;
+      <div class="info-box" style="margin-bottom:14px;">
+        <strong>${UI.escape(aula.titulo)}</strong>
+        <span class="text-muted" style="margin-left:8px;">
+          ${expList.length} aluno${expList.length !== 1 ? 's' : ''} experimental${expList.length !== 1 ? 'is' : ''}
+          ${avalExist.length ? `· ${avalExist.length}/${expList.length} já avaliado${avalExist.length !== 1 ? 's' : ''}` : ''}
+        </span>
+        ${aula.notasExperimental ? `<div style="margin-top:4px;font-size:12px;color:var(--text-muted);">Notas da sessão: ${UI.escape(aula.notasExperimental)}</div>` : ''}
+      </div>
+      <input type="hidden" id="aval-count" value="${expList.length}" />
+      ${cards}`;
 
     UI.openModal({
-      title:        `🧪 Avaliação — ${UI.escape(aula.titulo)}`,
+      title:        `🧪 Avaliação Experimental — ${UI.escape(aula.titulo)}`,
       content,
-      confirmLabel: 'Confirmar Avaliação',
+      confirmLabel: `Salvar ${expList.length > 1 ? expList.length + ' avaliações' : 'Avaliação'}`,
       onConfirm:    () => this._salvarAvaliacaoExperimental(aulaId),
     });
 
     requestAnimationFrame(() => {
-      const nivelSel = document.getElementById('aval-nivel');
-      if (nivelSel?.value) {
-        this._sugerirGradesCompativeis(nivelSel.value, document.getElementById('aval-grades'));
-      }
+      expList.forEach((_, idx) => {
+        const sel = document.getElementById(`aval-nivel-${idx}`);
+        if (sel?.value) this._sugerirGradesCompativeis(sel.value, document.getElementById(`aval-grades-${idx}`));
+      });
     });
   },
 
   _salvarAvaliacaoExperimental(aulaId) {
-    const nivelEl = document.getElementById('aval-nivel');
-    const notasEl = document.getElementById('aval-notas');
-    const compEl  = document.getElementById('aval-compensar');
-    if (!nivelEl?.value) { UI.toast('Selecione o nível avaliado.', 'warning'); return; }
-
-    const aula = Storage.getById(this.SK_AULA, aulaId);
-    if (!aula) return;
+    const countEl = document.getElementById('aval-count');
+    const count   = parseInt(countEl?.value || '0', 10);
+    if (!count) return;
 
     const sess = Auth.getSession();
-    Storage.update(this.SK_AULA, aulaId, {
-      avaliacaoStatus:     'concluida',
-      nivelAvaliado:       nivelEl.value,
-      notasExperimental:   notasEl?.value.trim() || '',
-      compensarSeFechar:   !!compEl?.checked,
-      avaliadoPor:         sess?.nome   || '',
-      avaliadoPorId:       sess?.id     || '',
-      avaliadoPorPerfil:   sess?.perfil || '',
-      avaliadoEm:          new Date().toISOString(),
-    });
+    const logFields = {
+      avaliadoPor:       sess?.nome   || '',
+      avaliadoPorId:     sess?.id     || '',
+      avaliadoPorPerfil: sess?.perfil || '',
+      avaliadoEm:        new Date().toISOString(),
+    };
 
-    if (aula.alunoExperimentalId) {
-      Storage.update('alunos', aula.alunoExperimentalId, { nivel: nivelEl.value });
+    let salvos = 0;
+    let semNivel = 0;
+
+    for (let idx = 0; idx < count; idx++) {
+      const nivelEl   = document.getElementById(`aval-nivel-${idx}`);
+      const notasEl   = document.getElementById(`aval-notas-${idx}`);
+      const compEl    = document.getElementById(`aval-compensar-${idx}`);
+      const alunoId   = document.getElementById(`aval-aluno-id-${idx}`)?.value   || '';
+      const alunoNome = document.getElementById(`aval-aluno-nome-${idx}`)?.value || '';
+
+      if (!nivelEl?.value) { semNivel++; continue; }
+
+      const nivel     = nivelEl.value;
+      const notas     = notasEl?.value.trim() || '';
+      const compensar = !!compEl?.checked;
+
+      // Cria ou atualiza registro de avaliação por aluno
+      const existing = Storage.getAll('avaliacoes_experimentais')
+        .find(av => av.aulaId === aulaId && av.alunoId === alunoId);
+
+      if (existing) {
+        Storage.update('avaliacoes_experimentais', existing.id, { nivelAvaliado: nivel, notas, compensar, status: 'concluida', ...logFields });
+      } else {
+        Storage.create('avaliacoes_experimentais', {
+          aulaId, alunoId, alunoNome,
+          nivelAvaliado: nivel, notas, compensar,
+          status: 'concluida',
+          ...logFields,
+        });
+      }
+
+      // Atualiza o nível individual do aluno no cadastro
+      if (alunoId) {
+        Storage.update('alunos', alunoId, { nivel });
+      }
+
+      salvos++;
     }
 
-    const nomeAluno = aula.alunoExperimentalNome || 'Aluno';
-    UI.toast(`✅ Avaliação concluída! Nível de ${nomeAluno} → ${nivelEl.value}.`, 'success');
+    if (semNivel > 0) {
+      UI.toast(`⚠️ ${semNivel} aluno${semNivel !== 1 ? 's' : ''} sem nível selecionado — não ${semNivel !== 1 ? 'foram' : 'foi'} salvo${semNivel !== 1 ? 's' : ''}.`, 'warning');
+    }
+
+    // Marca a aula como avaliação concluída
+    Storage.update(this.SK_AULA, aulaId, { avaliacaoStatus: 'concluida', ...logFields });
+
+    if (salvos > 0) {
+      UI.toast(`✅ ${salvos} avaliação${salvos !== 1 ? 'ões' : ''} salva${salvos !== 1 ? 's' : ''}! Nível de cada aluno atualizado.`, 'success');
+    }
     UI.closeModal();
 
-    // Atualiza a view correta: portal (professor/aluno) ou layout admin (secretaria)
     const portalEl = document.getElementById('portal-wrap');
     if (portalEl && portalEl.style.display !== 'none') {
       PortalModule._reRender();
@@ -3744,9 +4012,14 @@ const TurmasModule = {
       .toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
   },
 
-  _fmtTime(iso) {
-    if (!iso) return '—';
-    return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  _fmtTime(val) {
+    if (!val) return '—';
+    // Valor já é HH:MM — retorna direto
+    if (/^\d{2}:\d{2}(:\d{2})?$/.test(val)) return val.slice(0, 5);
+    // ISO datetime — extrai horário
+    const d = new Date(val);
+    if (isNaN(d)) return val;
+    return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
   },
 
   /* ------------------------------------------------------------------ */

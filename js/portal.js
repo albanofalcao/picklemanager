@@ -277,19 +277,28 @@ const PortalModule = {
     const corStatus = st.cor || '#6b7280';
     const classe    = isProxima && isHoje ? 'portal-card portal-card-hoje' : 'portal-card';
 
+    const hojeAtual   = new Date().toISOString().slice(0, 10);
+    const isPassada   = a.data < hojeAtual;
+    const temPresenca = Storage.getAll('presencas').some(p => p.aulaId === a.id);
+
     let acoesBtns = '';
     if (isHoje) {
       if (!temCheckin && ['agendada','em_andamento'].includes(a.status)) {
         acoesBtns += `<button class="btn btn-primary btn-sm" onclick="PortalModule.professorCheckin('${a.id}')">▶ Registrar entrada</button>`;
       }
-      if (temCheckin && !temCheckout && a.status === 'em_andamento') {
+      if (temCheckin && !temCheckout && ['em_andamento','concluida','agendada'].includes(a.status)) {
         acoesBtns += `<button class="btn btn-secondary btn-sm" onclick="PortalModule.professorCheckout('${a.id}')">■ Registrar saída</button>`;
       }
       if (['agendada','em_andamento','concluida'].includes(a.status)) {
-        acoesBtns += `<button class="btn btn-ghost btn-sm" onclick="PortalModule.abrirPresenca('${a.id}')">📋 Frequência</button>`;
+        const freqLabel = temPresenca ? '📋 Editar frequência' : '📋 Lançar frequência';
+        acoesBtns += `<button class="btn btn-ghost btn-sm" onclick="PortalModule.abrirPresenca('${a.id}')">${freqLabel}</button>`;
       }
-    } else if (a.status === 'concluida') {
-      acoesBtns += `<button class="btn btn-ghost btn-sm" onclick="PortalModule.abrirPresenca('${a.id}')">📋 Ver frequência</button>`;
+    } else if (isPassada) {
+      // Aulas passadas não hoje: permite lançar/editar frequência
+      if (['agendada','em_andamento','concluida'].includes(a.status)) {
+        const freqLabel = temPresenca ? '📋 Editar frequência' : '📋 Lançar frequência';
+        acoesBtns += `<button class="btn btn-ghost btn-sm" onclick="PortalModule.abrirPresenca('${a.id}')">${freqLabel}</button>`;
+      }
     }
     // Avaliação experimental: visível ao professor quando a aula está concluída e avaliação pendente
     if (a.experimental && a.avaliacaoStatus === 'pendente' && a.status === 'concluida') {
@@ -306,7 +315,9 @@ const PortalModule = {
 
     const presStats = totalP
       ? `<span class="portal-badge ${presentes === inscritos.length && presentes > 0 ? 'badge-success' : 'badge-warning'}">${presentes}/${inscritos.length} presentes</span>`
-      : '';
+      : (isPassada && inscritos.length > 0 && ['agendada','em_andamento','concluida'].includes(a.status)
+          ? `<span class="portal-badge badge-danger" style="font-size:11px;">⚠️ Frequência pendente</span>`
+          : '');
 
     return `
       <div class="${classe}">
@@ -600,9 +611,25 @@ const PortalModule = {
   },
 
   professorCheckout(aulaId) {
+    const aula = Storage.getById('aulas', aulaId);
+    if (!aula) return;
+
+    // Bloqueia saída se a frequência ainda não foi lançada
+    const inscritos = aula.turmaId
+      ? Storage.getAll('turmaAlunos').filter(i => i.turmaId === aula.turmaId && i.status === 'ativo')
+      : [];
+    if (inscritos.length > 0) {
+      const presencas = Storage.getAll('presencas').filter(p => p.aulaId === aulaId);
+      if (!presencas.length) {
+        UI.toast('⚠️ Lance a frequência dos alunos antes de registrar a saída.', 'warning');
+        setTimeout(() => this.abrirPresenca(aulaId), 400);
+        return;
+      }
+    }
+
     const hr = new Date().toTimeString().slice(0,5);
-    Storage.update('aulas', aulaId, { professorCheckout: hr });
-    UI.toast(`Saída registrada às ${hr}`, 'success');
+    Storage.update('aulas', aulaId, { professorCheckout: hr, status: 'concluida' });
+    UI.toast(`Saída registrada às ${hr} — aula concluída!`, 'success');
     this._reRender();
   },
 
@@ -614,7 +641,18 @@ const PortalModule = {
       ? Storage.getAll('turmaAlunos').filter(i => i.turmaId === aula.turmaId && i.status === 'ativo')
       : [];
 
-    if (!inscritos.length) {
+    // Alunos que fizeram permuta para esta aula (de outra turma/aula)
+    const permutados = Storage.getAll('permutas')
+      .filter(p => p.aulaPermutaId === aulaId && p.status === 'agendada');
+    const inscritosIds = new Set(inscritos.map(i => i.alunoId));
+    const permutasExtras = permutados.filter(p => !inscritosIds.has(p.alunoId));
+
+    const todosAlunos = [
+      ...inscritos.map(i => ({ alunoId: i.alunoId, alunoNome: i.alunoNome, _permuta: false, _permutaId: '' })),
+      ...permutasExtras.map(p => ({ alunoId: p.alunoId, alunoNome: p.alunoNome, _permuta: true, _permutaId: p.id })),
+    ];
+
+    if (!todosAlunos.length) {
       UI.toast('Nenhum aluno inscrito nesta grade.', 'warning');
       return;
     }
@@ -623,30 +661,69 @@ const PortalModule = {
     const presMap   = {};
     presencas.forEach(p => { presMap[p.alunoId] = p; });
 
-    const rows = inscritos.map(i => {
-      const p    = presMap[i.alunoId];
-      const pres = p?.presente ?? false;
+    const [y, m, d] = (aula.data || '').split('-');
+    const dataFmt   = aula.data ? `${d}/${m}/${y}` : '—';
+    const hora      = [aula.horarioInicio, aula.horarioFim].filter(Boolean).join(' – ') || '';
+    const total     = todosAlunos.length;
+
+    const rows = todosAlunos.map((i, idx) => {
+      const reg      = presMap[i.alunoId];
+      const presente = reg ? reg.presente : true;   // default: todos presentes
+      const permBadge = i._permuta
+        ? `<span class="badge" style="font-size:0.65rem;margin-left:6px;background:#6366f1;color:#fff;font-weight:700;" title="Permuta">🔁</span>`
+        : '';
+      const initials = (i.alunoNome || '?').trim().split(' ').slice(0,2).map(p => p[0]).join('').toUpperCase();
       return `
-        <div class="presenca-row">
-          <label class="presenca-aluno-label">
-            <input type="checkbox" class="presenca-check"
-              data-aluno-id="${i.alunoId}"
-              data-aluno-nome="${UI.escape(i.alunoNome)}"
-              ${pres ? 'checked' : ''} />
-            <span>${UI.escape(i.alunoNome)}</span>
-          </label>
+        <div class="presenca-row-card" id="prc-${idx}">
+          <div class="presenca-row-aluno">
+            <div class="presenca-avatar">${initials}</div>
+            <span class="presenca-nome">${UI.escape(i.alunoNome)}${permBadge}</span>
+          </div>
+          <div class="presenca-toggle-group">
+            <button type="button"
+              class="presenca-toggle-btn presenca-presente ${presente ? 'active' : ''}"
+              onclick="TurmasModule._togglePresenca(${idx}, true)"
+              data-idx="${idx}">✅ Presente</button>
+            <button type="button"
+              class="presenca-toggle-btn presenca-faltou ${!presente ? 'active' : ''}"
+              onclick="TurmasModule._togglePresenca(${idx}, false)"
+              data-idx="${idx}">❌ Faltou</button>
+          </div>
+          <input type="hidden" class="presenca-check"
+            data-aluno-id="${i.alunoId}"
+            data-aluno-nome="${UI.escape(i.alunoNome)}"
+            data-permuta-id="${i._permutaId || ''}"
+            data-presente="${presente ? '1' : '0'}" />
         </div>`;
     }).join('');
 
+    const content = `
+      <div class="info-box" style="margin-bottom:14px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+          <div>
+            <strong>${UI.escape(aula.titulo)}</strong>
+            <span class="text-muted" style="margin-left:8px;">${dataFmt}${hora ? ' · ' + hora : ''}</span>
+          </div>
+          <div style="display:flex;gap:6px;">
+            <button type="button" class="btn btn-ghost btn-sm" onclick="TurmasModule._marcarTodos(true)">✅ Todos presentes</button>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="TurmasModule._marcarTodos(false)">❌ Todos faltaram</button>
+          </div>
+        </div>
+      </div>
+      <div class="presenca-lista" id="presenca-lista">${rows}</div>
+      <div class="presenca-resumo" id="presenca-resumo"></div>`;
+
     UI.openModal({
       title:        `📋 Frequência — ${aula.titulo}`,
-      content:      `<div class="presenca-list">${rows}</div>`,
+      content,
       confirmLabel: 'Salvar Frequência',
-      onConfirm:    () => this._salvarPresenca(aulaId, inscritos),
+      onConfirm:    () => this._salvarPresenca(aulaId, todosAlunos),
     });
+
+    setTimeout(() => TurmasModule._atualizarResumoPresenca(total), 80);
   },
 
-  _salvarPresenca(aulaId, inscritos) {
+  _salvarPresenca(aulaId, todosAlunos) {
     const checks = document.querySelectorAll('.presenca-check');
     const sess   = Auth.getSession();
     const logFields = {
@@ -659,10 +736,14 @@ const PortalModule = {
     checks.forEach(cb => {
       const alunoId   = cb.dataset.alunoId;
       const alunoNome = cb.dataset.alunoNome;
-      const presente  = cb.checked;
+      const presente  = cb.dataset.presente === '1';
+      const permutaId = cb.dataset.permutaId;
       const existing  = Storage.getAll('presencas').find(p => p.aulaId === aulaId && p.alunoId === alunoId);
       if (existing) Storage.update('presencas', existing.id, { presente, ...logFields });
       else          Storage.create('presencas', { aulaId, alunoId, alunoNome, presente, ...logFields });
+      if (permutaId && presente) {
+        Storage.update('permutas', permutaId, { status: 'concluida' });
+      }
       salvos++;
     });
     Storage.update('aulas', aulaId, { status: 'concluida' });
@@ -856,6 +937,9 @@ const PortalModule = {
       const jaTemRep = Storage.getAll('reposicoes').find(r =>
         r.aulaOriginalId === a.id && r.alunoId === alunoId && r.status === 'agendada'
       );
+      const jaTemPermuta = Storage.getAll('permutas').find(p =>
+        p.aulaOriginalId === a.id && p.alunoId === alunoId && p.status === 'agendada'
+      );
 
       const presTag = presenca
         ? `<span class="portal-badge ${presenca.presente ? 'badge-success' : 'badge-danger'}">${presenca.presente ? '✓ Presente' : '✗ Falta'}</span>`
@@ -864,6 +948,15 @@ const PortalModule = {
       const repBtn = !jaTemRep && a.status === 'agendada' && TurmasModule?.solicitarReposicao
         ? `<button class="btn btn-ghost btn-sm" onclick="TurmasModule.solicitarReposicao('${a.id}')">🔄 Solicitar reposição</button>`
         : '';
+
+      // Permuta: só disponível para aulas futuras com turma vinculada
+      const permutaBtn = a.status === 'agendada' && a.data > hoje && a.turmaId && TurmasModule?.solicitarPermuta
+        ? (jaTemPermuta
+          ? `<span class="portal-badge" style="background:#6366f120;color:#6366f1;border:1px solid #6366f140;font-size:11px;">🔁 Permuta agendada</span>`
+          : `<button class="btn btn-ghost btn-sm" onclick="TurmasModule.solicitarPermuta('${a.id}')">🔁 Permutar</button>`)
+        : '';
+
+      const acoesBtns = [repBtn, permutaBtn].filter(Boolean).join('');
 
       const classe = isHoje && idx === 0 ? 'portal-card portal-card-hoje' : 'portal-card';
 
@@ -886,7 +979,7 @@ const PortalModule = {
               ${presTag ? `<div class="portal-card-badges">${presTag}</div>` : ''}
             </div>
           </div>
-          ${repBtn ? `<div class="portal-card-acoes">${repBtn}</div>` : ''}
+          ${acoesBtns ? `<div class="portal-card-acoes">${acoesBtns}</div>` : ''}
         </div>`;
     }).join('');
   },
