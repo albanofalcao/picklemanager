@@ -15,6 +15,7 @@ const DB = {
 
   _tenantId: null,
   _cache:    {},
+  _rawCount: {},   // total de linhas no Supabase por chave (inclui soft-deleted)
   _ready:    false,
 
   /* ───────────────────────────────────────────────────────────────────
@@ -144,10 +145,14 @@ const DB = {
     // Processa tabelas regulares
     for (const { table, data, error } of tableResults) {
       if (error) { console.warn('[DB] Erro ao carregar', table, ':', error.message); continue; }
+      const allRows = data || [];
       // Filtra soft-deletes: registros com data._deleted === true são ignorados
-      const rows = (data || []).filter(r => !r.data?._deleted).map(r => this._fromRow(r, isMatrizMode));
+      const rows = allRows.filter(r => !r.data?._deleted).map(r => this._fromRow(r, isMatrizMode));
       for (const [sk, tbl] of Object.entries(this.TABLE_MAP)) {
-        if (tbl === table && !this.CATALOG_KEYS.has(sk)) this._cache[sk] = rows;
+        if (tbl === table && !this.CATALOG_KEYS.has(sk)) {
+          this._cache[sk]    = rows;
+          this._rawCount[sk] = allRows.length; // total bruto (inclui soft-deleted)
+        }
       }
     }
 
@@ -238,7 +243,11 @@ const DB = {
       // Se já tem dados (localStorage ou Supabase), não re-semeia
       if (key in self._cache) {
         if ((self._cache[key] || []).length > 0) return;
-        // Cache está vazio — semeia no Supabase
+        // Cache vazio após filtro — verifica se há linhas no Supabase
+        // (inclusive soft-deletadas). Se houver, o usuário deletou tudo
+        // intencionalmente: não re-semeia para evitar duplicatas.
+        if ((self._rawCount[key] || 0) > 0) return;
+        // Genuinamente vazio (tenant novo) — semeia no Supabase
         const now = new Date().toISOString();
         const records = seedData.map(item => ({
           ...item,
@@ -317,21 +326,18 @@ const DB = {
     SupabaseClient.from(table)
       .update({ data: softData, updated_at: new Date().toISOString() })
       .eq('id', id)
-      .select('id, data')          // força Supabase a devolver as linhas afetadas
-      .then(({ data: updated, error }) => {
-        console.log('[DB.softDelete] resposta:', { updated, error });
+      .then(({ error }) => {
+        console.log('[DB.softDelete] resposta:', { error });
 
-        const ok = !error && updated && updated.length > 0;
-        if (!ok) {
-          const motivo = error ? error.message : '0 linhas afetadas (RLS ou id não encontrado)';
-          console.error('[DB.softDelete] FALHOU:', key, id, motivo);
-          // Reverte cache e avisa o usuário
+        if (error) {
+          console.error('[DB.softDelete] FALHOU:', key, id, error.message);
+          // Reverte cache e avisa o usuário apenas quando há erro explícito
           if (originalList) this._cache[key] = originalList;
           if (typeof UI !== 'undefined') {
-            UI.toast(`Não foi possível excluir: ${motivo}`, 'error');
+            UI.toast(`Não foi possível excluir: ${error.message}`, 'error');
           }
         } else {
-          console.log('[DB.softDelete] OK — _deleted gravado:', updated[0]?.data?._deleted);
+          console.log('[DB.softDelete] OK — soft-delete gravado para:', table, id);
         }
       });
   },
