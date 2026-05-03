@@ -627,6 +627,16 @@ const PortalModule = {
       }
     }
 
+    // Avisa se houver aluno experimental com pagamento pendente
+    if (aula.experimental) {
+      const pendentes = Storage.getAll('financeiro')
+        .filter(f => f.aulaId === aulaId && f.categoria === 'aula_experimental' && f.status === 'pendente');
+      if (pendentes.length) {
+        const nomes = pendentes.map(f => f.alunoNome).join(', ');
+        UI.toast(`⚠️ Pagamento pendente: ${nomes}. Regularize no módulo Financeiro.`, 'warning', 6000);
+      }
+    }
+
     const hr = new Date().toTimeString().slice(0,5);
     Storage.update('aulas', aulaId, { professorCheckout: hr, status: 'concluida' });
     UI.toast(`Saída registrada às ${hr} — aula concluída!`, 'success');

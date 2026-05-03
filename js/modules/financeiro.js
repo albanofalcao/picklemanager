@@ -37,15 +37,17 @@ const FinanceiroModule = {
     pago:      { label: 'Pago',      badge: 'badge-success' },
     pendente:  { label: 'Pendente',  badge: 'badge-warning' },
     cancelado: { label: 'Cancelado', badge: 'badge-gray'    },
+    cortesia:  { label: 'Cortesia',  badge: 'badge-blue'    },
   },
 
   CATEGORIA_RECEITA: {
-    mensalidade:      'Mensalidade',
-    inscricao_evento: 'Inscrição em Evento',
-    aula_avulsa:      'Aula Avulsa',
-    pacote:           'Pacote de Aulas',
-    day_use:          'Day Use',
-    outro_r:          'Outro',
+    mensalidade:       'Mensalidade',
+    inscricao_evento:  'Inscrição em Evento',
+    aula_avulsa:       'Aula Avulsa',
+    pacote:            'Pacote de Aulas',
+    day_use:           'Day Use',
+    aula_experimental: 'Aula Experimental',
+    outro_r:           'Outro',
   },
 
   CATEGORIA_DESPESA: {

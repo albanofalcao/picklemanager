@@ -2671,6 +2671,30 @@ const TurmasModule = {
                   </label>`).join('');
                 return `
                 <div class="form-group">
+                  <label class="form-label">💰 Cobrança da aula</label>
+                  <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:6px;">
+                    <div style="flex:1;min-width:110px;">
+                      <label style="font-size:11px;color:var(--text-muted);margin-bottom:3px;display:block;">Valor (R$)</label>
+                      <input type="number" id="au-exp-valor" class="form-input" min="0" step="0.01"
+                        value="${aula?.valorExperimental ?? ''}" placeholder="0,00"
+                        style="height:38px;" />
+                    </div>
+                    <div style="flex:1;min-width:140px;">
+                      <label style="font-size:11px;color:var(--text-muted);margin-bottom:3px;display:block;">Modalidade</label>
+                      <select id="au-exp-modalidade" class="form-input" style="height:38px;">
+                        <option value="pendente" ${!aula?.modalidadeExperimental || aula?.modalidadeExperimental === 'pendente' ? 'selected' : ''}>💳 Cobrar (pendente)</option>
+                        <option value="cortesia"  ${aula?.modalidadeExperimental === 'cortesia' ? 'selected' : ''}>🎁 Cortesia (gratuita)</option>
+                      </select>
+                    </div>
+                  </div>
+                  <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--text-secondary);">
+                    <input type="checkbox" id="au-exp-compensar"
+                      ${aula?.compensarSeFechar ? 'checked' : ''}
+                      style="width:13px;height:13px;" />
+                    Compensar na 1ª mensalidade se fechar matrícula
+                  </label>
+                </div>
+                <div class="form-group">
                   <label class="form-label">Alunos avaliados <span class="required-star">*</span></label>
                   <input type="text" id="au-exp-search" class="form-input"
                     placeholder="🔍 Buscar aluno…" autocomplete="off"
@@ -2690,9 +2714,7 @@ const TurmasModule = {
                   <textarea id="au-exp-notas" class="form-textarea" rows="2"
                     placeholder="Observações gerais da aula experimental…">${aula ? UI.escape(aula.notasExperimental || '') : ''}</textarea>
                 </div>
-                <div class="cadastro-tab-info" style="margin-top:0;">
-                  💡 Tem valor financeiro normal. Se os alunos fecharem matrícula, pode ser compensada.
-                </div>`;
+                `;
               })()}
             </div>
 
@@ -2832,6 +2854,9 @@ const TurmasModule = {
       alunoExperimentalNome: alunosExperimentais[0]?.nome || '',  // compat legado
       notasExperimental:     document.getElementById('au-exp-notas')?.value.trim() || '',
       avaliacaoStatus:       aulaAtual?.avaliacaoStatus || (isExperimental ? 'pendente' : ''),
+      valorExperimental:     isExperimental ? (parseFloat(document.getElementById('au-exp-valor')?.value) || 0) : 0,
+      modalidadeExperimental:isExperimental ? (document.getElementById('au-exp-modalidade')?.value || 'pendente') : '',
+      compensarSeFechar:     isExperimental ? !!document.getElementById('au-exp-compensar')?.checked : false,
     };
 
     // ── Verificar conflito de quadra (bloqueia) ─────────────────────
@@ -2959,6 +2984,38 @@ const TurmasModule = {
       }
       UI.toast(`Aula "${record.titulo}" agendada!`, 'success');
     }
+
+    // ── Lançamentos financeiros para alunos experimentais ───────────────
+    if (isExperimental && alunosExperimentais.length) {
+      const aulaId   = id || Storage.getAll(this.SK_AULA).slice(-1)[0]?.id || '';
+      const dataAula = record.data || new Date().toISOString().slice(0, 10);
+      const sess     = Auth.getSession();
+      const existing = Storage.getAll('financeiro')
+        .filter(f => f.aulaId === aulaId && f.categoria === 'aula_experimental');
+      const existIds = new Set(existing.map(f => f.alunoId));
+      alunosExperimentais.forEach(al => {
+        if (existIds.has(al.id)) return; // já tem lançamento para este aluno
+        Storage.create('financeiro', {
+          tipo:               'receita',
+          data:               dataAula,
+          descricao:          `Aula experimental — ${record.titulo}`,
+          categoria:          'aula_experimental',
+          valor:              record.modalidadeExperimental === 'cortesia' ? 0 : (record.valorExperimental || 0),
+          formaPagamento:     'pix',
+          status:             record.modalidadeExperimental || 'pendente',
+          referencia:         '',
+          observacoes:        record.compensarSeFechar ? 'Compensar se fechar matrícula' : '',
+          aulaId,
+          alunoId:            al.id,
+          alunoNome:          al.nome,
+          compensarSeFechar:  record.compensarSeFechar || false,
+          registradoPor:      sess?.nome    || '',
+          registradoPorId:    sess?.id      || '',
+          registradoPorPerfil:sess?.perfil  || '',
+        });
+      });
+    }
+
     UI.closeModal();
     this.render();
   },
@@ -2970,6 +3027,18 @@ const TurmasModule = {
     Array.from(sel.options).forEach(opt => {
       opt.style.display = !q || opt.text.toLowerCase().includes(q) ? '' : 'none';
     });
+  },
+
+  /** Marca pagamento de aula experimental como pago ou cortesia e reabre detalhe */
+  _registrarPagamentoExp(recId, aulaId, novoStatus = 'pago') {
+    Storage.update('financeiro', recId, {
+      status:  novoStatus,
+      paidAt:  new Date().toISOString(),
+      valor:   novoStatus === 'cortesia' ? 0 : undefined,
+    });
+    UI.toast(novoStatus === 'cortesia' ? '🎁 Marcado como cortesia!' : '💚 Pagamento registrado!', 'success');
+    UI.closeModal();
+    setTimeout(() => this.openModalAulaDetalhe(aulaId), 200);
   },
 
   _filtrarAlunosExpModal(query) {
@@ -3084,6 +3153,45 @@ const TurmasModule = {
             ${pStats.total ? `<span class="badge badge-success" style="margin-left:6px;">${pStats.presentes}/${pStats.total}</span>` : ''}
           </button>
         </div>
+
+        ${(() => {
+          if (!aula.experimental) return '';
+          const expList2 = aula.alunosExperimentais?.length
+            ? aula.alunosExperimentais
+            : aula.alunoExperimentalId ? [{ id: aula.alunoExperimentalId, nome: aula.alunoExperimentalNome || '?' }] : [];
+          if (!expList2.length) return '';
+          const pagRecs  = Storage.getAll('financeiro').filter(f => f.aulaId === id && f.categoria === 'aula_experimental');
+          const pagMap   = {};
+          pagRecs.forEach(f => { pagMap[f.alunoId] = f; });
+          const STATUS_PAG = {
+            pago:     '<span class="badge badge-success" style="font-size:11px;">💚 Pago</span>',
+            cortesia: '<span class="badge badge-blue"    style="font-size:11px;">🎁 Cortesia</span>',
+            pendente: '<span class="badge badge-warning" style="font-size:11px;">⏳ Pendente</span>',
+          };
+          const rows = expList2.map(e => {
+            const rec   = pagMap[e.id];
+            const badge = rec ? (STATUS_PAG[rec.status] || STATUS_PAG.pendente) : '<span class="text-muted" style="font-size:11px;">Sem lançamento</span>';
+            const valor = rec?.valor > 0 ? `<span style="font-size:12px;color:var(--text-muted);">R$ ${parseFloat(rec.valor).toFixed(2).replace('.',',')}</span>` : '';
+            const btnPagar = (rec && rec.status === 'pendente')
+              ? `<button class="btn btn-ghost btn-sm" style="font-size:11px;padding:2px 8px;"
+                   onclick="TurmasModule._registrarPagamentoExp('${rec.id}','${id}')">✔ Marcar pago</button>`
+              : '';
+            const btnCortesia = (rec && rec.status === 'pendente')
+              ? `<button class="btn btn-ghost btn-sm" style="font-size:11px;padding:2px 8px;"
+                   onclick="TurmasModule._registrarPagamentoExp('${rec.id}','${id}','cortesia')">🎁 Cortesia</button>`
+              : '';
+            return `<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--card-border);flex-wrap:wrap;">
+              <span style="flex:1;font-size:13px;">${UI.escape(e.nome)}</span>
+              ${valor}${badge}${btnPagar}${btnCortesia}
+            </div>`;
+          }).join('');
+          const temPendente = expList2.some(e => { const r = pagMap[e.id]; return !r || r.status === 'pendente'; });
+          return `<div class="detalhe-section">
+            <div class="detalhe-section-title">💰 Pagamentos — Experimental</div>
+            ${rows}
+            ${temPendente && aula.compensarSeFechar ? `<div style="font-size:11px;color:var(--text-muted);margin-top:6px;">♻️ Será compensado na 1ª mensalidade se fechar matrícula.</div>` : ''}
+          </div>`;
+        })()}
 
         ${aula.experimental && aula.avaliacaoStatus === 'pendente' ? `
           <div class="detalhe-section">
