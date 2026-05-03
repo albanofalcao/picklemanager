@@ -827,8 +827,15 @@ const TurmasModule = {
       const reposicaoId = cb.dataset.reposicaoId;
       const existing    = presencas.find(p => p.aulaId === aulaId && p.alunoId === alunoId);
 
+      const sess = Auth.getSession();
+      const logFields = {
+        registradoPor:       sess?.nome   || '',
+        registradoPorId:     sess?.id     || '',
+        registradoPorPerfil: sess?.perfil || '',
+        registradoEm:        new Date().toISOString(),
+      };
       if (existing) {
-        Storage.update('presencas', existing.id, { presente });
+        Storage.update('presencas', existing.id, { presente, ...logFields });
       } else {
         Storage.create('presencas', {
           aulaId,
@@ -838,6 +845,7 @@ const TurmasModule = {
           turmaNome: aula.turmaNome || '',
           data:      aula.data      || '',
           presente,
+          ...logFields,
         });
       }
       // Marca reposição como concluída se aluno esteve presente
@@ -2915,9 +2923,13 @@ const TurmasModule = {
     const aula = Storage.getById(this.SK_AULA, id);
     if (!aula) return;
     if (aula.professorCheckin) { UI.toast('Entrada já registrada.', 'warning'); return; }
+    const sess = Auth.getSession();
     Storage.update(this.SK_AULA, id, {
-      professorCheckin: new Date().toISOString(),
-      status: aula.status === 'agendada' ? 'em_andamento' : aula.status,
+      professorCheckin:        new Date().toISOString(),
+      status:                  aula.status === 'agendada' ? 'em_andamento' : aula.status,
+      iniciadoPor:             sess?.nome   || '',
+      iniciadoPorId:           sess?.id     || '',
+      iniciadoPorPerfil:       sess?.perfil || '',
     });
     UI.toast(`Entrada registrada — "${aula.titulo}"`, 'success');
     this._reRenderContent();
@@ -2932,9 +2944,13 @@ const TurmasModule = {
       `Registrar saída e concluir a aula "${aula.titulo}"?`, 'Confirmar Saída'
     );
     if (!ok) return;
+    const sess = Auth.getSession();
     Storage.update(this.SK_AULA, id, {
-      professorCheckout: new Date().toISOString(),
-      status: 'concluida',
+      professorCheckout:       new Date().toISOString(),
+      status:                  'concluida',
+      encerradoPor:            sess?.nome   || '',
+      encerradoPorId:          sess?.id     || '',
+      encerradoPorPerfil:      sess?.perfil || '',
     });
     UI.toast(`Aula "${aula.titulo}" concluída.`, 'success');
     this._reRenderContent();
@@ -3604,11 +3620,16 @@ const TurmasModule = {
     const aula = Storage.getById(this.SK_AULA, aulaId);
     if (!aula) return;
 
+    const sess = Auth.getSession();
     Storage.update(this.SK_AULA, aulaId, {
-      avaliacaoStatus:   'concluida',
-      nivelAvaliado:     nivelEl.value,
-      notasExperimental: notasEl?.value.trim() || '',
-      compensarSeFechar: !!compEl?.checked,
+      avaliacaoStatus:     'concluida',
+      nivelAvaliado:       nivelEl.value,
+      notasExperimental:   notasEl?.value.trim() || '',
+      compensarSeFechar:   !!compEl?.checked,
+      avaliadoPor:         sess?.nome   || '',
+      avaliadoPorId:       sess?.id     || '',
+      avaliadoPorPerfil:   sess?.perfil || '',
+      avaliadoEm:          new Date().toISOString(),
     });
 
     if (aula.alunoExperimentalId) {

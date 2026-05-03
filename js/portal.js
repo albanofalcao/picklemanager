@@ -648,14 +648,21 @@ const PortalModule = {
 
   _salvarPresenca(aulaId, inscritos) {
     const checks = document.querySelectorAll('.presenca-check');
+    const sess   = Auth.getSession();
+    const logFields = {
+      registradoPor:       sess?.nome   || '',
+      registradoPorId:     sess?.id     || '',
+      registradoPorPerfil: sess?.perfil || '',
+      registradoEm:        new Date().toISOString(),
+    };
     let salvos = 0;
     checks.forEach(cb => {
       const alunoId   = cb.dataset.alunoId;
       const alunoNome = cb.dataset.alunoNome;
       const presente  = cb.checked;
       const existing  = Storage.getAll('presencas').find(p => p.aulaId === aulaId && p.alunoId === alunoId);
-      if (existing) Storage.update('presencas', existing.id, { presente });
-      else          Storage.create('presencas', { aulaId, alunoId, alunoNome, presente });
+      if (existing) Storage.update('presencas', existing.id, { presente, ...logFields });
+      else          Storage.create('presencas', { aulaId, alunoId, alunoNome, presente, ...logFields });
       salvos++;
     });
     Storage.update('aulas', aulaId, { status: 'concluida' });
