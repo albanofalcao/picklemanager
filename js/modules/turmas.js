@@ -3516,6 +3516,23 @@ const TurmasModule = {
   _onExperimentalChange() {
     const cb  = document.getElementById('au-experimental');
     const sec = document.getElementById('au-exp-section');
+
+    if (cb?.checked) {
+      // Guard: a turma precisa ter pelo menos 1 aluno inscrito
+      // (o aluno experimental precisa de colegas para treinar)
+      const turmaId = document.getElementById('au-turma')?.value;
+      if (turmaId) {
+        const inscritos = Storage.getAll(this.SK_INSCR)
+          .filter(i => i.turmaId === turmaId && i.status === 'ativo');
+        if (inscritos.length === 0) {
+          UI.toast('A turma não tem alunos inscritos. Inscreva pelo menos um aluno antes de marcar a aula como experimental.', 'warning');
+          cb.checked = false;
+          if (sec) sec.style.display = 'none';
+          return;
+        }
+      }
+    }
+
     if (sec) sec.style.display = cb?.checked ? '' : 'none';
   },
 
