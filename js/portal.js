@@ -815,12 +815,12 @@ const PortalModule = {
     const nivelAluno    = Storage.getAll('alunos').find(a => a.id === alunoId)?.nivel || '';
 
     const tabs = [
-      { key: 'proxima',      label: '📅 Cronograma' },
-      { key: 'grades',       label: '📚 Turmas'      },
-      { key: 'estatisticas', label: '📊 Estatísticas'},
-      { key: 'comunicados',  label: '📣 Comunicados' },
-      { key: 'descobrir',    label: '🔍 Descobrir'   },
-      { key: 'financeiro',   label: '💰 Financeiro'  },
+      { key: 'proxima',      label: '📅 Cronograma'        },
+      { key: 'grades',       label: '📚 Minhas Turmas'     },
+      { key: 'estatisticas', label: '📊 Estatísticas'      },
+      { key: 'descobrir',    label: '🔍 Aulas Disponíveis' },
+      { key: 'comunicados',  label: '📣 Comunicados'       },
+      { key: 'financeiro',   label: '💰 Financeiro'        },
     ];
 
     const tabBar = tabs.map(t => `
@@ -832,8 +832,8 @@ const PortalModule = {
     if      (this._tab === 'proxima')      content = this._renderAlunoProximas(session, hoje, proximasAulas);
     else if (this._tab === 'grades')       content = this._renderAlunoGrades(session);
     else if (this._tab === 'estatisticas') content = this._renderAlunoEstatisticas(session);
+    else if (this._tab === 'descobrir')    content = this._renderAlunoAulasDisponiveis(session);
     else if (this._tab === 'comunicados')  content = this._renderAlunoComunicados(session);
-    else if (this._tab === 'descobrir')    content = this._renderAlunoDescobrirGrades(session);
     else if (this._tab === 'financeiro')   content = this._renderAlunoFinanceiro(session, matriculas);
 
     // Card do plano
@@ -1033,6 +1033,109 @@ const PortalModule = {
           </div>
         </div>`;
     }).join('');
+  },
+
+  _renderAlunoAulasDisponiveis(session) {
+    const alunoId    = session.alunoId || session.id;
+    const hoje       = new Date().toISOString().slice(0, 10);
+
+    // Turmas em que o aluno já está inscrito
+    const inscricoes  = Storage.getAll('turmaAlunos')
+      .filter(i => (alunoId ? i.alunoId === alunoId : i.alunoNome === session.nome) && i.status === 'ativo');
+    const inscritosIds = new Set(inscricoes.map(i => i.turmaId));
+
+    // Aulas futuras agendadas com vaga (turmas ativas, excluindo experimentais)
+    const turmasAtivas = new Set(
+      Storage.getAll('turmas').filter(t => t.status === 'ativa').map(t => t.id)
+    );
+    const todasPresencas = Storage.getAll('presencas');
+
+    const aulas = Storage.getAll('aulas')
+      .filter(a =>
+        a.status === 'agendada' &&
+        a.data >= hoje &&
+        !a.experimental &&
+        a.turmaId &&
+        turmasAtivas.has(a.turmaId)
+      )
+      .sort((a, b) => (a.data + (a.horarioInicio || '')).localeCompare(b.data + (b.horarioInicio || '')));
+
+    if (!aulas.length) {
+      return `<div class="portal-empty">
+        <div class="portal-empty-icon">📭</div>
+        <p>Nenhuma aula disponível no momento.<br>Novas aulas aparecerão aqui assim que forem agendadas.</p>
+      </div>`;
+    }
+
+    const NIVEL = { iniciante:'Iniciante', intermediario:'Intermediário', avancado:'Avançado', profissional:'Profissional' };
+    const DIAS_ABREV = { seg:'Seg', ter:'Ter', qua:'Qua', qui:'Qui', sex:'Sex', sab:'Sáb', dom:'Dom' };
+
+    const cards = aulas.map(a => {
+      // Contar inscritos na turma para calcular vagas
+      const inscTurma = Storage.getAll('turmaAlunos').filter(i => i.turmaId === a.turmaId && i.status === 'ativo').length;
+      const vagas     = a.vagas > 0 ? Math.max(0, a.vagas - inscTurma) : null;
+      const semVaga   = vagas !== null && vagas === 0;
+      const jaInscrito = inscritosIds.has(a.turmaId);
+
+      const [y, m, d] = (a.data || '').split('-');
+      const dataFmt   = a.data ? `${d}/${m}/${y}` : '—';
+      const hora      = [a.horarioInicio, a.horarioFim].filter(Boolean).join(' – ');
+
+      const vagasBadge = vagas !== null
+        ? `<span class="portal-badge ${semVaga ? 'badge-danger' : 'badge-success'}">${semVaga ? 'Sem vagas' : vagas + ' vaga' + (vagas !== 1 ? 's' : '')}</span>`
+        : '<span class="portal-badge badge-blue">Vagas livres</span>';
+
+      const nivelBadge = a.nivel
+        ? `<span class="portal-badge badge-gray">${NIVEL[a.nivel] || a.nivel}</span>` : '';
+
+      const jaInscritoBadge = jaInscrito
+        ? `<span class="portal-badge badge-success">✓ Inscrito</span>` : '';
+
+      let acoes = '';
+      if (jaInscrito) {
+        acoes = `<span style="font-size:12px;color:var(--text-muted);">Você já está nesta turma</span>`;
+      } else if (!semVaga) {
+        acoes = `<button class="btn btn-primary btn-sm"
+          onclick="PortalModule._solicitarVagaAula('${a.id}','${a.turmaId}')">
+          + Solicitar vaga
+        </button>`;
+      }
+
+      return `
+        <div class="portal-card">
+          <div class="portal-card-body">
+            <div class="portal-card-info">
+              <div class="portal-card-titulo">🏸 ${UI.escape(a.titulo)}</div>
+              <div class="portal-card-meta">
+                ${a.professorNome ? `<span>🎓 ${UI.escape(a.professorNome)}</span>` : ''}
+                ${a.arenaNome    ? `<span>🏟️ ${UI.escape(a.arenaNome)}</span>`    : ''}
+                <span>📅 ${dataFmt}</span>
+                ${hora ? `<span>🕐 ${hora}</span>` : ''}
+              </div>
+              <div class="portal-card-badges">
+                ${vagasBadge}${nivelBadge}${jaInscritoBadge}
+              </div>
+            </div>
+          </div>
+          ${acoes ? `<div class="portal-card-acoes">${acoes}</div>` : ''}
+        </div>`;
+    }).join('');
+
+    return `
+      <div style="margin-bottom:12px;">
+        <div style="font-size:12px;color:var(--text-muted);">
+          ${aulas.length} aula${aulas.length !== 1 ? 's' : ''} disponíve${aulas.length !== 1 ? 'is' : 'l'} nos próximos dias
+        </div>
+      </div>
+      ${cards}`;
+  },
+
+  _solicitarVagaAula(aulaId, turmaId) {
+    const aula  = Storage.getById('aulas', aulaId);
+    const turma = Storage.getById('turmas', turmaId);
+    if (!aula || !turma) return;
+    UI.toast(`📩 Solicitação enviada para "${aula.titulo}". Aguarde confirmação da academia.`, 'info', 5000);
+    // Futuramente: criar registro de solicitação e notificar admin
   },
 
   _renderAlunoDescobrirGrades(session) {
