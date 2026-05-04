@@ -7,18 +7,43 @@
  */
 const OcrService = {
 
-  _tesseractReady: false,
   _worker: null,
+  _libsLoaded: false,
 
   /* ------------------------------------------------------------------ */
-  /*  Init / Teardown                                                     */
+  /*  Carregamento lazy das bibliotecas (só quando OCR for usado)         */
+  /* ------------------------------------------------------------------ */
+
+  _loadScript(src) {
+    return new Promise((resolve, reject) => {
+      if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
+      const s = document.createElement('script');
+      s.src = src;
+      s.onload  = resolve;
+      s.onerror = () => reject(new Error('Falha ao carregar: ' + src));
+      document.head.appendChild(s);
+    });
+  },
+
+  async _ensureLibs() {
+    if (this._libsLoaded) return;
+    OcrService._setProgress(0);
+    const el = document.getElementById('ocr-progress-txt');
+    if (el) el.textContent = 'Carregando bibliotecas…';
+    await Promise.all([
+      this._loadScript('https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js'),
+      this._loadScript('https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js'),
+    ]);
+    this._libsLoaded = true;
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Worker Tesseract                                                    */
   /* ------------------------------------------------------------------ */
 
   async _getWorker() {
     if (this._worker) return this._worker;
-    if (typeof Tesseract === 'undefined') {
-      throw new Error('Tesseract.js não carregado. Verifique sua conexão.');
-    }
+    await this._ensureLibs();
     // Tesseract.js v4 — português + inglês para melhor cobertura de documentos BR
     const worker = await Tesseract.createWorker(['por', 'eng'], 1, {
       logger: m => {
@@ -63,9 +88,7 @@ const OcrService = {
   /* ------------------------------------------------------------------ */
 
   async _pdfToCanvas(file) {
-    if (typeof pdfjsLib === 'undefined') {
-      throw new Error('PDF.js não carregado. Verifique sua conexão.');
-    }
+    await this._ensureLibs();
     pdfjsLib.GlobalWorkerOptions.workerSrc =
       'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
 
