@@ -312,7 +312,14 @@ const AlunoModule = {
     const content = `
   <div class="form-grid">
 
-    <div class="aluno-secao-titulo">👤 Dados Pessoais</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+      <div class="aluno-secao-titulo" style="margin-bottom:0;">👤 Dados Pessoais</div>
+      <button type="button" class="btn btn-ghost btn-sm"
+        style="font-size:12px;color:var(--color-primary,#3b9e8f);display:flex;align-items:center;gap:4px;"
+        onclick="OcrService.openModal(data => AlunoModule._fillFromOcr(data))">
+        📄 Ler documento
+      </button>
+    </div>
 
     <div class="form-group">
       <label class="form-label" for="a-nome">Nome completo <span class="required-star">*</span></label>
@@ -1062,6 +1069,24 @@ const AlunoModule = {
     const m      = hoje.getMonth() - nasc.getMonth();
     if (m < 0 || (m === 0 && hoje.getDate() < nasc.getDate())) idade--;
     return isNaN(idade) || idade < 0 ? '—' : String(idade);
+  },
+
+  /** Preenche o formulário de aluno com os dados lidos pelo OCR */
+  _fillFromOcr(data) {
+    const set = (id, val) => {
+      const el = document.getElementById(id);
+      if (el && val) el.value = val;
+    };
+    set('a-nome',       data.nome);
+    set('a-cpf',        data.cpf);
+    set('a-nascimento', data.dataNascimento);
+    set('a-telefone',   data.telefone);
+    // Atualiza display de idade se preencheu nascimento
+    if (data.dataNascimento) {
+      const nasc = document.getElementById('a-nascimento');
+      if (nasc) this._showIdade(nasc);
+    }
+    UI.toast('✅ Dados preenchidos — revise antes de salvar.', 'success');
   },
 
   _maskCpf(el) {
