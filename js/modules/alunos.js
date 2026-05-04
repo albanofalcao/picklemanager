@@ -13,7 +13,6 @@ const AlunoModule = {
     filterSexo:   '',
   },
 
-  _ocrPrefill: null,
 
   STATUS: {
     ativo:    { label: 'Ativo',     badge: 'badge-success' },
@@ -296,11 +295,7 @@ const AlunoModule = {
   openModal(id = null) {
     const aluno  = id ? Storage.getById(this.STORAGE_KEY, id) : null;
     const isEdit = !!aluno;
-    const v      = (field, fallback = '') => {
-      if (aluno) return UI.escape(String(aluno[field] ?? fallback));
-      if (this._ocrPrefill?.[field]) return UI.escape(String(this._ocrPrefill[field]));
-      return fallback;
-    };
+    const v      = (field, fallback = '') => aluno ? UI.escape(String(aluno[field] ?? fallback)) : fallback;
 
     const nivelOptions  = ListasService.opts('alunos_nivel', aluno?.nivel || '');
     const statusOptions = Object.entries(this.STATUS).map(([k, cfg]) =>
@@ -318,14 +313,7 @@ const AlunoModule = {
     const content = `
   <div class="form-grid">
 
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-      <div class="aluno-secao-titulo" style="margin-bottom:0;">👤 Dados Pessoais</div>
-      <button type="button" class="btn btn-ghost btn-sm"
-        style="font-size:12px;color:var(--color-primary,#3b9e8f);display:flex;align-items:center;gap:4px;"
-        onclick="OcrService.openModal(data => AlunoModule._fillFromOcr(data))">
-        📄 Ler documento
-      </button>
-    </div>
+    <div class="aluno-secao-titulo">👤 Dados Pessoais</div>
 
     <div class="form-group">
       <label class="form-label" for="a-nome">Nome completo <span class="required-star">*</span></label>
@@ -522,7 +510,6 @@ const AlunoModule = {
       confirmLabel: isEdit ? 'Salvar alterações' : 'Cadastrar Aluno',
       onConfirm:    () => this.saveAluno(id),
     });
-    this._ocrPrefill = null; // limpa após renderizar o form
   },
 
   /* ------------------------------------------------------------------ */
@@ -1078,14 +1065,6 @@ const AlunoModule = {
     return isNaN(idade) || idade < 0 ? '—' : String(idade);
   },
 
-  /**
-   * Callback do OCR: armazena os dados e reabre o formulário de aluno
-   * com os campos pré-preenchidos (o modal do OCR substituiu o form original).
-   */
-  _fillFromOcr(data) {
-    this._ocrPrefill = data;
-    this.openModal(); // reabre o form novo com os dados do OCR
-  },
 
   _maskCpf(el) {
     let v = el.value.replace(/\D/g, '').slice(0, 11);
