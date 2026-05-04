@@ -54,14 +54,14 @@ const OcrService = {
     this._setStatus('Reconhecendo texto…');
     this._setProgress(10);
 
-    const { data: { text } } = await Tesseract.recognize(imageSource, 'eng', {
+    const { data: { text } } = await Tesseract.recognize(imageSource, 'por+eng', {
       logger: m => {
         if (m.status === 'recognizing text')
           OcrService._setProgress(10 + Math.round(m.progress * 85));
         else if (m.status === 'loading tesseract core')
           OcrService._setStatus('Carregando motor OCR…');
         else if (m.status === 'loading language traineddata')
-          OcrService._setStatus('Baixando dados de idioma…');
+          OcrService._setStatus('Baixando dados de idioma (aguarde)…');
         else if (m.status === 'initializing api')
           OcrService._setStatus('Inicializando…');
       },
@@ -91,7 +91,7 @@ const OcrService = {
     const pdf    = await pdfjsLib.getDocument({ data: buf }).promise;
     const page   = await pdf.getPage(1);
 
-    const vp     = page.getViewport({ scale: 2.5 });
+    const vp     = page.getViewport({ scale: 3.0 });
     const canvas = document.createElement('canvas');
     canvas.width  = vp.width;
     canvas.height = vp.height;
@@ -320,15 +320,28 @@ const OcrService = {
     const c = document.getElementById('ocr-res-fields');
     if (!c) return;
 
-    const rawHtml = data.raw ? `
-      <details style="margin-top:10px;">
-        <summary style="cursor:pointer;font-size:11px;color:var(--text-muted);user-select:none;list-style:none;">
-          🔍 Ver texto bruto extraído
-        </summary>
-        <pre style="font-size:10px;color:var(--text-muted);background:var(--bg-secondary);
-          padding:8px;border-radius:6px;overflow:auto;max-height:110px;margin-top:6px;
-          white-space:pre-wrap;word-break:break-all;">${UI.escape(data.raw)}</pre>
-      </details>` : '';
+    const algumDado = fields.some(f => data[f.key]);
+    const rawTrimmed = (data.raw || '').trim();
+
+    // Texto bruto sempre visível para facilitar diagnóstico
+    const rawHtml = rawTrimmed ? `
+      <div style="margin-top:12px;">
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);
+          text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">
+          📄 Texto extraído pelo OCR${algumDado ? '' : ' — nenhum campo reconhecido'}
+        </div>
+        <pre id="ocr-raw-text" style="font-size:10px;color:var(--text-primary);
+          background:var(--bg-secondary);padding:8px;border-radius:6px;
+          overflow:auto;max-height:130px;white-space:pre-wrap;word-break:break-all;
+          border:1px solid var(--card-border);margin:0;">${UI.escape(rawTrimmed)}</pre>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:3px;">
+          ${rawTrimmed.length} caracteres reconhecidos
+          ${!algumDado ? ' — edite os campos acima manualmente se necessário' : ''}
+        </div>
+      </div>` : `
+      <div style="margin-top:10px;font-size:11px;color:var(--text-muted);font-style:italic;">
+        ⚠️ Nenhum texto extraído — verifique se a imagem está legível.
+      </div>`;
 
     c.innerHTML = fields.map(f => `
       <div style="display:grid;grid-template-columns:90px 1fr;align-items:center;gap:6px;">
