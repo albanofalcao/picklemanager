@@ -119,51 +119,58 @@ const OcrService = {
 
   _parse(raw) {
     const out   = { nome: '', cpf: '', dataNascimento: '', rg: '', telefone: '', raw };
-    const text  = raw.replace(/\r/g, '').replace(/[ \t]+/g, ' ');
-    const upper = text.toUpperCase();
+    const text  = raw.replace(/\r/g, '');
+    const clean = text.replace(/[ \t]+/g, ' ');
+    const upper = clean.toUpperCase();
 
-    // CPF
-    const cpfM = upper.match(/\d{3}[\. ]?\d{3}[\. ]?\d{3}[\-\. ]?\d{2}/);
+    // CPF — aceita pontos, traços, espaços ou nada como separadores
+    const cpfM = upper.match(/\d{3}[\s\.\-]?\d{3}[\s\.\-]?\d{3}[\s\.\-]?\d{2}(?!\d)/);
     if (cpfM) {
       const d = cpfM[0].replace(/\D/g, '');
       if (d.length === 11)
         out.cpf = d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
     }
 
-    // Data nascimento
-    const dtK = upper.match(/(?:NASC|NASCIMENTO|DATA\s*NASC)[^0-9]{0,20}(\d{2})[\/\.\-](\d{2})[\/\.\-](\d{4})/);
+    // Data de nascimento — tenta perto de palavra-chave primeiro
+    const dtK = upper.match(/(?:NASC(?:IMENTO)?|DATA[. ]?NASC)[^\d]{0,25}(\d{1,2})[\s\/\.\-](\d{1,2})[\s\/\.\-](\d{4})/);
     if (dtK) {
-      out.dataNascimento = `${dtK[3]}-${dtK[2]}-${dtK[1]}`;
+      const d = dtK[1].padStart(2,'0'), m = dtK[2].padStart(2,'0'), y = dtK[3];
+      out.dataNascimento = `${y}-${m}-${d}`;
     } else {
-      const dtF = upper.match(/(\d{2})[\/\.\-](\d{2})[\/\.\-](\d{4})/);
+      const dtF = upper.match(/(\d{1,2})[\s\/\.\-](\d{1,2})[\s\/\.\-](\d{4})/);
       if (dtF) {
         const y = parseInt(dtF[3]);
-        if (y >= 1930 && y <= new Date().getFullYear() - 5)
-          out.dataNascimento = `${dtF[3]}-${dtF[2]}-${dtF[1]}`;
-      }
-    }
-
-    // Nome
-    const nomeM = text.match(/NOME[:\s]+([A-ZÀ-Ú][A-ZÀ-Ú\s]{4,60}?)(?:\n|CPF|RG|FILIA|DATA|DOC|NASC|VALID)/i);
-    if (nomeM) {
-      out.nome = this._cap(nomeM[1].trim());
-    } else {
-      for (const ln of text.split('\n').map(l => l.trim())) {
-        if (/^[A-ZÀ-Ú][A-ZÀ-Ú\s]{8,55}$/.test(ln) &&
-            ln.split(' ').length >= 3 &&
-            !/REPUBLICA|MINISTERIO|DETRAN|REGISTRO|CARTEIRA|IDENTIDADE|NACIONAL|HABILITACAO|FEDERAL|ESTADO/i.test(ln)) {
-          out.nome = this._cap(ln);
-          break;
+        if (y >= 1930 && y <= new Date().getFullYear() - 5) {
+          const d = dtF[1].padStart(2,'0'), m = dtF[2].padStart(2,'0');
+          out.dataNascimento = `${y}-${m}-${d}`;
         }
       }
     }
 
+    // Nome — label "NOME:" primeiro, depois linha mais longa em maiúsculas
+    const nomeM = clean.match(/NOME[:\s]+([A-ZÀ-Úa-zà-ú][^\n]{3,60}?)(?:\n|CPF|RG|FILIA|DATA|DOC|NASC|VALID)/i);
+    if (nomeM) {
+      out.nome = this._cap(nomeM[1].trim());
+    } else {
+      const SKIP = /REPUBLICA|MINISTERIO|DETRAN|REGISTRO|CARTEIRA|IDENTIDADE|NACIONAL|HABILITACAO|FEDERAL|ESTADO|SECRETARIA|DEPARTAMENTO|TRANSITO|GOVERNO/i;
+      let best = '';
+      for (const ln of clean.split('\n').map(l => l.trim())) {
+        if (/^[A-ZÀ-Ú][A-ZÀ-Ú\s]{6,55}$/.test(ln) &&
+            ln.split(' ').length >= 2 &&
+            ln.length > best.length &&
+            !SKIP.test(ln)) {
+          best = ln;
+        }
+      }
+      if (best) out.nome = this._cap(best);
+    }
+
     // RG
-    const rgM = upper.match(/(?:RG|IDENTIDADE|N[Oº°]\.?)[\s:]+([0-9][0-9\.\-\/X]{4,14})/i);
+    const rgM = upper.match(/(?:RG|IDENTIDADE|N[Oº°]\.?)[\s:]+([0-9][0-9\.\-\/X]{4,14})/);
     if (rgM) out.rg = rgM[1].trim();
 
     // Telefone
-    const telM = text.match(/\(?\d{2}\)?[\s\-]?\d{4,5}[\-\s]\d{4}/);
+    const telM = clean.match(/\(?\d{2}\)?[\s\-]?\d{4,5}[\-\s]\d{4}/);
     if (telM) {
       const d = telM[0].replace(/\D/g, '');
       if (d.length === 10) out.telefone = d.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
@@ -312,12 +319,24 @@ const OcrService = {
     ];
     const c = document.getElementById('ocr-res-fields');
     if (!c) return;
+
+    const rawHtml = data.raw ? `
+      <details style="margin-top:10px;">
+        <summary style="cursor:pointer;font-size:11px;color:var(--text-muted);user-select:none;list-style:none;">
+          🔍 Ver texto bruto extraído
+        </summary>
+        <pre style="font-size:10px;color:var(--text-muted);background:var(--bg-secondary);
+          padding:8px;border-radius:6px;overflow:auto;max-height:110px;margin-top:6px;
+          white-space:pre-wrap;word-break:break-all;">${UI.escape(data.raw)}</pre>
+      </details>` : '';
+
     c.innerHTML = fields.map(f => `
       <div style="display:grid;grid-template-columns:90px 1fr;align-items:center;gap:6px;">
         <span style="font-size:12px;color:var(--text-muted);">${f.label}</span>
         <input id="${f.id}" class="form-input" style="height:32px;font-size:13px;"
           value="${UI.escape(data[f.key] || '')}" placeholder="—" />
-      </div>`).join('');
+      </div>`).join('') + rawHtml;
+
     document.getElementById('ocr-res').style.display = 'block';
     fields.forEach(f => {
       const el = document.getElementById(f.id);

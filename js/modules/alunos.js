@@ -13,6 +13,8 @@ const AlunoModule = {
     filterSexo:   '',
   },
 
+  _ocrPrefill: null,
+
   STATUS: {
     ativo:    { label: 'Ativo',     badge: 'badge-success' },
     inativo:  { label: 'Inativo',   badge: 'badge-gray'    },
@@ -294,7 +296,11 @@ const AlunoModule = {
   openModal(id = null) {
     const aluno  = id ? Storage.getById(this.STORAGE_KEY, id) : null;
     const isEdit = !!aluno;
-    const v      = (field, fallback = '') => aluno ? UI.escape(String(aluno[field] ?? fallback)) : fallback;
+    const v      = (field, fallback = '') => {
+      if (aluno) return UI.escape(String(aluno[field] ?? fallback));
+      if (this._ocrPrefill?.[field]) return UI.escape(String(this._ocrPrefill[field]));
+      return fallback;
+    };
 
     const nivelOptions  = ListasService.opts('alunos_nivel', aluno?.nivel || '');
     const statusOptions = Object.entries(this.STATUS).map(([k, cfg]) =>
@@ -516,6 +522,7 @@ const AlunoModule = {
       confirmLabel: isEdit ? 'Salvar alterações' : 'Cadastrar Aluno',
       onConfirm:    () => this.saveAluno(id),
     });
+    this._ocrPrefill = null; // limpa após renderizar o form
   },
 
   /* ------------------------------------------------------------------ */
@@ -1071,22 +1078,13 @@ const AlunoModule = {
     return isNaN(idade) || idade < 0 ? '—' : String(idade);
   },
 
-  /** Preenche o formulário de aluno com os dados lidos pelo OCR */
+  /**
+   * Callback do OCR: armazena os dados e reabre o formulário de aluno
+   * com os campos pré-preenchidos (o modal do OCR substituiu o form original).
+   */
   _fillFromOcr(data) {
-    const set = (id, val) => {
-      const el = document.getElementById(id);
-      if (el && val) el.value = val;
-    };
-    set('a-nome',       data.nome);
-    set('a-cpf',        data.cpf);
-    set('a-nascimento', data.dataNascimento);
-    set('a-telefone',   data.telefone);
-    // Atualiza display de idade se preencheu nascimento
-    if (data.dataNascimento) {
-      const nasc = document.getElementById('a-nascimento');
-      if (nasc) this._showIdade(nasc);
-    }
-    UI.toast('✅ Dados preenchidos — revise antes de salvar.', 'success');
+    this._ocrPrefill = data;
+    this.openModal(); // reabre o form novo com os dados do OCR
   },
 
   _maskCpf(el) {
