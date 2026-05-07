@@ -12,7 +12,7 @@
  *  5. Faça o deploy — erros passarão a aparecer no dashboard do Sentry
  *
  * Enquanto SENTRY_DSN estiver vazio, o Sentry fica desativado
- * e o AppLogger usa apenas console + Supabase.
+ * e o AppLogger usa apenas console + PocketBase.
  * ──────────────────────────────────────────────────────────────────────
  */
 const SENTRY_DSN = ''; // ← cole aqui o DSN após criar a conta
