@@ -1,12 +1,12 @@
 'use strict';
 
 /**
- * DB — Supabase-backed Storage adapter (multi-tenant)
+ * DB — PocketBase-backed Storage adapter (multi-tenant)
  *
- * Quando TENANT_ID está configurado em supabase-config.js:
- *   - Carrega todos os dados do tenant do Supabase na inicialização
+ * Quando TENANT_ID está configurado em pocketbase-config.js:
+ *   - Carrega todos os dados do tenant do PocketBase na inicialização
  *   - Patcha Storage para ler do cache em memória (interface síncrona mantida)
- *   - Escreve no cache + Supabase em background (fire-and-forget)
+ *   - Escreve no cache + PocketBase em background (fire-and-forget)
  *
  * Quando TENANT_ID está vazio:
  *   - Não patcha nada → app funciona normalmente com localStorage
@@ -15,12 +15,12 @@ const DB = {
 
   _tenantId: null,
   _cache:    {},
-  _rawCount: {},   // total de linhas no Supabase por chave (inclui soft-deleted)
+  _rawCount: {},   // total de linhas no PocketBase por chave (inclui soft-deleted)
   _ready:    false,
 
   /* ───────────────────────────────────────────────────────────────────
-   *  Mapeamento: chave do Storage → nome da tabela Supabase
-   *  Catálogos usam app_catalogos com campo "tipo" no JSONB
+   *  Mapeamento: chave do Storage → nome da tabela/coleção PocketBase
+   *  Catálogos usam app_catalogos com campo "tipo" no data
    * ─────────────────────────────────────────────────────────────────── */
   TABLE_MAP: {
     alunos:            'app_alunos',
@@ -73,7 +73,7 @@ const DB = {
     torneio_pagamentos:     'app_torneio_pagamentos',
   },
 
-  // Catálogos que compartilham a tabela app_catalogos
+  // Catálogos que compartilham a coleção app_catalogos
   CATALOG_KEYS: new Set([
     'cat_despesa','cat_especialidades','cat_receita','cat_tipos_aula','cat_tipos_evento',
   ]),
@@ -83,8 +83,8 @@ const DB = {
    * ─────────────────────────────────────────────────────────────────── */
 
   async init(tenantId) {
-    if (!SupabaseClient) {
-      console.log('[DB] Supabase não disponível — modo localStorage.');
+    if (!window.PocketBaseClient) {
+      console.log('[DB] PocketBase não disponível — modo localStorage.');
       return;
     }
     if (!tenantId) {
@@ -108,15 +108,20 @@ const DB = {
   },
 
   /* ───────────────────────────────────────────────────────────────────
-   *  Carrega todos os dados do Supabase para o cache em memória
+   *  Carrega todos os dados do PocketBase para o cache em memória
    * ─────────────────────────────────────────────────────────────────── */
 
   async _loadAll() {
-    const tid       = this._tenantId;
+    const tid          = this._tenantId;
     const isMatrizMode = this._isMatriz;
+    const pb           = window.PocketBaseClient;
 
-    // Helper: aplica filtro de tenant (ou não, no modo Matriz)
-    const withTenant = (q) => isMatrizMode ? q : q.eq('tenant_id', tid);
+    // Helper: filtro de tenant (ou vazio no modo Matriz)
+    const tenantFilter = (extra) => {
+      if (isMatrizMode) return extra || '';
+      const base = `tenant_id="${tid}"`;
+      return extra ? `${base} && ${extra}` : base;
+    };
 
     // Tabelas regulares (não-catálogo) — carrega TODAS em paralelo
     const regularTables = [...new Set(
@@ -125,21 +130,18 @@ const DB = {
         .map(([, t]) => t)
     )];
 
-    const [tableResults, catResult] = await Promise.all([
+    const [tableResults, catRows] = await Promise.all([
       // Todas as tabelas regulares em paralelo
       Promise.all(regularTables.map(table =>
-        withTenant(
-          SupabaseClient
-            .from(table)
-            .select('id, tenant_id, data, created_at, updated_at')
-        ).then(({ data, error }) => ({ table, data, error }))
+        pb.collection(table)
+          .getFullList({ filter: tenantFilter(), requestKey: null })
+          .then(data => ({ table, data, error: null }))
+          .catch(err => ({ table, data: [], error: err }))
       )),
       // Catálogos em paralelo com as demais
-      withTenant(
-        SupabaseClient
-          .from('app_catalogos')
-          .select('id, tenant_id, tipo, data, created_at, updated_at')
-      ),
+      pb.collection('app_catalogos')
+        .getFullList({ filter: tenantFilter(), requestKey: null })
+        .catch(() => []),
     ]);
 
     // Processa tabelas regulares
@@ -156,17 +158,12 @@ const DB = {
       }
     }
 
-    // Catálogos — carrega tudo e filtra por "tipo" no data
-    const { data: catRows, error: catErr } = catResult;
-
-    if (catErr) {
-      console.warn('[DB] Erro ao carregar catálogos:', catErr.message);
-    } else {
-      for (const sk of this.CATALOG_KEYS) {
-        const allCatRows = (catRows || []).filter(r => r.tipo === sk);
-        this._cache[sk]    = allCatRows.filter(r => !r.data?._deleted).map(r => this._fromRow(r, isMatrizMode));
-        this._rawCount[sk] = allCatRows.length; // total bruto (inclui soft-deleted)
-      }
+    // Catálogos — carrega tudo e filtra por "tipo"
+    const allCatRows = catRows || [];
+    for (const sk of this.CATALOG_KEYS) {
+      const filtered = allCatRows.filter(r => r.tipo === sk);
+      this._cache[sk]    = filtered.filter(r => !r.data?._deleted).map(r => this._fromRow(r, isMatrizMode));
+      this._rawCount[sk] = filtered.length; // total bruto (inclui soft-deleted)
     }
   },
 
@@ -195,7 +192,7 @@ const DB = {
       const record = { ...data, id, createdAt: now, updatedAt: now };
       if (!self._cache[key]) self._cache[key] = [];
       self._cache[key].push(record);
-      self._supabaseInsert(key, record);
+      self._pbInsert(key, record);
       return record;
     };
 
@@ -209,7 +206,7 @@ const DB = {
       const now     = new Date().toISOString();
       const updated = { ...list[idx], ...changes, id, createdAt: list[idx].createdAt, updatedAt: now };
       list[idx]     = updated;
-      self._supabaseUpdate(key, updated);
+      self._pbUpdate(key, updated);
       return updated;
     };
 
@@ -222,8 +219,8 @@ const DB = {
       if (!removed) return false;
 
       self._cache[key] = next;
-      // Passa a lista original para rollback caso o Supabase rejeite o delete
-      self._supabaseDelete(key, id, list);
+      // Passa a lista original para rollback caso o PocketBase rejeite o delete
+      self._pbDelete(key, id, list);
       return true;
     };
 
@@ -240,14 +237,14 @@ const DB = {
     Storage.generateId = () => self._newId();
 
     Storage.seed = (key, seedData) => {
-      // Se já tem dados (localStorage ou Supabase), não re-semeia
+      // Se já tem dados (localStorage ou PocketBase), não re-semeia
       if (key in self._cache) {
         if ((self._cache[key] || []).length > 0) return;
-        // Cache vazio após filtro — verifica se há linhas no Supabase
+        // Cache vazio após filtro — verifica se há linhas no PocketBase
         // (inclusive soft-deletadas). Se houver, o usuário deletou tudo
         // intencionalmente: não re-semeia para evitar duplicatas.
         if ((self._rawCount[key] || 0) > 0) return;
-        // Genuinamente vazio (tenant novo) — semeia no Supabase
+        // Genuinamente vazio (tenant novo) — semeia no PocketBase
         const now = new Date().toISOString();
         const records = seedData.map(item => ({
           ...item,
@@ -256,19 +253,17 @@ const DB = {
           updatedAt: now,
         }));
         self._cache[key] = records;
-        // Insere todos de uma vez
+        // Insere todos de uma vez (em sequência para não sobrecarregar)
         const table = self.TABLE_MAP[key];
         if (table) {
-          const rows = records.map(({ id, createdAt, updatedAt, ...rest }) => ({
-            id,
-            tenant_id:  self._tenantId,
-            ...(self.CATALOG_KEYS.has(key) ? { tipo: key } : {}),
-            data:        rest,
-            created_at:  createdAt,
-            updated_at:  updatedAt,
-          }));
-          SupabaseClient.from(table).insert(rows)
-            .then(({ error }) => { if (error) console.warn('[DB.seed]', key, error.message); });
+          records.forEach(({ id, createdAt, updatedAt, ...rest }) => {
+            window.PocketBaseClient.collection(table).create({
+              id,
+              tenant_id:  self._tenantId,
+              ...(self.CATALOG_KEYS.has(key) ? { tipo: key } : {}),
+              data:        rest,
+            }).catch(err => console.warn('[DB.seed]', key, err.message));
+          });
         }
         return;
       }
@@ -278,43 +273,37 @@ const DB = {
   },
 
   /* ───────────────────────────────────────────────────────────────────
-   *  Supabase async helpers (fire-and-forget)
+   *  PocketBase async helpers (fire-and-forget)
    * ─────────────────────────────────────────────────────────────────── */
 
-  _supabaseInsert(key, record) {
+  _pbInsert(key, record) {
     const table = this.TABLE_MAP[key];
     if (!table) return;
     const { id, createdAt, updatedAt, ...rest } = record;
-    SupabaseClient.from(table).insert({
+    window.PocketBaseClient.collection(table).create({
       id,
       tenant_id:  this._tenantId,
       ...(this.CATALOG_KEYS.has(key) ? { tipo: key } : {}),
       data:        rest,
-      created_at:  createdAt,
-      updated_at:  updatedAt,
-    }).then(({ error }) => { if (error) console.error('[DB.insert]', key, id, error.message); });
+    }).catch(err => console.error('[DB.insert]', key, id, err.message));
   },
 
-  _supabaseUpdate(key, record) {
+  _pbUpdate(key, record) {
     const table = this.TABLE_MAP[key];
     if (!table) return;
     const { id, createdAt, updatedAt, ...rest } = record;
-    SupabaseClient.from(table).update({
-      data:        rest,
-      updated_at:  updatedAt,
-    }).eq('id', id)
-      .then(({ error }) => { if (error) console.error('[DB.update]', key, id, error.message); });
+    window.PocketBaseClient.collection(table).update(id, {
+      data: rest,
+    }).catch(err => console.error('[DB.update]', key, id, err.message));
   },
 
-  _supabaseDelete(key, id, originalList) {
+  _pbDelete(key, id, originalList) {
     const table = this.TABLE_MAP[key];
     if (!table) return;
 
     // ─── Soft-delete via UPDATE ────────────────────────────────────────────
-    // O DELETE com anon key é bloqueado silenciosamente pelas políticas RLS do
-    // Supabase (retorna { error: null } mas apaga 0 linhas → dado volta no reload).
-    // Solução: UPDATE com _deleted:true no JSONB. O UPDATE é permitido pelo RLS
-    // e persiste corretamente. Na carga seguinte, linhas com _deleted são ignoradas.
+    // Mantém o registro no banco marcado com _deleted:true.
+    // Na carga seguinte, linhas com _deleted são ignoradas.
     const record = (originalList || []).find(r => r.id === id);
     if (!record) return;
 
@@ -323,21 +312,16 @@ const DB = {
     const softData = { ...payload, _deleted: true };
 
     console.log('[DB.softDelete] tentando:', table, id, softData);
-    SupabaseClient.from(table)
-      .update({ data: softData, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .then(({ error }) => {
-        console.log('[DB.softDelete] resposta:', { error });
-
-        if (error) {
-          console.error('[DB.softDelete] FALHOU:', key, id, error.message);
-          // Reverte cache e avisa o usuário apenas quando há erro explícito
-          if (originalList) this._cache[key] = originalList;
-          if (typeof UI !== 'undefined') {
-            UI.toast(`Não foi possível excluir: ${error.message}`, 'error');
-          }
-        } else {
-          console.log('[DB.softDelete] OK — soft-delete gravado para:', table, id);
+    window.PocketBaseClient.collection(table).update(id, { data: softData })
+      .then(() => {
+        console.log('[DB.softDelete] OK — soft-delete gravado para:', table, id);
+      })
+      .catch(err => {
+        console.error('[DB.softDelete] FALHOU:', key, id, err.message);
+        // Reverte cache e avisa o usuário
+        if (originalList) this._cache[key] = originalList;
+        if (typeof UI !== 'undefined') {
+          UI.toast(`Não foi possível excluir: ${err.message}`, 'error');
         }
       });
   },
@@ -389,14 +373,15 @@ const DB = {
    *  Utilitários
    * ─────────────────────────────────────────────────────────────────── */
 
-  /** Converte uma row do Supabase em registro do app.
+  /** Converte uma row do PocketBase em registro do app.
+   *  PocketBase usa `created`/`updated` em vez de `created_at`/`updated_at`.
    *  Em modo Matriz, adiciona _tenantId e _tenantLabel para identificar a origem. */
   _fromRow(r, addTenantInfo = false) {
     const record = {
       ...(r.data || {}),
       id:        r.id,
-      createdAt: r.created_at,
-      updatedAt: r.updated_at,
+      createdAt: r.created,
+      updatedAt: r.updated,
     };
     if (addTenantInfo && r.tenant_id) {
       record._tenantId = r.tenant_id;
@@ -413,25 +398,23 @@ const DB = {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   },
 
-  /** Força recarga de uma chave específica do Supabase */
+  /** Força recarga de uma chave específica do PocketBase */
   async reload(key) {
     if (!this._ready) return;
     const table = this.TABLE_MAP[key];
     if (!table) return;
+    const pb = window.PocketBaseClient;
 
     if (this.CATALOG_KEYS.has(key)) {
-      const { data } = await SupabaseClient
-        .from('app_catalogos')
-        .select('id, tipo, data, created_at, updated_at')
-        .eq('tenant_id', this._tenantId)
-        .eq('tipo', key);
-      this._cache[key] = (data || []).filter(r => !r.data?._deleted).map(r => this._fromRow(r));
+      const data = await pb.collection('app_catalogos')
+        .getFullList({ filter: `tenant_id="${this._tenantId}" && tipo="${key}"`, requestKey: null })
+        .catch(() => []);
+      this._cache[key] = data.filter(r => !r.data?._deleted).map(r => this._fromRow(r));
     } else {
-      const { data } = await SupabaseClient
-        .from(table)
-        .select('id, data, created_at, updated_at')
-        .eq('tenant_id', this._tenantId);
-      this._cache[key] = (data || []).filter(r => !r.data?._deleted).map(r => this._fromRow(r));
+      const data = await pb.collection(table)
+        .getFullList({ filter: `tenant_id="${this._tenantId}"`, requestKey: null })
+        .catch(() => []);
+      this._cache[key] = data.filter(r => !r.data?._deleted).map(r => this._fromRow(r));
     }
   },
 };

@@ -879,12 +879,12 @@ const AdminModule = {
     const container = document.getElementById('admin-logs-container');
     if (!container) return;
 
-    if (!SupabaseClient) {
+    if (!window.PocketBaseClient) {
       container.innerHTML = `
         <div class="empty-state">
           <div class="empty-icon">⚠️</div>
-          <div class="empty-title">Supabase não disponível</div>
-          <div class="empty-desc">Os logs de erros requerem conexão com Supabase.</div>
+          <div class="empty-title">PocketBase não disponível</div>
+          <div class="empty-desc">Os logs de erros requerem conexão com PocketBase.</div>
         </div>`;
       return;
     }
@@ -892,13 +892,11 @@ const AdminModule = {
     container.innerHTML = `<div class="loading-state"><span class="loading-spinner">⏳</span><p>Carregando…</p></div>`;
 
     try {
-      const { data, error } = await SupabaseClient
-        .from('app_error_logs')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(200);
+      const data = await window.PocketBaseClient
+        .collection('app_error_logs')
+        .getFullList({ sort: '-created', requestKey: null });
 
-      if (error) throw error;
+      const error = null;
 
       if (!data || !data.length) {
         container.innerHTML = `
@@ -948,7 +946,7 @@ const AdminModule = {
           : '';
 
         return `<tr>
-          <td style="white-space:nowrap;font-size:11px;color:var(--text-muted);">${fmtDt(log.created_at)}</td>
+          <td style="white-space:nowrap;font-size:11px;color:var(--text-muted);">${fmtDt(log.created || log.created_at)}</td>
           <td>${levelBadge(log.level)}</td>
           <td style="font-size:12px;font-weight:600;white-space:nowrap;">${UI.escape(log.module || '—')}</td>
           <td style="font-size:12px;">

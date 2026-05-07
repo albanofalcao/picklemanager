@@ -164,41 +164,12 @@ const Auth = {
     document.getElementById('li-rec-email')?.focus();
   },
 
-  async enviarRecuperacaoSenha() {
-    const emailEl = document.getElementById('li-rec-email');
-    const btnEl   = document.getElementById('li-rec-btn');
-    const msgEl   = document.getElementById('li-rec-msg');
-    const email   = emailEl?.value.trim();
-
-    if (!email) { emailEl?.focus(); return; }
-    if (!SupabaseClient) {
-      if (msgEl) {
-        msgEl.style.display = 'block';
-        msgEl.style.background = '#fef3c7'; msgEl.style.color = '#92400e';
-        msgEl.textContent = 'Fale com o administrador para redefinir a senha.';
-      }
-      return;
-    }
-
-    if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Enviando…'; }
-
-    const { error } = await SupabaseClient.auth.resetPasswordForEmail(email, {
-      redirectTo: 'https://albanofalcao.github.io/picklemanager/',
-    });
-
-    if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Enviar link'; }
-
+  enviarRecuperacaoSenha() {
+    const msgEl = document.getElementById('li-rec-msg');
     if (msgEl) {
       msgEl.style.display = 'block';
-      if (error) {
-        msgEl.style.background = '#fee2e2'; msgEl.style.color = '#991b1b';
-        msgEl.textContent = '✕ Erro ao enviar: ' + error.message;
-      } else {
-        msgEl.style.background = '#d1fae5'; msgEl.style.color = '#065f46';
-        msgEl.innerHTML = '✅ <strong>Link enviado!</strong> Verifique seu e-mail e clique no link de recuperação.';
-        if (emailEl) emailEl.disabled = true;
-        if (btnEl)   btnEl.style.display = 'none';
-      }
+      msgEl.style.background = '#fef3c7'; msgEl.style.color = '#92400e';
+      msgEl.textContent = 'Entre em contato com o administrador do sistema para redefinir a senha.';
     }
   },
 
@@ -260,52 +231,7 @@ const Auth = {
         this.hideLogin(); App.initUI(); Notifications.init(); return;
       }
 
-      // ── 2. Fallback Supabase Auth (para superadmin sem usuário local) ──
-      if (SupabaseClient) {
-        if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Verificando…'; }
-        try {
-          const { data, error } = await SupabaseClient.auth.signInWithPassword({
-            email: loginVal.trim(), password: senhaVal,
-          });
-          if (!error && data?.user) {
-            // Cria sessão sintética de admin para esse usuário Supabase
-            const u = data.user;
-            const nomeDisplay = (u.user_metadata?.nome || u.email.split('@')[0]);
-            this.setSession({
-              id:     'sa_' + u.id.slice(0, 8),
-              nome:   nomeDisplay,
-              login:  u.email,
-              email:  u.email,
-              perfil: 'admin',
-              status: 'ativo',
-              senha:  '',
-            });
-            this.hideLogin(); App.initUI(); Notifications.init(); return;
-          }
-          // Mostra o erro real do Supabase para facilitar diagnóstico
-          if (error && errEl) {
-            const msgMap = {
-              'Invalid login credentials':         '✕ E-mail ou senha incorretos.',
-              'Email not confirmed':               '✕ E-mail não confirmado. Verifique sua caixa de entrada.',
-              'User not found':                    '✕ Usuário não encontrado.',
-              'Too many requests':                 '✕ Muitas tentativas. Aguarde alguns minutos.',
-            };
-            const msg = msgMap[error.message] || ('✕ Supabase: ' + error.message);
-            errEl.textContent = msg;
-            errEl.style.display = 'flex';
-            if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Entrar →'; }
-            const senhaEl2 = document.getElementById('li-senha');
-            if (senhaEl2) { senhaEl2.value = ''; senhaEl2.focus(); }
-            return;
-          }
-        } catch (ex) {
-          console.error('[Auth] Supabase signIn exception:', ex);
-        } finally {
-          if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Entrar →'; }
-        }
-      }
-
-      // ── 3. Falhou em tudo ──────────────────────────────────────────
+      // ── 2. Falhou em tudo ──────────────────────────────────────────
       if (errEl) { errEl.textContent = '✕ Login ou senha incorretos.'; errEl.style.display = 'flex'; }
       const senhaEl = document.getElementById('li-senha');
       if (senhaEl) { senhaEl.value = ''; senhaEl.focus(); }

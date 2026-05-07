@@ -16,34 +16,13 @@ const SuperAdmin = {
 
   REDIRECT_URL: 'https://albanofalcao.github.io/picklemanager/',
 
-  async init() {
-    if (!SupabaseClient) { console.error('Supabase não configurado.'); return; }
-
-    // Detecta chegada via link de recuperação de senha (hash com access_token)
-    const hash = window.location.hash;
-    if (hash && hash.includes('access_token') && hash.includes('type=recovery')) {
-      this._renderNovaSenha();
-      return;
-    }
-
-    const { data: { session } } = await SupabaseClient.auth.getSession();
-    if (session) {
-      await this._onLogin(session.user);
-    } else {
-      this._renderLogin();
-    }
-
-    SupabaseClient.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'PASSWORD_RECOVERY') { this._renderNovaSenha(); return; }
-
-      // Só reage se o painel SA está visível (evita interferir no login normal do app)
-      const saWrap  = document.getElementById('sa-wrap');
-      const saAtivo = saWrap && saWrap.style.display !== 'none';
-
-      if (event === 'SIGNED_IN' && !this._user && saAtivo) await this._onLogin(session.user);
-      // SIGNED_OUT só reseta se o usuário JÁ estava logado no painel (evita sobrescrever mensagens de erro)
-      if (event === 'SIGNED_OUT' && saAtivo && this._user) { this._user = null; this._renderLogin(); }
-    });
+  init() {
+    // O painel de administração agora é o painel nativo do PocketBase.
+    // Abre em nova aba para não perder o contexto do app.
+    window.open(
+      (typeof PB_URL !== 'undefined' ? PB_URL : 'https://picklemanager.fly.dev') + '/_/',
+      '_blank'
+    );
   },
 
   async _onLogin(authUser) {

@@ -130,7 +130,7 @@ const AppLogger = {
   },
 
   _persist(level, module, message, err, context) {
-    if (!this.enabled || !SupabaseClient) return;
+    if (!this.enabled || !window.PocketBaseClient) return;
 
     // Contexto do usuário logado (lê pm_session sem depender do módulo Auth)
     const session = (() => {
@@ -147,18 +147,11 @@ const AppLogger = {
       context:    context ?? {},
       user_login: session?.login ?? null,
       url:        window.location.pathname + window.location.search,
-      created_at: new Date().toISOString(),
     };
 
-    SupabaseClient
-      .from('app_error_logs')
-      .insert(entry)
-      .then(({ error: dbErr }) => {
-        if (dbErr) {
-          // Evita loop: usa console diretamente
-          console.warn('[AppLogger] Falha ao persistir log:', dbErr.message);
-        }
-      })
+    window.PocketBaseClient
+      .collection('app_error_logs')
+      .create(entry)
       .catch(() => {}); // rede indisponível — silencioso
   },
 };

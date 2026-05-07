@@ -717,21 +717,19 @@ const App = {
       </div>`;
   },
 
-  /** Carrega nome do tenant do Supabase e atualiza sidebar */
+  /** Carrega nome do tenant do PocketBase e atualiza sidebar */
   async loadTenantName() {
-    if (!SupabaseClient || !TENANT_ID) return;
+    if (!window.PocketBaseClient || !TENANT_ID) return;
     try {
-      const { data } = await SupabaseClient
-        .from('tenants')
-        .select('nome')
-        .eq('id', TENANT_ID)
-        .single();
-      if (data?.nome) {
+      const r = await window.PocketBaseClient
+        .collection('tenants')
+        .getFirstListItem(`id="${TENANT_ID}"`);
+      if (r?.nome) {
         const el = document.getElementById('brand-sub');
-        if (el) el.textContent = data.nome;
+        if (el) el.textContent = r.nome;
         // Atualiza também no portal e login
         document.querySelectorAll('.login-brand-sub, .portal-brand-sub, .brand-sub')
-          .forEach(e => e.textContent = data.nome);
+          .forEach(e => e.textContent = r.nome);
       }
     } catch (e) { /* silencioso */ }
   },
