@@ -459,125 +459,98 @@ const EventoModule = {
 
     const corResultado = resultado >= 0 ? 'var(--success)' : 'var(--danger)';
 
-    // --- Viabilidade: separa receita garantida (patrocínio/cotas) de variável (inscrições) ---
-    const CAT_GARANTIDA = new Set(['Patrocínio', 'Cotas']);
-    const rGarantida = receitas
-      .filter(i => CAT_GARANTIDA.has(i.categoria))
+    // --- Ponto de Equilíbrio (break-even sobre TOTAL de receitas) ---
+    const bePct      = totalR > 0 ? (totalD / totalR) * 100 : null;
+    const beViavel   = bePct !== null && bePct <= 100;
+    const beCorBorda = beViavel ? '#bbf7d0' : '#fecaca';
+    const beCorFundo = beViavel ? '#f0fdf4' : '#fff5f5';
+    const beCorTexto = beViavel ? 'var(--success)' : 'var(--danger)';
+    const beBarraW   = bePct !== null ? Math.min(100, bePct).toFixed(1) : 0;
+
+    const beStatusLabel = bePct === null
+      ? '— Sem receitas cadastradas'
+      : beViavel
+        ? `✅ Viável — precisa realizar ${bePct.toFixed(1)}% das receitas previstas`
+        : `⚠️ Inviável — mesmo realizando 100% das receitas há déficit de ${fmt(totalD - totalR)}`;
+
+    // --- Composição das receitas (informativo, sem classificar como garantido/variável) ---
+    const CAT_PATROCINIO = new Set(['Patrocínio', 'Cotas']);
+    const rPatrocinio = receitas
+      .filter(i => CAT_PATROCINIO.has(i.categoria))
       .reduce((s, i) => s + (parseFloat(i.valor) || 0) * (parseInt(i.qtd, 10) || 1), 0);
-    const rVariavel  = receitas
-      .filter(i => !CAT_GARANTIDA.has(i.categoria))
+    const rInscricoes = receitas
+      .filter(i => !CAT_PATROCINIO.has(i.categoria))
       .reduce((s, i) => s + (parseFloat(i.valor) || 0) * (parseInt(i.qtd, 10) || 1), 0);
 
-    // Custo líquido após descontar receita garantida
-    const custoLiquido  = Math.max(0, totalD - rGarantida);
-    // % das receitas variáveis necessário para cobrir o custo líquido
-    const bePct         = rVariavel > 0 ? (custoLiquido / rVariavel) * 100 : null;
-    // Viável se a receita garantida já cobre tudo OU bePct ≤ 100%
-    const cobertoPorPatrocinio = totalD > 0 && rGarantida >= totalD;
-    const beViavel      = cobertoPorPatrocinio || (bePct !== null && bePct <= 100);
-    const beCorBorda    = beViavel ? '#bbf7d0' : '#fecaca';
-    const beCorFundo    = beViavel ? '#f0fdf4' : '#fff5f5';
-    const beCorTexto    = beViavel ? 'var(--success)' : 'var(--danger)';
-
-    // Linha de status principal
-    let beStatusLabel;
-    if (!totalD) {
-      beStatusLabel = '— Nenhuma despesa cadastrada';
-    } else if (cobertoPorPatrocinio) {
-      beStatusLabel = `✅ Viável sem inscrições — patrocínios/cotas cobrem ${fmt(rGarantida)} de ${fmt(totalD)} em despesas`;
-    } else if (receitas.length === 0) {
-      beStatusLabel = '⚠️ Sem receitas cadastradas — não é possível avaliar';
-    } else if (beViavel) {
-      const label = rGarantida > 0
-        ? `patrocínio cobre ${((rGarantida / totalD) * 100).toFixed(0)}% — inscrições precisam cobrir os outros ${bePct.toFixed(0)}%`
-        : `precisa realizar ${bePct.toFixed(1)}% das inscrições previstas`;
-      beStatusLabel = `✅ Viável — ${label}`;
-    } else {
-      const deficit = custoLiquido - rVariavel;
-      beStatusLabel = rGarantida > 0
-        ? `⚠️ Inviável — patrocínios cobrem ${fmt(rGarantida)}, mas faltam ${fmt(deficit)} mesmo com 100% das inscrições`
-        : `⚠️ Inviável — mesmo com 100% das inscrições há déficit de ${fmt(totalD - totalR)}`;
-    }
-
-    // Mini-cards dos 3 cenários
-    const cenarios = totalD > 0 ? (() => {
-      const c = [
-        {
-          label: 'Só patrocínio',
-          sub:   'sem nenhuma inscrição',
-          val:   rGarantida - totalD,
-          icon:  rGarantida >= totalD ? '✅' : '⚠️',
-        },
-        {
-          label: 'Ponto de equilíbrio',
-          sub:   bePct !== null
-            ? (beViavel
-                ? `${bePct.toFixed(0)}% das inscrições variáveis`
-                : 'não atingível')
-            : (cobertoPorPatrocinio ? 'coberto por patrocínio' : 'sem inscrições previstas'),
-          val:   null,
-          icon:  beViavel ? '🎯' : '🚫',
-        },
-        {
-          label: '100% inscrições',
-          sub:   'cenário otimista completo',
-          val:   resultado,
-          icon:  resultado >= 0 ? '🏆' : '❌',
-        },
-      ];
+    const composicaoHtml = totalR > 0 && rPatrocinio > 0 && rInscricoes > 0 ? (() => {
+      const pctPat  = (rPatrocinio / totalR * 100).toFixed(0);
+      const pctInsc = (rInscricoes / totalR * 100).toFixed(0);
       return `
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 20px 4px;">
-          ${c.map(s => `
-            <div style="background:var(--bg-secondary);border-radius:10px;padding:12px 14px;border:1px solid var(--card-border);">
-              <div style="font-size:18px;margin-bottom:4px;">${s.icon}</div>
-              <div style="font-size:12px;font-weight:700;margin-bottom:2px;">${s.label}</div>
-              <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;">${s.sub}</div>
-              ${s.val !== null
-                ? `<div style="font-size:14px;font-weight:800;color:${s.val >= 0 ? 'var(--success)' : 'var(--danger)'};">${fmt(s.val)}</div>`
-                : ''}
-            </div>`).join('')}
+        <div style="padding:12px 20px 4px;">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
+            color:var(--text-muted);margin-bottom:6px;">Composição das receitas</div>
+          <div style="display:flex;height:10px;border-radius:99px;overflow:hidden;gap:2px;margin-bottom:6px;">
+            <div style="width:${pctPat}%;background:#6366f1;border-radius:99px 0 0 99px;" title="Patrocínio/Cotas"></div>
+            <div style="width:${pctInsc}%;background:#22c55e;border-radius:0 99px 99px 0;" title="Inscrições/Outros"></div>
+          </div>
+          <div style="display:flex;gap:16px;font-size:11px;color:var(--text-muted);">
+            <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#6366f1;margin-right:4px;vertical-align:middle;"></span>Patrocínio/Cotas ${fmt(rPatrocinio)} (${pctPat}%)</span>
+            <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#22c55e;margin-right:4px;vertical-align:middle;"></span>Inscrições/Outros ${fmt(rInscricoes)} (${pctInsc}%)</span>
+          </div>
         </div>`;
     })() : '';
 
-    // Custo por vaga (baseado no custo líquido restante após patrocínio)
-    const beCustoVaga = e.vagas && custoLiquido > 0
+    // Custo por vaga
+    const beCustoVaga = e.vagas && totalD > 0
       ? `<div style="margin-top:8px;font-size:12px;color:var(--text-secondary);">
-           🎯 Custo por vaga após patrocínio (${e.vagas} vagas): <strong>${fmt(custoLiquido / parseInt(e.vagas, 10))}</strong>
-           — inscrição mínima para cobrir o restante das despesas com a casa cheia.
+           🎯 Custo por vaga (${e.vagas} vagas): <strong>${fmt(totalD / parseInt(e.vagas, 10))}</strong>
+           — valor médio de inscrição para cobrir despesas com a casa cheia.
          </div>`
-      : (e.vagas && cobertoPorPatrocinio
-          ? `<div style="margin-top:8px;font-size:12px;color:var(--success);">
-               🎁 Com ${e.vagas} vagas — o evento pode ser gratuito, patrocínio cobre tudo.
-             </div>`
-          : '');
+      : '';
+
+    // Barra de break-even
+    const beBarraHtml = bePct !== null ? `
+      <div style="padding:0 20px 14px;">
+        <div style="display:flex;justify-content:space-between;font-size:11px;
+          color:var(--text-muted);margin-bottom:4px;">
+          <span>0%</span>
+          <span style="font-weight:700;color:${beCorTexto};">${bePct.toFixed(1)}% necessário</span>
+          <span>100%</span>
+        </div>
+        <div style="background:var(--bg-secondary);border-radius:99px;height:8px;overflow:hidden;">
+          <div style="height:100%;width:${beBarraW}%;background:${beViavel ? '#22c55e' : '#ef4444'};
+            border-radius:99px;transition:width .4s;"></div>
+        </div>
+      </div>` : '';
 
     const secaoPE = `
       <div class="card" style="margin-bottom:24px;border:2px solid ${beCorBorda};">
         <div class="card-header" style="padding:14px 20px;background:${beCorFundo};display:flex;flex-direction:column;gap:4px;">
-          <h3 style="margin:0;font-size:15px;font-weight:700;">🎯 Análise de Viabilidade</h3>
+          <h3 style="margin:0;font-size:15px;font-weight:700;">🎯 Ponto de Equilíbrio</h3>
           <div style="font-size:13px;margin-top:4px;color:${beCorTexto};font-weight:600;">${beStatusLabel}</div>
           ${beCustoVaga}
         </div>
-        ${cenarios}
+        ${beBarraHtml}
+        ${composicaoHtml}
         ${receitas.length ? `
         <div class="card-body" style="padding:0 0 8px;margin-top:8px;">
           <table class="data-table">
             <thead><tr>
               <th>Fonte de Receita</th>
-              <th>Tipo</th>
-              <th style="text-align:right;">Valor previsto</th>
+              <th style="text-align:right;">Previsto</th>
+              <th style="text-align:right;">Mín. necessário</th>
             </tr></thead>
             <tbody>${receitas.map(item => {
               const itemTotal = (parseFloat(item.valor) || 0) * (parseInt(item.qtd, 10) || 1);
-              const isGar = CAT_GARANTIDA.has(item.categoria);
+              const itemMin   = bePct !== null ? itemTotal * Math.min(1, totalD / totalR) : 0;
               return `
                 <tr>
                   <td>
                     <div style="font-size:13px;">${UI.escape(item.descricao)}</div>
                     ${item.categoria ? `<span class="badge badge-gray" style="font-size:0.65rem;">${UI.escape(item.categoria)}</span>` : ''}
                   </td>
-                  <td><span class="badge ${isGar ? 'badge-success' : 'badge-blue'}" style="font-size:0.65rem;">${isGar ? '🔒 Garantida' : '📊 Variável'}</span></td>
-                  <td style="text-align:right;font-weight:600;">${fmt(itemTotal)}</td>
+                  <td style="text-align:right;">${fmt(itemTotal)}</td>
+                  <td style="text-align:right;font-weight:600;color:${beCorTexto};">${fmt(itemMin)}</td>
                 </tr>`;
             }).join('')}</tbody>
           </table>
