@@ -17,6 +17,7 @@ const FinanceiroModule = {
   STORAGE_KEY_PC:     'planoContas',
   STORAGE_KEY_ORC:    'orcamento',
   STORAGE_KEY_MODELO: 'orcamento_modelo',
+  STORAGE_KEY_CAIXA:  'sessoes_caixa',
 
   TIPO_PC: {
     receita:    { label: 'Receita',    badge: 'badge-success' },
@@ -145,14 +146,24 @@ const FinanceiroModule = {
 
     const tab = this._state.tab;
 
+    const caixaAtual  = this.getCaixaAtual();
+    const caixaBadge  = caixaAtual
+      ? `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#16a34a;margin-left:4px;vertical-align:middle;"></span>`
+      : '';
+
     const tabsBar = `
       <div class="tabs-bar">
         <button class="tab-btn ${tab === 'lancamentos' ? 'active' : ''}" onclick="FinanceiroModule.switchTab('lancamentos')">💰 Lançamentos</button>
+        <button class="tab-btn ${tab === 'caixa'       ? 'active' : ''}" onclick="FinanceiroModule.switchTab('caixa')">🗂️ Caixa${caixaBadge}</button>
         <button class="tab-btn ${tab === 'orcamento'   ? 'active' : ''}" onclick="FinanceiroModule.switchTab('orcamento')">📊 Orçamento</button>
         <button class="tab-btn ${tab === 'dre'         ? 'active' : ''}" onclick="FinanceiroModule.switchTab('dre')">📈 DRE</button>
         <button class="tab-btn ${tab === 'planoContas' ? 'active' : ''}" onclick="FinanceiroModule.switchTab('planoContas')">📋 Plano de Contas</button>
       </div>`;
 
+    if (tab === 'caixa') {
+      area.innerHTML = tabsBar + this._renderCaixa();
+      return;
+    }
     if (tab === 'planoContas') {
       area.innerHTML = tabsBar + this._renderPlanoContas();
       return;
@@ -751,6 +762,7 @@ const FinanceiroModule = {
       return;
     }
 
+    const caixaAberto = this.getCaixaAtual();
     const record = {
       tipo:           g('tipo')   ? g('tipo').value                    : 'receita',
       data:           data.value,
@@ -761,6 +773,7 @@ const FinanceiroModule = {
       status:         g('status') ? g('status').value                  : 'pago',
       referencia:     g('ref')    ? g('ref').value.trim()              : '',
       observacoes:    g('obs')    ? g('obs').value.trim()              : '',
+      caixa_id:       (!id && caixaAberto) ? caixaAberto.id : undefined,
     };
 
     if (id) {
@@ -1804,6 +1817,390 @@ const FinanceiroModule = {
     return (tipo === 'receita'
       ? (this.CATEGORIA_RECEITA[cat] || cat)
       : (this.CATEGORIA_DESPESA[cat] || cat));
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Caixa — helpers                                                     */
+  /* ------------------------------------------------------------------ */
+
+  getCaixaAtual() {
+    return Storage.getAll(this.STORAGE_KEY_CAIXA)
+      .find(s => s.status === 'aberto') || null;
+  },
+
+  _calcTotaisCaixa(caixaId) {
+    const lancs = Storage.getAll(this.STORAGE_KEY)
+      .filter(l => l.caixa_id === caixaId && l.status !== 'cancelado');
+
+    const formas = ['dinheiro','pix','cartao_credito','cartao_debito','transferencia','boleto'];
+    const totForma = {};
+    formas.forEach(f => { totForma[f] = 0; });
+
+    let totalReceita = 0, totalDespesa = 0;
+    lancs.forEach(l => {
+      const v = parseFloat(l.valor) || 0;
+      const forma = l.formaPagamento || 'outros';
+      totForma[forma] = (totForma[forma] || 0) + (l.tipo === 'receita' ? v : 0);
+      if (l.tipo === 'receita') totalReceita += v;
+      else if (l.tipo === 'despesa') totalDespesa += v;
+    });
+
+    return { lancs, totForma, totalReceita, totalDespesa, saldoSistema: totalReceita - totalDespesa };
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Caixa — abrir / fechar                                              */
+  /* ------------------------------------------------------------------ */
+
+  abrirCaixa() {
+    if (this.getCaixaAtual()) {
+      UI.toast('Já existe um caixa aberto.', 'warning');
+      return;
+    }
+    const responsavel = document.getElementById('cx-responsavel')?.value?.trim();
+    const saldoInicial = parseFloat(document.getElementById('cx-saldo-inicial')?.value) || 0;
+    if (!responsavel) {
+      UI.toast('Informe o nome do responsável.', 'warning');
+      return;
+    }
+    const agora = new Date();
+    Storage.create(this.STORAGE_KEY_CAIXA, {
+      data:           agora.toISOString().slice(0, 10),
+      hora_abertura:  agora.toTimeString().slice(0, 5),
+      responsavel,
+      saldo_inicial:  saldoInicial,
+      status:         'aberto',
+    });
+    UI.toast(`✅ Caixa aberto por ${responsavel}`, 'success');
+    this.render();
+  },
+
+  abrirModalFecharCaixa() {
+    const caixa = this.getCaixaAtual();
+    if (!caixa) return;
+    const { totForma, totalReceita, totalDespesa, saldoSistema, lancs } = this._calcTotaisCaixa(caixa.id);
+    const saldoEsperadoDinheiro = (parseFloat(caixa.saldo_inicial) || 0) + (totForma.dinheiro || 0) - totalDespesa;
+
+    UI.openModal({
+      title: '🔒 Fechar Caixa',
+      hideFooter: true,
+      content: `
+        <div style="display:flex;flex-direction:column;gap:16px;">
+
+          <div style="background:var(--bg-secondary,#f8f5ec);border-radius:10px;padding:14px;display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;">
+            <div><span style="color:var(--text-muted)">Abertura:</span> <strong>${caixa.data} às ${caixa.hora_abertura}</strong></div>
+            <div><span style="color:var(--text-muted)">Responsável:</span> <strong>${UI.escape(caixa.responsavel)}</strong></div>
+            <div><span style="color:var(--text-muted)">Fundo inicial:</span> <strong>${this._fmt(caixa.saldo_inicial)}</strong></div>
+            <div><span style="color:var(--text-muted)">Transações:</span> <strong>${lancs.length}</strong></div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;font-size:13px;text-align:center;">
+            <div style="background:rgba(22,163,74,.08);border-radius:8px;padding:10px;">
+              <div style="color:var(--text-muted);font-size:11px;">Total Receitas</div>
+              <div style="font-weight:700;color:#16a34a;">${this._fmt(totalReceita)}</div>
+            </div>
+            <div style="background:rgba(239,68,68,.08);border-radius:8px;padding:10px;">
+              <div style="color:var(--text-muted);font-size:11px;">Total Despesas</div>
+              <div style="font-weight:700;color:#ef4444;">${this._fmt(totalDespesa)}</div>
+            </div>
+            <div style="background:rgba(59,158,143,.08);border-radius:8px;padding:10px;">
+              <div style="color:var(--text-muted);font-size:11px;">Saldo Sistema</div>
+              <div style="font-weight:700;">${this._fmt(saldoSistema)}</div>
+            </div>
+          </div>
+
+          <div style="font-size:13px;">
+            <div style="font-weight:600;margin-bottom:8px;">Recebimentos por forma de pagamento:</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+              ${[
+                ['💵 Dinheiro',        'dinheiro'],
+                ['📲 PIX',             'pix'],
+                ['💳 Cartão Crédito',  'cartao_credito'],
+                ['💳 Cartão Débito',   'cartao_debito'],
+                ['🏦 Transferência',   'transferencia'],
+                ['📄 Boleto',          'boleto'],
+              ].map(([label, key]) => totForma[key] > 0 ? `
+                <div style="display:flex;justify-content:space-between;padding:5px 8px;background:var(--bg-secondary,#f8f5ec);border-radius:6px;">
+                  <span>${label}</span><strong>${this._fmt(totForma[key])}</strong>
+                </div>` : '').join('') || '<div style="color:var(--text-muted);font-size:12px;">Sem movimentações nesta sessão.</div>'}
+            </div>
+          </div>
+
+          <div style="border-top:1px solid var(--border-color,#e5e7eb);padding-top:14px;">
+            <div style="font-weight:600;margin-bottom:8px;">Contagem física de dinheiro:</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">
+              Esperado em caixa: <strong>${this._fmt(saldoEsperadoDinheiro)}</strong>
+              (fundo + entradas em dinheiro)
+            </div>
+            <div class="form-group">
+              <label class="form-label">Total contado (R$) *</label>
+              <input id="cx-contado" type="number" class="form-input" step="0.01" min="0"
+                placeholder="0,00"
+                oninput="FinanceiroModule._atualizarDiferenca(${saldoEsperadoDinheiro})" />
+            </div>
+            <div id="cx-diferenca-preview" style="font-size:13px;margin-top:6px;color:var(--text-muted);">
+              Digite o valor contado para ver a diferença.
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Observações</label>
+            <textarea id="cx-obs-fechar" class="form-input" rows="2"
+              placeholder="Divergências, ocorrências, etc."></textarea>
+          </div>
+
+          <div style="display:flex;gap:10px;justify-content:flex-end;padding-top:4px;">
+            <button class="btn btn-secondary" onclick="UI.closeModal()">Cancelar</button>
+            <button class="btn btn-danger" onclick="FinanceiroModule.confirmarFechamento()">
+              🔒 Confirmar Fechamento
+            </button>
+          </div>
+        </div>
+      `,
+    });
+  },
+
+  _atualizarDiferenca(esperado) {
+    const contado = parseFloat(document.getElementById('cx-contado')?.value) || 0;
+    const dif = contado - esperado;
+    const el = document.getElementById('cx-diferenca-preview');
+    if (!el) return;
+    const cor = Math.abs(dif) < 0.01 ? '#16a34a' : dif < 0 ? '#ef4444' : '#d97706';
+    const txt = Math.abs(dif) < 0.01
+      ? '✅ Sem diferença — caixa fechado corretamente.'
+      : dif < 0
+        ? `⚠️ Falta ${this._fmt(Math.abs(dif))} no caixa.`
+        : `📈 Sobra ${this._fmt(dif)} no caixa.`;
+    el.innerHTML = `<span style="color:${cor};font-weight:600;">${txt}</span>`;
+  },
+
+  confirmarFechamento() {
+    const caixa   = this.getCaixaAtual();
+    if (!caixa) return;
+    const contado = parseFloat(document.getElementById('cx-contado')?.value);
+    if (isNaN(contado)) { UI.toast('Informe o valor contado.', 'warning'); return; }
+    const obs     = document.getElementById('cx-obs-fechar')?.value?.trim() || '';
+
+    const { totForma, totalReceita, totalDespesa, saldoSistema } = this._calcTotaisCaixa(caixa.id);
+    const saldoEsperado = (parseFloat(caixa.saldo_inicial) || 0) + (totForma.dinheiro || 0) - totalDespesa;
+    const diferenca = contado - saldoEsperado;
+
+    const agora = new Date();
+    Storage.update(this.STORAGE_KEY_CAIXA, caixa.id, {
+      status:           'fechado',
+      hora_fechamento:  agora.toTimeString().slice(0, 5),
+      total_receita:    totalReceita,
+      total_despesa:    totalDespesa,
+      saldo_sistema:    saldoSistema,
+      saldo_esperado:   saldoEsperado,
+      saldo_contado:    contado,
+      diferenca,
+      tot_dinheiro:     totForma.dinheiro || 0,
+      tot_pix:          totForma.pix || 0,
+      tot_cartao_cred:  totForma.cartao_credito || 0,
+      tot_cartao_deb:   totForma.cartao_debito || 0,
+      observacao:       obs,
+    });
+
+    UI.closeModal();
+    const difTxt = Math.abs(diferenca) < 0.01
+      ? 'Sem diferença.'
+      : diferenca < 0
+        ? `Falta ${this._fmt(Math.abs(diferenca))}.`
+        : `Sobra ${this._fmt(diferenca)}.`;
+    UI.toast(`🔒 Caixa fechado. ${difTxt}`, Math.abs(diferenca) < 0.01 ? 'success' : 'warning');
+    this.render();
+  },
+
+  /* ------------------------------------------------------------------ */
+  /*  Caixa — render                                                      */
+  /* ------------------------------------------------------------------ */
+
+  _renderCaixa() {
+    const caixa    = this.getCaixaAtual();
+    const historico = Storage.getAll(this.STORAGE_KEY_CAIXA)
+      .filter(s => s.status === 'fechado')
+      .sort((a, b) => (b.data + b.hora_fechamento).localeCompare(a.data + a.hora_fechamento))
+      .slice(0, 15);
+
+    const secAbrir = !caixa ? `
+      <div style="max-width:440px;margin:0 auto;">
+        <div style="text-align:center;padding:24px 0 20px;">
+          <div style="font-size:48px;">🗂️</div>
+          <h3 style="margin:8px 0 4px;">Nenhum caixa aberto</h3>
+          <p style="color:var(--text-muted);font-size:14px;">
+            Abra o caixa para começar a registrar movimentações do dia.
+          </p>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Responsável *</label>
+          <input id="cx-responsavel" class="form-input" type="text"
+            placeholder="Nome do operador de caixa" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Fundo de caixa (dinheiro inicial)</label>
+          <input id="cx-saldo-inicial" class="form-input" type="number"
+            step="0.01" min="0" placeholder="0,00" value="0" />
+        </div>
+        <button class="btn btn-primary" style="width:100%;margin-top:8px;"
+          onclick="FinanceiroModule.abrirCaixa()">
+          🔓 Abrir Caixa
+        </button>
+      </div>
+    ` : '';
+
+    let secAberto = '';
+    if (caixa) {
+      const { totForma, totalReceita, totalDespesa, saldoSistema, lancs } = this._calcTotaisCaixa(caixa.id);
+      const duracao = (() => {
+        const [hA, mA] = caixa.hora_abertura.split(':').map(Number);
+        const agora    = new Date();
+        const diffMin  = Math.round((agora - new Date().setHours(hA, mA, 0, 0)) / 60000);
+        if (diffMin < 0 || diffMin > 1440) return '—';
+        return diffMin < 60
+          ? `${diffMin} min`
+          : `${Math.floor(diffMin / 60)}h ${diffMin % 60}min`;
+      })();
+
+      const linhaLanc = (l) => {
+        const v = parseFloat(l.valor) || 0;
+        const cor = l.tipo === 'receita' ? '#16a34a' : '#ef4444';
+        const sinal = l.tipo === 'receita' ? '+' : '−';
+        return `
+          <tr>
+            <td style="font-size:12px;color:var(--text-muted);">${l.data || ''}</td>
+            <td style="font-size:13px;">${UI.escape(l.descricao)}</td>
+            <td style="font-size:12px;color:var(--text-muted);">${this.FORMA_PAGAMENTO[l.formaPagamento] || l.formaPagamento || '—'}</td>
+            <td style="font-weight:700;color:${cor};text-align:right;">${sinal} ${this._fmt(v)}</td>
+          </tr>`;
+      };
+
+      secAberto = `
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;
+              background:rgba(22,163,74,.12);color:#16a34a;font-weight:600;font-size:13px;">
+              <span style="width:8px;height:8px;border-radius:50%;background:#16a34a;display:inline-block;"></span>
+              Caixa Aberto
+            </span>
+            <span style="font-size:13px;color:var(--text-muted);">
+              Desde ${caixa.hora_abertura} · ${UI.escape(caixa.responsavel)} · ${duracao}
+            </span>
+          </div>
+          <button class="btn btn-danger" onclick="FinanceiroModule.abrirModalFecharCaixa()">
+            🔒 Fechar Caixa
+          </button>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;">
+          <div style="background:var(--card-bg);border:1px solid var(--border-color,#e5e7eb);border-radius:10px;padding:14px;text-align:center;">
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;">Fundo Inicial</div>
+            <div style="font-size:18px;font-weight:700;margin-top:4px;">${this._fmt(caixa.saldo_inicial)}</div>
+          </div>
+          <div style="background:rgba(22,163,74,.06);border:1px solid rgba(22,163,74,.2);border-radius:10px;padding:14px;text-align:center;">
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;">Receitas</div>
+            <div style="font-size:18px;font-weight:700;color:#16a34a;margin-top:4px;">${this._fmt(totalReceita)}</div>
+          </div>
+          <div style="background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);border-radius:10px;padding:14px;text-align:center;">
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;">Despesas</div>
+            <div style="font-size:18px;font-weight:700;color:#ef4444;margin-top:4px;">${this._fmt(totalDespesa)}</div>
+          </div>
+          <div style="background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.2);border-radius:10px;padding:14px;text-align:center;">
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;">Saldo Sistema</div>
+            <div style="font-size:18px;font-weight:700;color:#2563eb;margin-top:4px;">${this._fmt(saldoSistema)}</div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;">
+          ${[
+            ['💵','dinheiro','Dinheiro'],
+            ['📲','pix','PIX'],
+            ['💳','cartao_credito','Crédito'],
+            ['💳','cartao_debito','Débito'],
+            ['🏦','transferencia','Transfer.'],
+          ].filter(([,k]) => (totForma[k]||0) > 0).map(([icon,k,label]) => `
+            <span style="padding:5px 12px;border-radius:20px;font-size:13px;
+              background:var(--bg-secondary,#f8f5ec);border:1px solid var(--border-color,#e5e7eb);">
+              ${icon} ${label}: <strong>${this._fmt(totForma[k])}</strong>
+            </span>`).join('')}
+        </div>
+
+        <div style="background:var(--card-bg);border:1px solid var(--border-color,#e5e7eb);border-radius:10px;overflow:hidden;">
+          <div style="padding:12px 16px;font-weight:600;font-size:14px;border-bottom:1px solid var(--border-color,#e5e7eb);">
+            Movimentações desta sessão (${lancs.length})
+          </div>
+          ${lancs.length ? `
+          <div style="overflow-x:auto;">
+            <table style="width:100%;border-collapse:collapse;font-size:13px;">
+              <thead>
+                <tr style="background:var(--bg-secondary,#f8f5ec);">
+                  <th style="padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:var(--text-muted);">Data</th>
+                  <th style="padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:var(--text-muted);">Descrição</th>
+                  <th style="padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:var(--text-muted);">Forma</th>
+                  <th style="padding:8px 12px;text-align:right;font-size:11px;text-transform:uppercase;color:var(--text-muted);">Valor</th>
+                </tr>
+              </thead>
+              <tbody>${lancs.map(linhaLanc).join('')}</tbody>
+            </table>
+          </div>` : `
+          <div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">
+            Nenhuma movimentação registrada neste caixa ainda.
+          </div>`}
+        </div>
+      `;
+    }
+
+    const secHistorico = historico.length ? `
+      <div style="margin-top:28px;">
+        <h4 style="font-size:14px;font-weight:600;margin-bottom:12px;">Histórico de fechamentos</h4>
+        <div style="overflow-x:auto;">
+          <table style="width:100%;border-collapse:collapse;font-size:13px;">
+            <thead>
+              <tr style="background:var(--bg-secondary,#f8f5ec);">
+                <th style="padding:8px 12px;text-align:left;">Data</th>
+                <th style="padding:8px 12px;text-align:left;">Responsável</th>
+                <th style="padding:8px 12px;text-align:left;">Abertura</th>
+                <th style="padding:8px 12px;text-align:left;">Fechamento</th>
+                <th style="padding:8px 12px;text-align:right;">Receitas</th>
+                <th style="padding:8px 12px;text-align:right;">Saldo Sistema</th>
+                <th style="padding:8px 12px;text-align:right;">Diferença</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${historico.map(s => {
+                const dif = parseFloat(s.diferenca) || 0;
+                const difCor = Math.abs(dif) < 0.01 ? '#16a34a' : dif < 0 ? '#ef4444' : '#d97706';
+                const difTxt = Math.abs(dif) < 0.01 ? '—' : (dif > 0 ? '+' : '') + this._fmt(dif);
+                return `
+                  <tr style="border-bottom:1px solid var(--border-color,#e5e7eb);">
+                    <td style="padding:8px 12px;">${s.data}</td>
+                    <td style="padding:8px 12px;">${UI.escape(s.responsavel || '—')}</td>
+                    <td style="padding:8px 12px;">${s.hora_abertura || '—'}</td>
+                    <td style="padding:8px 12px;">${s.hora_fechamento || '—'}</td>
+                    <td style="padding:8px 12px;text-align:right;color:#16a34a;font-weight:600;">${this._fmt(s.total_receita)}</td>
+                    <td style="padding:8px 12px;text-align:right;font-weight:600;">${this._fmt(s.saldo_sistema)}</td>
+                    <td style="padding:8px 12px;text-align:right;font-weight:700;color:${difCor};">${difTxt}</td>
+                  </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    ` : '';
+
+    return `
+      <div class="page-header">
+        <div class="page-header-text">
+          <h2>Caixa</h2>
+          <p>${caixa ? `Sessão aberta em ${caixa.data} · Operador: ${UI.escape(caixa.responsavel)}` : 'Abertura, conferência e fechamento de caixa'}</p>
+        </div>
+      </div>
+      <div style="max-width:900px;">
+        ${secAbrir}
+        ${secAberto}
+        ${secHistorico}
+      </div>
+    `;
   },
 
   /* ------------------------------------------------------------------ */
