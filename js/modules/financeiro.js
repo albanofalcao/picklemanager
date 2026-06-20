@@ -1857,12 +1857,9 @@ const FinanceiroModule = {
       UI.toast('Já existe um caixa aberto.', 'warning');
       return;
     }
-    const responsavel = document.getElementById('cx-responsavel')?.value?.trim();
+    const s = Auth.getSession();
+    const responsavel = s?.nome || s?.login || 'Operador';
     const saldoInicial = parseFloat(document.getElementById('cx-saldo-inicial')?.value) || 0;
-    if (!responsavel) {
-      UI.toast('Informe o nome do responsável.', 'warning');
-      return;
-    }
     const agora = new Date();
     Storage.create(this.STORAGE_KEY_CAIXA, {
       data:           agora.toISOString().slice(0, 10),
@@ -2035,9 +2032,9 @@ const FinanceiroModule = {
           </p>
         </div>
         <div class="form-group">
-          <label class="form-label">Responsável *</label>
+          <label class="form-label">Responsável</label>
           <input id="cx-responsavel" class="form-input" type="text"
-            placeholder="Nome do operador de caixa" />
+            readonly style="background:var(--bg-secondary,#f8f5ec);cursor:default;color:var(--text-muted);" />
         </div>
         <div class="form-group">
           <label class="form-label">Fundo de caixa (dinheiro inicial)</label>
@@ -2050,6 +2047,15 @@ const FinanceiroModule = {
         </button>
       </div>
     ` : '';
+
+    // Preenche responsável com usuário logado após render
+    setTimeout(() => {
+      const el = document.getElementById('cx-responsavel');
+      if (el) {
+        const s = Auth.getSession();
+        el.value = s?.nome || s?.login || '—';
+      }
+    }, 0);
 
     let secAberto = '';
     if (caixa) {
