@@ -106,18 +106,39 @@ const Auth = {
   },
 
   tryLogin(loginStr, senha) {
+    const hash = btoa(senha);
+    const lc   = loginStr.trim().toLowerCase();
+
+    // 1. Tenta pelo cache/localStorage (síncrono)
     const users = Storage.getAll('usuarios');
-    const hash  = btoa(senha);
-    const lc    = loginStr.trim().toLowerCase();
-    // Aceita login OU e-mail (case-insensitive)
     const user  = users.find(u =>
       (u.login?.toLowerCase() === lc || u.email?.toLowerCase() === lc) &&
       u.senha  === hash &&
       u.status === 'ativo'
     );
-    if (!user) return false;
-    this.setSession(user);
-    return true;
+    if (user) { this.setSession(user); return true; }
+
+    // 2. Fallback: busca direta no PocketBase (assíncrono — retorna false aqui,
+    //    mas dispara a busca e faz login automático se encontrar)
+    if (window.PocketBaseClient) {
+      window.PocketBaseClient.collection('app_usuarios')
+        .getFullList({ requestKey: null })
+        .then(records => {
+          const match = records.find(r =>
+            (r.data?.login?.toLowerCase() === lc || r.data?.email?.toLowerCase() === lc) &&
+            r.data?.senha === hash &&
+            r.data?.status === 'ativo'
+          );
+          if (match) {
+            this.setSession({ ...match.data, id: match.id });
+            this.hideLogin();
+            App.initUI();
+            Notifications.init();
+          }
+        })
+        .catch(() => {});
+    }
+    return false;
   },
 
   logout() {
@@ -189,6 +210,12 @@ const Auth = {
     if (sub && typeof getActiveTenantLabel === 'function') sub.textContent = getActiveTenantLabel();
     const el = document.getElementById('login-overlay');
     if (el) { el.classList.add('open'); el.removeAttribute('aria-hidden'); }
+    // Detecta redirecionamento via "Área Administrativa"
+    if (sessionStorage.getItem('pm_admin_login')) {
+      setTimeout(() => {
+        if (typeof SuperAdmin !== 'undefined') SuperAdmin._fillAdminForm();
+      }, 150);
+    }
   },
 
   hideLogin() {

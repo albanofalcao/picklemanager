@@ -1,0 +1,854 @@
+﻿[
+    {
+        "viewRule":  "",
+        "updateRule":  "",
+        "type":  "base",
+        "createRule":  "",
+        "deleteRule":  "",
+        "name":  "app_alunos",
+        "system":  false,
+        "schema":  [
+                       {
+                           "name":  "tenant_id",
+                           "options":  {
+                                           "pattern":  "",
+                                           "min":  null,
+                                           "max":  null
+                                       },
+                           "type":  "text",
+                           "required":  false
+                       },
+                       {
+                           "name":  "data",
+                           "options":  {
+                                           "maxSize":  5000000
+                                       },
+                           "type":  "json",
+                           "required":  false
+                       }
+                   ],
+        "listRule":  ""
+    },
+    {
+        "viewRule":  "",
+        "updateRule":  "",
+        "type":  "base",
+        "createRule":  "",
+        "deleteRule":  "",
+        "name":  "app_arenas",
+        "system":  false,
+        "schema":  [
+                       {
+                           "name":  "tenant_id",
+                           "options":  {
+                                           "pattern":  "",
+                                           "min":  null,
+                                           "max":  null
+                                       },
+                           "type":  "text",
+                           "required":  false
+                       },
+                       {
+                           "name":  "data",
+                           "options":  {
+                                           "maxSize":  5000000
+                                       },
+                           "type":  "json",
+                           "required":  false
+                       }
+                   ],
+        "listRule":  ""
+    },
+    {
+        "viewRule":  "",
+        "updateRule":  "",
+        "type":  "base",
+        "createRule":  "",
+        "deleteRule":  "",
+        "name":  "app_aulas",
+        "system":  false,
+        "schema":  [
+                       {
+                           "name":  "tenant_id",
+                           "options":  {
+                                           "pattern":  "",
+                                           "min":  null,
+                                           "max":  null
+                                       },
+                           "type":  "text",
+                           "required":  false
+                       },
+                       {
+                           "name":  "data",
+                           "options":  {
+                                           "maxSize":  5000000
+                                       },
+                           "type":  "json",
+                           "required":  false
+                       }
+                   ],
+        "listRule":  ""
+    },
+    {
+        "viewRule":  "",
+        "updateRule":  "",
+        "type":  "base",
+        "createRule":  "",
+        "deleteRule":  "",
+        "name":  "app_catalogos",
+        "system":  false,
+        "schema":  [
+                       {
+                           "name":  "tenant_id",
+                           "options":  {
+                                           "pattern":  "",
+                                           "min":  null,
+                                           "max":  null
+                                       },
+                           "type":  "text",
+                           "required":  false
+                       },
+                       {
+                           "name":  "data",
+                           "options":  {
+                                           "maxSize":  5000000
+                                       },
+                           "type":  "json",
+                           "required":  false
+                       },
+                       {
+                           "name":  "tipo",
+                           "options":  {
+                                           "pattern":  "",
+                                           "min":  null,
+                                           "max":  null
+                                       },
+                           "type":  "text",
+                           "required":  false
+                       }
+                   ],
+        "listRule":  ""
+    },
+    {
+        "viewRule":  "",
+        "updateRule":  "",
+        "type":  "base",
+        "createRule":  "",
+        "deleteRule":  "",
+        "name":  "app_categorias",
+        "system":  false,
+        "schema":  [
+                       {
+                           "name":  "tenant_id",
+                           "options":  {
+                                           "pattern":  "",
+                                           "min":  null,
+                                           "max":  null
+                                       },
+                           "type":  "text",
+                           "required":  false
+                       },
+                       {
+                           "name":  "data",
+                           "options":  {
+                                           "maxSize":  5000000
+                                       },
+                           "type":  "json",
+                           "required":  false
+                       }
+                   ],
+        "listRule":  ""
+    },
+    {
+        "viewRule":  "",
+        "updateRule":  "",
+        "type":  "base",
+        "createRule":  "",
+        "deleteRule":  "",
+        "name":  "app_config",
+        "system":  false,
+        "schema":  [
+                       {
+                           "name":  "tenant_id",
+                           "options":  {
+                                           "pattern":  "",
+                                           "min":  null,
+                                           "max":  null
+                                       },
+                           "type":  "text",
+                           "required":  false
+                       },
+                       {
+                           "name":  "data",
+                           "options":  {
+                                           "maxSize":  5000000
+                                       },
+                           "type":  "json",
+                           "required":  false
+                       }
+                   ],
+        "listRule":  ""
+    },
+    {
+        "viewRule":  "",
+        "updateRule":  "",
+        "type":  "base",
+        "createRule":  "",
+        "deleteRule":  "",
+        "name":  "app_contratos",
+        "system":  false,
+        "schema":  [
+                       {
+                           "name":  "tenant_id",
+                           "options":  {
+                                           "pattern":  "",
+                                           "min":  null,
+                                           "max":  null
+                                       },
+                           "type":  "text",
+                           "required":  false
+                       },
+                       {
+                           "name":  "data",
+                           "options":  {
+                                           "maxSize":  5000000
+                                       },
+                           "type":  "json",
+                           "required":  false
+                       }
+                   ],
+        "listRule":  ""
+    },
+    {
+        "viewRule":  "",
+        "updateRule":  "",
+        "type":  "base",
+        "createRule":  "",
+        "deleteRule":  "",
+        "name":  "app_dayuse",
+        "system":  false,
+        "schema":  [
+                       {
+                           "name":  "tenant_id",
+                           "options":  {
+                                           "pattern":  "",
+                                           "min":  null,
+                                           "max":  null
+                                       },
+                           "type":  "text",
+                           "required":  false
+                       },
+                       {
+                           "name":  "data",
+                           "options":  {
+                                           "maxSize":  5000000
+                                       },
+                           "type":  "json",
+                           "required":  false
+                       }
+                   ],
+        "listRule":  ""
+    },
+    {
+        "viewRule":  "",
+        "updateRule":  "",
+        "type":  "base",
+        "createRule":  "",
+        "deleteRule":  "",
+        "name":  "app_error_logs",
+        "system":  false,
+        "schema":  [
+                       {
+                           "name":  "tenant_id",
+                           "options":  {
+                                           "pattern":  "",
+                                           "min":  null,
+                                           "max":  null
+                                       },
+                           "type":  "text",
+                           "required":  false
+                       },
+                       {
+                           "name":  "data",
+                           "options":  {
+                                           "maxSize":  5000000
+                                       },
+                           "type":  "json",
+                           "required":  false
+                       }
+                   ],
+        "listRule":  ""
+    },
+    {
+        "viewRule":  "",
+        "updateRule":  "",
+        "type":  "base",
+        "createRule":  "",
+        "deleteRule":  "",
+        "name":  "app_eventos",
+        "system":  false,
+        "schema":  [
+                       {
+                           "name":  "tenant_id",
+                           "options":  {
+                                           "pattern":  "",
+                                           "min":  null,
+                                           "max":  null
+                                       },
+                           "type":  "text",
+                           "required":  false
+                       },
+                       {
+                           "name":  "data",
+                           "options":  {
+                                           "maxSize":  5000000
+                                       },
+                           "type":  "json",
+                           "required":  false
+                       }
+                   ],
+        "listRule":  ""
+    },
+    {
+        "viewRule":  "",
+        "updateRule":  "",
+        "type":  "base",
+        "createRule":  "",
+        "deleteRule":  "",
+        "name":  "app_financeiro",
+        "system":  false,
+        "schema":  [
+                       {
+                           "name":  "tenant_id",
+                           "options":  {
+                                           "pattern":  "",
+                                           "min":  null,
+                                           "max":  null
+                                       },
+                           "type":  "text",
+                           "required":  false
+                       },
+                       {
+                           "name":  "data",
+                           "options":  {
+                                           "maxSize":  5000000
+                                       },
+                           "type":  "json",
+                           "required":  false
+                       }
+                   ],
+        "listRule":  ""
+    },
+    {
+        "viewRule":  "",
+        "updateRule":  "",
+        "type":  "base",
+        "createRule":  "",
+        "deleteRule":  "",
+        "name":  "app_listaitens",
+        "system":  false,
+        "schema":  [
+                       {
+                           "name":  "tenant_id",
+                           "options":  {
+                                           "pattern":  "",
+                                           "min":  null,
+                                           "max":  null
+                                       },
+                           "type":  "text",
+                           "required":  false
+                       },
+                       {
+                           "name":  "data",
+                           "options":  {
+                                           "maxSize":  5000000
+                                       },
+                           "type":  "json",
+                           "required":  false
+                       }
+                   ],
+        "listRule":  ""
+    },
+    {
+        "viewRule":  "",
+        "updateRule":  "",
+        "type":  "base",
+        "createRule":  "",
+        "deleteRule":  "",
+        "name":  "app_listas",
+        "system":  false,
+        "schema":  [
+                       {
+                           "name":  "tenant_id",
+                           "options":  {
+                                           "pattern":  "",
+                                           "min":  null,
+                                           "max":  null
+                                       },
+                           "type":  "text",
+                           "required":  false
+                       },
+                       {
+                           "name":  "data",
+                           "options":  {
+                                           "maxSize":  5000000
+                                       },
+                           "type":  "json",
+                           "required":  false
+                       }
+                   ],
+        "listRule":  ""
+    },
+    {
+        "viewRule":  "",
+        "updateRule":  "",
+        "type":  "base",
+        "createRule":  "",
+        "deleteRule":  "",
+        "name":  "app_loja",
+        "system":  false,
+        "schema":  [
+                       {
+                           "name":  "tenant_id",
+                           "options":  {
+                                           "pattern":  "",
+                                           "min":  null,
+                                           "max":  null
+                                       },
+                           "type":  "text",
+                           "required":  false
+                       },
+                       {
+                           "name":  "data",
+                           "options":  {
+                                           "maxSize":  5000000
+                                       },
+                           "type":  "json",
+                           "required":  false
+                       }
+                   ],
+        "listRule":  ""
+    },
+    {
+        "viewRule":  "",
+        "updateRule":  "",
+        "type":  "base",
+        "createRule":  "",
+        "deleteRule":  "",
+        "name":  "app_manutencao",
+        "system":  false,
+        "schema":  [
+                       {
+                           "name":  "tenant_id",
+                           "options":  {
+                                           "pattern":  "",
+                                           "min":  null,
+                                           "max":  null
+                                       },
+                           "type":  "text",
+                           "required":  false
+                       },
+                       {
+                           "name":  "data",
+                           "options":  {
+                                           "maxSize":  5000000
+                                       },
+                           "type":  "json",
+                           "required":  false
+                       }
+                   ],
+        "listRule":  ""
+    },
+    {
+        "viewRule":  "",
+        "updateRule":  "",
+        "type":  "base",
+        "createRule":  "",
+        "deleteRule":  "",
+        "name":  "app_matriculas",
+        "system":  false,
+        "schema":  [
+                       {
+                           "name":  "tenant_id",
+                           "options":  {
+                                           "pattern":  "",
+                                           "min":  null,
+                                           "max":  null
+                                       },
+                           "type":  "text",
+                           "required":  false
+                       },
+                       {
+                           "name":  "data",
+                           "options":  {
+                                           "maxSize":  5000000
+                                       },
+                           "type":  "json",
+                           "required":  false
+                       }
+                   ],
+        "listRule":  ""
+    },
+    {
+        "viewRule":  "",
+        "updateRule":  "",
+        "type":  "base",
+        "createRule":  "",
+        "deleteRule":  "",
+        "name":  "app_mensagens",
+        "system":  false,
+        "schema":  [
+                       {
+                           "name":  "tenant_id",
+                           "options":  {
+                                           "pattern":  "",
+                                           "min":  null,
+                                           "max":  null
+                                       },
+                           "type":  "text",
+                           "required":  false
+                       },
+                       {
+                           "name":  "data",
+                           "options":  {
+                                           "maxSize":  5000000
+                                       },
+                           "type":  "json",
+                           "required":  false
+                       }
+                   ],
+        "listRule":  ""
+    },
+    {
+        "viewRule":  "",
+        "updateRule":  "",
+        "type":  "base",
+        "createRule":  "",
+        "deleteRule":  "",
+        "name":  "app_noticias",
+        "system":  false,
+        "schema":  [
+                       {
+                           "name":  "tenant_id",
+                           "options":  {
+                                           "pattern":  "",
+                                           "min":  null,
+                                           "max":  null
+                                       },
+                           "type":  "text",
+                           "required":  false
+                       },
+                       {
+                           "name":  "data",
+                           "options":  {
+                                           "maxSize":  5000000
+                                       },
+                           "type":  "json",
+                           "required":  false
+                       }
+                   ],
+        "listRule":  ""
+    },
+    {
+        "viewRule":  "",
+        "updateRule":  "",
+        "type":  "base",
+        "createRule":  "",
+        "deleteRule":  "",
+        "name":  "app_pagamentos",
+        "system":  false,
+        "schema":  [
+                       {
+                           "name":  "tenant_id",
+                           "options":  {
+                                           "pattern":  "",
+                                           "min":  null,
+                                           "max":  null
+                                       },
+                           "type":  "text",
+                           "required":  false
+                       },
+                       {
+                           "name":  "data",
+                           "options":  {
+                                           "maxSize":  5000000
+                                       },
+                           "type":  "json",
+                           "required":  false
+                       }
+                   ],
+        "listRule":  ""
+    },
+    {
+        "viewRule":  "",
+        "updateRule":  "",
+        "type":  "base",
+        "createRule":  "",
+        "deleteRule":  "",
+        "name":  "app_perfis",
+        "system":  false,
+        "schema":  [
+                       {
+                           "name":  "tenant_id",
+                           "options":  {
+                                           "pattern":  "",
+                                           "min":  null,
+                                           "max":  null
+                                       },
+                           "type":  "text",
+                           "required":  false
+                       },
+                       {
+                           "name":  "data",
+                           "options":  {
+                                           "maxSize":  5000000
+                                       },
+                           "type":  "json",
+                           "required":  false
+                       }
+                   ],
+        "listRule":  ""
+    },
+    {
+        "viewRule":  "",
+        "updateRule":  "",
+        "type":  "base",
+        "createRule":  "",
+        "deleteRule":  "",
+        "name":  "app_planos",
+        "system":  false,
+        "schema":  [
+                       {
+                           "name":  "tenant_id",
+                           "options":  {
+                                           "pattern":  "",
+                                           "min":  null,
+                                           "max":  null
+                                       },
+                           "type":  "text",
+                           "required":  false
+                       },
+                       {
+                           "name":  "data",
+                           "options":  {
+                                           "maxSize":  5000000
+                                       },
+                           "type":  "json",
+                           "required":  false
+                       }
+                   ],
+        "listRule":  ""
+    },
+    {
+        "viewRule":  "",
+        "updateRule":  "",
+        "type":  "base",
+        "createRule":  "",
+        "deleteRule":  "",
+        "name":  "app_presenca",
+        "system":  false,
+        "schema":  [
+                       {
+                           "name":  "tenant_id",
+                           "options":  {
+                                           "pattern":  "",
+                                           "min":  null,
+                                           "max":  null
+                                       },
+                           "type":  "text",
+                           "required":  false
+                       },
+                       {
+                           "name":  "data",
+                           "options":  {
+                                           "maxSize":  5000000
+                                       },
+                           "type":  "json",
+                           "required":  false
+                       }
+                   ],
+        "listRule":  ""
+    },
+    {
+        "viewRule":  "",
+        "updateRule":  "",
+        "type":  "base",
+        "createRule":  "",
+        "deleteRule":  "",
+        "name":  "app_professores",
+        "system":  false,
+        "schema":  [
+                       {
+                           "name":  "tenant_id",
+                           "options":  {
+                                           "pattern":  "",
+                                           "min":  null,
+                                           "max":  null
+                                       },
+                           "type":  "text",
+                           "required":  false
+                       },
+                       {
+                           "name":  "data",
+                           "options":  {
+                                           "maxSize":  5000000
+                                       },
+                           "type":  "json",
+                           "required":  false
+                       }
+                   ],
+        "listRule":  ""
+    },
+    {
+        "viewRule":  "",
+        "updateRule":  "",
+        "type":  "base",
+        "createRule":  "",
+        "deleteRule":  "",
+        "name":  "app_torneios",
+        "system":  false,
+        "schema":  [
+                       {
+                           "name":  "tenant_id",
+                           "options":  {
+                                           "pattern":  "",
+                                           "min":  null,
+                                           "max":  null
+                                       },
+                           "type":  "text",
+                           "required":  false
+                       },
+                       {
+                           "name":  "data",
+                           "options":  {
+                                           "maxSize":  5000000
+                                       },
+                           "type":  "json",
+                           "required":  false
+                       }
+                   ],
+        "listRule":  ""
+    },
+    {
+        "viewRule":  "",
+        "updateRule":  "",
+        "type":  "base",
+        "createRule":  "",
+        "deleteRule":  "",
+        "name":  "app_turmas",
+        "system":  false,
+        "schema":  [
+                       {
+                           "name":  "tenant_id",
+                           "options":  {
+                                           "pattern":  "",
+                                           "min":  null,
+                                           "max":  null
+                                       },
+                           "type":  "text",
+                           "required":  false
+                       },
+                       {
+                           "name":  "data",
+                           "options":  {
+                                           "maxSize":  5000000
+                                       },
+                           "type":  "json",
+                           "required":  false
+                       }
+                   ],
+        "listRule":  ""
+    },
+    {
+        "viewRule":  "",
+        "updateRule":  "",
+        "type":  "base",
+        "createRule":  "",
+        "deleteRule":  "",
+        "name":  "app_usuarios",
+        "system":  false,
+        "schema":  [
+                       {
+                           "name":  "tenant_id",
+                           "options":  {
+                                           "pattern":  "",
+                                           "min":  null,
+                                           "max":  null
+                                       },
+                           "type":  "text",
+                           "required":  false
+                       },
+                       {
+                           "name":  "data",
+                           "options":  {
+                                           "maxSize":  5000000
+                                       },
+                           "type":  "json",
+                           "required":  false
+                       }
+                   ],
+        "listRule":  ""
+    },
+    {
+        "viewRule":  "",
+        "updateRule":  "",
+        "type":  "base",
+        "createRule":  "",
+        "deleteRule":  "",
+        "name":  "tenants",
+        "system":  false,
+        "schema":  [
+                       {
+                           "name":  "nome",
+                           "options":  {
+                                           "pattern":  "",
+                                           "min":  null,
+                                           "max":  null
+                                       },
+                           "type":  "text",
+                           "required":  true
+                       },
+                       {
+                           "name":  "slug",
+                           "options":  {
+                                           "pattern":  "",
+                                           "min":  null,
+                                           "max":  null
+                                       },
+                           "type":  "text",
+                           "required":  true
+                       },
+                       {
+                           "name":  "tipo",
+                           "options":  {
+                                           "pattern":  "",
+                                           "min":  null,
+                                           "max":  null
+                                       },
+                           "type":  "text",
+                           "required":  false
+                       },
+                       {
+                           "name":  "parent_id",
+                           "options":  {
+                                           "pattern":  "",
+                                           "min":  null,
+                                           "max":  null
+                                       },
+                           "type":  "text",
+                           "required":  false
+                       },
+                       {
+                           "name":  "status",
+                           "options":  {
+                                           "pattern":  "",
+                                           "min":  null,
+                                           "max":  null
+                                       },
+                           "type":  "text",
+                           "required":  false
+                       }
+                   ],
+        "listRule":  ""
+    }
+]

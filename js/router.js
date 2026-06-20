@@ -21,6 +21,7 @@ const Router = {
     torneios:    'Torneios',
     loja:        'Loja',
     financeiro:  'Financeiro',
+    fornecedores:'Fornecedores',
     manutencao:  'Manutenção',
     cadastros:   'Cadastros',
     listas:      'Listas do Sistema',

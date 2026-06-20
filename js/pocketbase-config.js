@@ -1,6 +1,6 @@
 'use strict';
 
-const PB_URL = 'https://picklemanager.fly.dev'; // ← troque pela URL real após o deploy
+const PB_URL = 'https://picklemanager.fly.dev';
 
 /**
  * TENANTS — mapa dinâmico de bases disponíveis.
@@ -11,11 +11,9 @@ const PB_URL = 'https://picklemanager.fly.dev'; // ← troque pela URL real apó
  * mantidos para compatibilidade com localStorage cacheado.
  */
 let TENANTS = {
-  '001-H':    { id: '2e4f866c-42f2-4616-8560-ca5c0c98cd69', label: '🏛️ Rede Pickleball',         tipo: 'matriz' },
-  'LAU':      { id: 'a2af3c2e-bc7a-4083-b89d-924b9dbe5670', label: '🏫 Escola Lauro de Freitas',  tipo: 'arena'  },
-  // aliases antigos — garantem que pm_tenant='lauro' ainda funcione
-  'lauro':    { id: 'a2af3c2e-bc7a-4083-b89d-924b9dbe5670', label: '🏫 Escola Lauro de Freitas',  tipo: 'arena'  },
-  'espanhol': { id: 'f4dfd40b-5525-4392-b71e-9a0ed1c9507c', label: '🏫 Espanhol',                 tipo: 'arena'  },
+  '001-H':    { id: '2e4f866c-42f2-4616-8560-ca5c0c98cd69', label: '🏛️ Rede Pickleball',        tipo: 'matriz' },
+  'LAU':      { id: 'a2af3c2e-bc7a-4083-b89d-924b9dbe5670', label: '🏫 Escola Lauro de Freitas', tipo: 'arena'  },
+  'espanhol': { id: 'f4dfd40b-5525-4392-b71e-9a0ed1c9507c', label: '🏫 Espanhol',                tipo: 'arena'  },
 };
 
 /**
@@ -40,6 +38,8 @@ let TENANT_TIPO = TENANTS[_activeTenantKey]?.tipo  || localStorage.getItem('pm_t
  */
 async function _loadTenantsFromDB() {
   if (!window.PocketBaseClient) return;
+  // Snapshot do mapa estático — preserva UUIDs usados como tenant_id nos registros de dados
+  const originalTenants = { ...TENANTS };
   try {
     const records = await window.PocketBaseClient
       .collection('tenants')
@@ -60,7 +60,9 @@ async function _loadTenantsFromDB() {
       if (!t.slug) return; // ignora tenants sem slug
       const icon = (t.tipo === 'matriz') ? '🏛️ ' : '🏫 ';
       newTenants[t.slug] = {
-        id:        t.id,
+        // Preserva o UUID do mapa estático — os registros de dados (app_usuarios, etc.)
+        // usam esse UUID como tenant_id. O id do PocketBase é um ID gerado diferente.
+        id:        originalTenants[t.slug]?.id || t.id,
         label:     icon + t.nome,
         tipo:      t.tipo || 'arena',
         parent_id: t.parent_id || null,
@@ -69,17 +71,14 @@ async function _loadTenantsFromDB() {
 
     TENANTS = newTenants;
 
-    // Localiza o tenant ativo pelo ID atual (não pelo slug, que pode ter mudado)
-    // NÃO sobrescreve TENANT_ID — o DB já foi inicializado com o ID correto.
-    const currentId = TENANT_ID;
-    const foundEntry = Object.entries(TENANTS).find(([, t]) => t.id === currentId);
-    if (foundEntry) {
-      _activeTenantKey = foundEntry[0];
-      TENANT_TIPO      = foundEntry[1].tipo || 'arena';
-      localStorage.setItem('pm_tenant', foundEntry[0]);
+    // Localiza o tenant ativo pelo slug (estável), não pelo ID (UUID ≠ PocketBase ID)
+    if (TENANTS[_activeTenantKey]) {
+      TENANT_TIPO = TENANTS[_activeTenantKey].tipo || 'arena';
+      localStorage.setItem('pm_tenant', _activeTenantKey);
     } else {
-      // Tenant atual não está no banco — mantém sem trocar TENANT_ID
+      // Slug não existe mais no banco — vai para o primeiro disponível
       _activeTenantKey = Object.keys(TENANTS)[0] || _activeTenantKey;
+      TENANT_TIPO      = TENANTS[_activeTenantKey]?.tipo || 'arena';
     }
 
     _populateSelect();
@@ -113,6 +112,10 @@ function setTenant(key) {
   localStorage.setItem('pm_tenant',      key);
   localStorage.setItem('pm_tenant_id',   t.id);
   localStorage.setItem('pm_tenant_tipo', t.tipo || 'arena');
+  // Se não há sessão ativa, marca para voltar ao login (e não ao HomeKiosk) após reload
+  if (!localStorage.getItem('pm_session')) {
+    sessionStorage.setItem('pm_return_login', '1');
+  }
   localStorage.removeItem('pm_session');
   const url = new URL(window.location.href);
   url.searchParams.set('tenant', key);

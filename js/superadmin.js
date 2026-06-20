@@ -17,97 +17,52 @@ const SuperAdmin = {
   REDIRECT_URL: 'https://albanofalcao.github.io/picklemanager/',
 
   init() {
-    // O painel de administração agora é o painel nativo do PocketBase.
-    // Abre em nova aba para não perder o contexto do app.
-    window.open(
-      (typeof PB_URL !== 'undefined' ? PB_URL : 'https://picklemanager.fly.dev') + '/_/',
-      '_blank'
-    );
+    sessionStorage.removeItem('pm_admin_login');
+    this._renderLogin();
   },
 
-  async _onLogin(authUser) {
-    try {
-      // Tenta buscar dados complementares (nome, id) da tabela usuarios
-      let usuario = null;
-      const { data } = await SupabaseClient
-        .from('usuarios')
-        .select('*')
-        .eq('auth_id', authUser.id)
-        .maybeSingle();   // maybeSingle() não lança erro se não encontrar (ao contrário de .single())
-      usuario = data;
-
-      // Acesso garantido se: sem registro, ou registro com perfil superadmin
-      // A autenticação Supabase Auth já validou email+senha — confiamos nela.
-      this._user = (usuario?.perfil === 'superadmin' ? usuario : null) || {
-        id:      'sa_' + authUser.id.slice(0, 8),
-        nome:    usuario?.nome || authUser.user_metadata?.nome || authUser.email?.split('@')[0] || 'Admin',
-        email:   authUser.email,
-        perfil:  'superadmin',
-        auth_id: authUser.id,
-      };
-
-      this._showPanel();
-
-    } catch (ex) {
-      console.error('[SuperAdmin] _onLogin erro:', ex);
-      // Exceção inesperada → usa fallback e entra mesmo assim
-      this._user = {
-        id:      'sa_' + authUser.id.slice(0, 8),
-        nome:    authUser.user_metadata?.nome || authUser.email?.split('@')[0] || 'Admin',
-        email:   authUser.email,
-        perfil:  'superadmin',
-        auth_id: authUser.id,
-      };
-      this._showPanel();
-    }
-  },
-
-  async login(email, senha) {
+  async login(loginOrEmail, senha) {
     const btn = document.getElementById('sa-login-btn');
     if (btn) { btn.disabled = true; btn.textContent = 'Entrando…'; }
-
     try {
-      const { data, error } = await SupabaseClient.auth.signInWithPassword({ email, password: senha });
+      const hash = btoa(senha);
+      const lc   = (loginOrEmail || '').trim().toLowerCase();
+      if (!lc || !senha) { this._renderLogin('Preencha login e senha.'); return; }
 
-      if (error) {
-        const msgMap = {
-          'Invalid login credentials': 'E-mail ou senha incorretos.',
-          'Email not confirmed':       'E-mail não confirmado — verifique sua caixa de entrada.',
-          'User not found':            'Usuário não encontrado.',
-          'Too many requests':         'Muitas tentativas. Aguarde alguns minutos.',
-        };
-        this._renderLogin(msgMap[error.message] || ('Erro: ' + error.message));
+      // Busca em todos os tenants (sem filtro) para encontrar o superadmin
+      const records = await window.PocketBaseClient.collection('app_usuarios')
+        .getFullList({ requestKey: null })
+        .catch(() => []);
+
+      const match = records.find(r =>
+        (r.data?.login?.toLowerCase() === lc || r.data?.email?.toLowerCase() === lc) &&
+        r.data?.senha === hash &&
+        r.data?.perfil === 'superadmin' &&
+        r.data?.status === 'ativo'
+      );
+
+      if (!match) {
+        this._renderLogin('❌ Login, senha incorretos ou sem perfil superadmin.');
         return;
       }
 
-      if (data?.user) {
-        await this._onLogin(data.user);
-      } else {
-        this._renderLogin('Erro inesperado — tente novamente.');
-      }
+      this._user = {
+        id:     match.id,
+        nome:   match.data.nome || match.data.login || 'Super Admin',
+        login:  match.data.login,
+        perfil: 'superadmin',
+      };
+      this._showPanel();
     } catch (ex) {
-      console.error('[SuperAdmin] login erro:', ex);
-      this._renderLogin('Erro inesperado: ' + ex.message);
+      this._renderLogin('Erro: ' + ex.message);
     } finally {
       if (btn) { btn.disabled = false; btn.textContent = 'Entrar'; }
     }
   },
 
   async enviarRecuperacao() {
-    const emailEl = document.getElementById('sa-rec-email');
-    const email   = emailEl?.value.trim();
-    if (!email) { emailEl?.classList.add('error'); return; }
-    const btn = document.getElementById('sa-rec-btn');
-    if (btn) { btn.disabled = true; btn.textContent = 'Enviando…'; }
-    const { error } = await SupabaseClient.auth.resetPasswordForEmail(email, {
-      redirectTo: this.REDIRECT_URL,
-    });
-    if (error) {
-      if (btn) { btn.disabled = false; btn.textContent = 'Enviar link'; }
-      this._renderRecuperacao('Erro ao enviar: ' + error.message);
-    } else {
-      this._renderRecuperacao('', true);
-    }
+    const msgEl = document.getElementById('sa-rec-msg') || document.querySelector('[id^="sa-rec"]');
+    this._renderRecuperacao('Entre em contato com o administrador para redefinir sua senha.', false);
   },
 
   async definirNovaSenha() {
@@ -117,61 +72,18 @@ const SuperAdmin = {
     if (!s1 || s1.length < 6) { alert('Mínimo 6 caracteres.'); return; }
     if (s1 !== s2)             { alert('As senhas não coincidem.'); return; }
     if (btn) { btn.disabled = true; btn.textContent = 'Salvando…'; }
-
-    const { data: userNow, error } = await SupabaseClient.auth.updateUser({ password: s1 });
-    if (error) {
-      if (btn) { btn.disabled = false; btn.textContent = '🔐 Salvar nova senha'; }
-      alert('Erro: ' + error.message);
-      return;
-    }
-
-    // Atualiza também o app_usuarios do tenant ativo (se existir com esse e-mail)
-    const email = userNow?.user?.email || '';
-    if (email && SupabaseClient && typeof TENANT_ID !== 'undefined' && TENANT_ID) {
-      try {
-        const { data: rows } = await SupabaseClient
-          .from('app_usuarios')
-          .select('id, data')
-          .eq('tenant_id', TENANT_ID);
-        const match = (rows || []).find(r =>
-          r.data?.email?.toLowerCase() === email.toLowerCase() ||
-          r.data?.login?.toLowerCase() === email.toLowerCase()
-        );
-        if (match) {
-          await SupabaseClient.from('app_usuarios').update({
-            data: { ...match.data, senha: btoa(s1) },
-            updated_at: new Date().toISOString(),
-          }).eq('id', match.id);
-        }
-      } catch (_) { /* silencioso */ }
-    }
-
-    // Faz sign-out do Supabase Auth e volta ao app normal
-    await SupabaseClient.auth.signOut();
-    history.replaceState(null, '', window.location.pathname);
-
-    // Esconde o SuperAdmin e mostra o app com mensagem de sucesso
-    const saWrap = document.getElementById('sa-wrap');
-    if (saWrap) saWrap.remove();
-    document.getElementById('login-overlay')?.style.removeProperty('display');
-    document.getElementById('app-layout')?.style.removeProperty('display');
-
-    // Exibe mensagem de sucesso no formulário de login
-    const errEl = document.getElementById('login-error');
-    if (errEl) {
-      errEl.style.display = 'flex';
-      errEl.style.background = '#d1fae5';
-      errEl.style.color = '#065f46';
-      errEl.style.borderColor = '#6ee7b7';
-      errEl.textContent = '✅ Senha redefinida! Use a nova senha para entrar.';
-    }
+    alert('Para redefinir senhas, use o painel do PocketBase em /_ ou contate o administrador.');
+    if (btn) { btn.disabled = false; btn.textContent = '🔐 Salvar nova senha'; }
   },
 
-  async logout() {
-    await SupabaseClient.auth.signOut();
-    this._user = null;
+  logout() {
+    this._user   = null;
     this._tenant = null;
-    this._renderLogin();
+    const wrap = document.getElementById('sa-wrap');
+    if (wrap) wrap.remove();
+    document.getElementById('login-overlay')?.style.removeProperty('display');
+    const loginEl = document.getElementById('login-overlay');
+    if (loginEl) { loginEl.classList.add('open'); loginEl.removeAttribute('aria-hidden'); }
   },
 
   /* ------------------------------------------------------------------ */
@@ -226,8 +138,8 @@ const SuperAdmin = {
           ${msgHtml}
 
           <div class="form-group" style="margin-bottom:14px;">
-            <label class="form-label" for="sa-email">E-mail</label>
-            <input id="sa-email" type="email" class="form-input" placeholder="seu@email.com"
+            <label class="form-label" for="sa-login">Login ou e-mail</label>
+            <input id="sa-login" type="text" class="form-input" placeholder="login ou e-mail" autocomplete="username"
               style="height:44px;border-radius:10px;"
               onkeydown="if(event.key==='Enter') document.getElementById('sa-senha').focus()" />
           </div>
@@ -235,12 +147,12 @@ const SuperAdmin = {
             <label class="form-label" for="sa-senha">Senha</label>
             <input id="sa-senha" type="password" class="form-input" placeholder="••••••••"
               style="height:44px;border-radius:10px;"
-              onkeydown="if(event.key==='Enter') SuperAdmin.login(document.getElementById('sa-email').value, this.value)" />
+              onkeydown="if(event.key==='Enter') SuperAdmin.login(document.getElementById('sa-login').value, this.value)" />
           </div>
 
           <button id="sa-login-btn" class="btn btn-primary"
             style="width:100%;height:46px;font-size:15px;font-weight:700;border-radius:10px;"
-            onclick="SuperAdmin.login(document.getElementById('sa-email').value, document.getElementById('sa-senha').value)">
+            onclick="SuperAdmin.login(document.getElementById('sa-login').value, document.getElementById('sa-senha').value)">
             Entrar →
           </button>
 
@@ -474,21 +386,18 @@ const SuperAdmin = {
     if (!wrap) return;
 
     try {
-      const { data: tenants, error } = await SupabaseClient
-        .from('tenants')
-        .select('id, nome, slug, tipo, cidade, estado, plano, status, contrato_inicio')
-        .order('nome');
-
-      // Se o elemento foi substituído durante o await (duplo login), aborta silenciosamente
-      if (!document.contains(wrap)) return;
-
-      if (error) {
-        wrap.innerHTML = `<div style="color:var(--red);padding:16px;">Erro: ${this._esc(error.message)}</div>`;
+      let tenants = [];
+      try {
+        tenants = await window.PocketBaseClient.collection('tenants')
+          .getFullList({ sort: 'nome', requestKey: null });
+      } catch (e) {
+        if (!document.contains(wrap)) return;
+        wrap.innerHTML = `<div style="color:var(--red);padding:16px;">Erro ao carregar: ${this._esc(e.message)}</div>`;
         return;
       }
-
-      if (!tenants) {
-        wrap.innerHTML = `<div style="padding:16px;color:var(--text-muted);">Nenhum resultado.</div>`;
+      if (!document.contains(wrap)) return;
+      if (!tenants.length) {
+        wrap.innerHTML = `<div style="padding:16px;color:var(--text-muted);">Nenhuma base cadastrada ainda.</div>`;
         return;
       }
 
@@ -660,13 +569,12 @@ const SuperAdmin = {
 
   async _abrirDetalhe(id) {
     try {
-      // Tenta primeiro com join; se falhar, carrega sem join
-      let { data, error } = await SupabaseClient
-        .from('tenants').select('*, grupos_economicos(id,nome)').eq('id', id).single();
-      if (error || !data) {
-        ({ data, error } = await SupabaseClient.from('tenants').select('*').eq('id', id).single());
+      let data;
+      try {
+        data = await window.PocketBaseClient.collection('tenants').getOne(id, { requestKey: null });
+      } catch (e) {
+        alert('Erro ao carregar base: ' + e.message); return;
       }
-      if (error || !data) { alert('Erro ao carregar tenant: ' + (error?.message || 'não encontrado')); return; }
       this._tenant = data;
       this._tab = 'detalhe';
       this._detailTab = 'dados';
@@ -796,20 +704,22 @@ const SuperAdmin = {
     if (tab === 'dados')        el.innerHTML = this._tabDados(t);
     if (tab === 'contrato')     el.innerHTML = this._tabContrato(t);
     if (tab === 'responsaveis') {
-      const {data} = await SupabaseClient.from('tenant_responsaveis').select('*').eq('tenant_id',t.id).order('principal',{ascending:false});
-      el.innerHTML = this._tabResponsaveis(data||[]);
+      el.innerHTML = this._tabResponsaveis([]);
     }
     if (tab === 'usuarios') {
-      const {data} = await SupabaseClient.from('app_usuarios').select('id, data').eq('tenant_id',t.id);
-      el.innerHTML = this._tabUsuarios(data||[]);
+      const dataId = this._dataId(t);
+      const usRows = await window.PocketBaseClient.collection('app_usuarios')
+        .getFullList({ filter: `tenant_id="${dataId}"`, requestKey: null }).catch(() => []);
+      el.innerHTML = this._tabUsuarios(usRows);
     }
     if (tab === 'quadras') {
-      const {data} = await SupabaseClient.from('quadras').select('*').eq('tenant_id',t.id).order('nome');
-      el.innerHTML = this._tabQuadras(data||[]);
+      const dataId = this._dataId(t);
+      const qRows = await window.PocketBaseClient.collection('app_quadras')
+        .getFullList({ filter: `tenant_id="${dataId}"`, requestKey: null }).catch(() => []);
+      el.innerHTML = this._tabQuadras(qRows);
     }
     if (tab === 'financeiro') {
-      const {data} = await SupabaseClient.from('tenant_pagamentos').select('*').eq('tenant_id',t.id).order('data_vencimento',{ascending:false});
-      el.innerHTML = this._tabFinanceiro(data||[]);
+      el.innerHTML = this._tabFinanceiro([]);
     }
   },
 
@@ -1010,7 +920,7 @@ const SuperAdmin = {
             </tr>
           </thead>
           <tbody>
-            ${lista.map(q => `
+            ${lista.map(q => { const qd = q.data || {}; return `
               <tr style="border-top:1px solid var(--card-border);transition:background .12s;"
                 onmouseover="this.style.background='var(--bg-secondary,#f8f6f1)'"
                 onmouseout="this.style.background='transparent'">
@@ -1019,36 +929,36 @@ const SuperAdmin = {
                   <div style="display:flex;align-items:center;gap:9px;">
                     <div style="width:32px;height:32px;border-radius:9px;flex-shrink:0;
                       background:#d1fae5;display:flex;align-items:center;justify-content:center;font-size:14px;">🏟️</div>
-                    <span style="font-weight:700;color:var(--text-primary);">${this._esc(q.nome)}</span>
+                    <span style="font-weight:700;color:var(--text-primary);">${this._esc(qd.nome||q.nome||'')}</span>
                   </div>
                 </td>
 
                 <td style="padding:13px 14px;font-size:12px;color:var(--text-secondary);font-family:monospace;">
-                  ${this._esc(q.dimensoes||'—')}
+                  ${this._esc(qd.dimensoes||q.dimensoes||'—')}
                 </td>
 
                 <td style="padding:13px 14px;font-size:12px;color:var(--text-secondary);">
-                  ${COB_ICON[q.cobertura]||''} ${this._esc(q.cobertura||'—')}
+                  ${COB_ICON[qd.cobertura||q.cobertura]||''} ${this._esc(qd.cobertura||q.cobertura||'—')}
                 </td>
 
                 <td style="padding:13px 14px;font-size:12px;color:var(--text-secondary);">
-                  ${this._esc(q.tipo_piso||'—')}
+                  ${this._esc(qd.tipo_piso||q.tipo_piso||'—')}
                 </td>
 
                 <td style="padding:13px 14px;">
                   <div style="display:flex;align-items:center;gap:6px;">
                     <span style="width:7px;height:7px;border-radius:50%;flex-shrink:0;
-                      background:${STATUS_DOT[q.status]||'#94a3b8'};
-                      box-shadow:0 0 0 3px ${STATUS_DOT[q.status]||'#94a3b8'}28;"></span>
+                      background:${STATUS_DOT[qd.status||q.status]||'#94a3b8'};
+                      box-shadow:0 0 0 3px ${STATUS_DOT[qd.status||q.status]||'#94a3b8'}28;"></span>
                     <span style="font-size:12px;color:var(--text-secondary);font-weight:500;">
-                      ${STATUS_TXT[q.status]||q.status||'—'}</span>
+                      ${STATUS_TXT[qd.status||q.status]||(qd.status||q.status)||'—'}</span>
                   </div>
                 </td>
 
                 <td style="padding:13px 16px;text-align:right;">
                   ${btnAcao(`SuperAdmin._delQuadra('${q.id}')`, 'Remover', '🗑️', '#fca5a5')}
                 </td>
-              </tr>`).join('')}
+              </tr>`; }).join('')}
           </tbody>
         </table>` : `
         <div style="text-align:center;padding:64px 40px;">
@@ -1190,7 +1100,8 @@ const SuperAdmin = {
   },
 
   async _preencherForm(id) {
-    const { data: t } = await SupabaseClient.from('tenants').select('*').eq('id', id).single();
+    let t;
+    try { t = await window.PocketBaseClient.collection('tenants').getOne(id, { requestKey: null }); } catch { return; }
     if (!t) return;
     const s = (n, v) => { const el = document.getElementById(`sa-${n}`); if (el) el.value = v || ''; };
     s('nome', t.nome); s('slug', t.slug); s('tipo', t.tipo || 'arena'); s('status', t.status); s('plano', t.plano);
@@ -1301,12 +1212,14 @@ const SuperAdmin = {
       observacoes_internas: document.getElementById('sa-obs')?.value.trim() || '',
     };
 
-    let error;
-    if (this._tenantEditId) {
-      ({ error } = await SupabaseClient.from('tenants').update(record).eq('id', this._tenantEditId));
-    } else {
-      ({ error } = await SupabaseClient.from('tenants').insert(record));
-    }
+    let error = null;
+    try {
+      if (this._tenantEditId) {
+        await window.PocketBaseClient.collection('tenants').update(this._tenantEditId, record);
+      } else {
+        await window.PocketBaseClient.collection('tenants').create(record);
+      }
+    } catch (e) { error = e; }
 
     if (error) { alert('Erro ao salvar: ' + error.message); return; }
     this._tab = 'lista';
@@ -1434,24 +1347,11 @@ const SuperAdmin = {
         if (s1.length < 4) { alert('Senha muito curta (mínimo 4 caracteres).'); return false; }
         if (s1 !== s2)      { alert('As senhas não coincidem.'); return false; }
 
-        // 0. Garante sessão ativa (renova token se necessário)
-        const { data: { session }, error: sessErr } = await SupabaseClient.auth.getSession();
-        if (sessErr || !session) {
-          alert('Sua sessão expirou. Faça login novamente no painel.');
-          this.logout();
-          return false;
-        }
-
-        // 1. Busca os dados atuais do usuário
-        const { data: row, error: errFetch } = await SupabaseClient
-          .from('app_usuarios').select('data').eq('id', id).single();
-        if (errFetch) { alert('Erro ao buscar usuário: ' + errFetch.message); return false; }
-
-        // 2. Atualiza só o campo senha (mesmo hash que tryLogin usa)
-        const dadosAtualizados = { ...(row.data || {}), senha: btoa(s1) };
-        const { error } = await SupabaseClient
-          .from('app_usuarios').update({ data: dadosAtualizados }).eq('id', id);
-        if (error) { alert('Erro ao salvar: ' + error.message); return false; }
+        try {
+          const row = await window.PocketBaseClient.collection('app_usuarios').getOne(id, { requestKey: null });
+          const dadosAtualizados = { ...(row.data || {}), senha: btoa(s1) };
+          await window.PocketBaseClient.collection('app_usuarios').update(id, { data: dadosAtualizados });
+        } catch (e) { alert('Erro ao salvar: ' + e.message); return false; }
 
         alert(`✅ Senha de "${login}" redefinida!\nNova senha: ${s1}`);
         return true;
@@ -1483,13 +1383,12 @@ const SuperAdmin = {
         if (senha !== conf)   { alert('As senhas não coincidem.'); return false; }
         const hash = btoa(senha);
         const id   = Date.now().toString(36) + Math.random().toString(36).slice(2,7);
-        const now  = new Date().toISOString();
-        const { error } = await SupabaseClient.from('app_usuarios').insert({
-          id, tenant_id: t.id,
-          data: { nome, login, email, senha: hash, perfil, status: 'ativo' },
-          created_at: now, updated_at: now,
-        });
-        if (error) { alert('Erro: ' + error.message); return false; }
+        try {
+          await window.PocketBaseClient.collection('app_usuarios').create({
+            id, tenant_id: this._dataId(t),
+            data: { nome, login, email, senha: hash, perfil, status: 'ativo' },
+          });
+        } catch (e) { alert('Erro: ' + e.message); return false; }
         alert(`✅ Usuário "${login}" criado!\nSenha: ${senha}`);
         return true;
       }
@@ -1512,24 +1411,13 @@ const SuperAdmin = {
         <input type="checkbox" id="resp-principal" /> Responsável principal
       </label>`;
     this._modal('Novo Responsável', html, async () => {
-      const g = n => document.getElementById(`resp-${n}`)?.value.trim() || '';
-      const nome = g('nome');
-      if (!nome) { alert('Nome obrigatório.'); return false; }
-      const { error } = await SupabaseClient.from('tenant_responsaveis').insert({
-        tenant_id: this._tenant.id, nome, cargo: g('cargo'),
-        telefone: g('tel'), email: g('email'),
-        principal: document.getElementById('resp-principal')?.checked || false,
-      });
-      if (error) { alert('Erro: ' + error.message); return false; }
-      return true;
+      alert('Gestão de responsáveis não disponível nesta versão.');
+      return false;
     });
   },
 
-  async _delResponsavel(id) {
-    if (!confirm('Remover este responsável?')) return;
-    await SupabaseClient.from('tenant_responsaveis').delete().eq('id', id);
-    this._detailTab = 'responsaveis';
-    this._renderPanel();
+  _delResponsavel(id) {
+    alert('Gestão de responsáveis não disponível nesta versão.');
   },
 
   /* ------------------------------------------------------------------ */
@@ -1549,19 +1437,19 @@ const SuperAdmin = {
       const g = n => document.getElementById(`q-${n}`)?.value.trim() || '';
       const nome = g('nome');
       if (!nome) { alert('Nome obrigatório.'); return false; }
-      const { error } = await SupabaseClient.from('quadras').insert({
-        tenant_id: this._tenant.id, nome,
-        dimensoes: g('dim'), cobertura: g('cob'),
-        tipo_piso: g('piso'), status: g('status') || 'ativa',
-      });
-      if (error) { alert('Erro: ' + error.message); return false; }
+      try {
+        await window.PocketBaseClient.collection('app_quadras').create({
+          tenant_id: this._dataId(this._tenant),
+          data: { nome, dimensoes: g('dim'), cobertura: g('cob'), status: 'ativa' },
+        });
+      } catch (e) { alert('Erro: ' + e.message); return false; }
       return true;
     });
   },
 
   async _delQuadra(id) {
     if (!confirm('Remover esta quadra?')) return;
-    await SupabaseClient.from('quadras').delete().eq('id', id);
+    await window.PocketBaseClient.collection('app_quadras').delete(id).catch(() => {});
     this._detailTab = 'quadras';
     this._renderPanel();
   },
@@ -1580,31 +1468,17 @@ const SuperAdmin = {
       </div>
       <div style="margin-top:12px;">${this._campo('Observações', 'pag-obs', 'text', '')}</div>`;
     this._modal('Lançar Pagamento', html, async () => {
-      const g = n => document.getElementById(`pag-${n}`)?.value.trim() || '';
-      if (!g('venc') || !g('valor')) { alert('Vencimento e valor são obrigatórios.'); return false; }
-      const { error } = await SupabaseClient.from('tenant_pagamentos').insert({
-        tenant_id:       this._tenant.id,
-        data_vencimento: g('venc'),
-        data_pagamento:  g('pgto') || null,
-        valor:           parseFloat(g('valor')),
-        status:          g('status') || 'pendente',
-        observacoes:     g('obs'),
-      });
-      if (error) { alert('Erro: ' + error.message); return false; }
-      return true;
+      alert('Gestão de pagamentos não disponível nesta versão.'); return false;
     });
   },
 
-  async _delPagamento(id) {
-    if (!confirm('Remover este pagamento?')) return;
-    await SupabaseClient.from('tenant_pagamentos').delete().eq('id', id);
-    this._detailTab = 'financeiro';
-    this._renderPanel();
+  _delPagamento(id) {
+    alert('Gestão de pagamentos não disponível nesta versão.');
   },
 
   async _deletarTenant(id, nome) {
     if (!confirm(`Excluir a base "${nome}"? Esta ação não pode ser desfeita.`)) return;
-    await SupabaseClient.from('tenants').delete().eq('id', id);
+    await window.PocketBaseClient.collection('tenants').delete(id).catch(() => {});
     this._tab = 'lista';
     this._renderPanel();
   },
@@ -1670,6 +1544,20 @@ const SuperAdmin = {
       <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:3px;">${label}</div>
       <div style="font-size:14px;color:var(--text-primary);">${this._esc(String(valor||'—'))}</div>
     </div>`;
+  },
+
+  /**
+   * Resolve the UUID-based tenant_id used in data records (app_usuarios, app_quadras, etc.)
+   * PocketBase auto-generates 15-char IDs for the `tenants` collection, but data records
+   * store the legacy UUID as their tenant_id. We look up the UUID via the tenant's slug
+   * in the static TENANTS map (pocketbase-config.js).
+   */
+  _dataId(t) {
+    if (!t) return null;
+    if (typeof TENANTS !== 'undefined' && t.slug && TENANTS[t.slug]) {
+      return TENANTS[t.slug].id;
+    }
+    return t.id; // fallback: use PocketBase ID if TENANTS map is unavailable
   },
 
   _esc(str) {

@@ -15,6 +15,8 @@ const ManutencaoModule = {
     filterUrgencia: '',
     filterTipo:     '',
     filterArea:     '',
+    filterDataInicio: '',
+    filterDataFim:    '',
     calMes:         new Date().getMonth(),
     calAno:         new Date().getFullYear(),
     _clPrevTemp:    [],
@@ -140,7 +142,7 @@ const ManutencaoModule = {
   },
 
   getFiltered() {
-    const { search, filterStatus, filterUrgencia, filterTipo, filterArea } = this._state;
+    const { search, filterStatus, filterUrgencia, filterTipo, filterArea, filterDataInicio, filterDataFim } = this._state;
     return this.getAll().slice()
       .sort((a,b) => {
         const uo = (this.URGENCIA[b.urgencia]?.ordem??0) - (this.URGENCIA[a.urgencia]?.ordem??0);
@@ -156,10 +158,12 @@ const ManutencaoModule = {
           (m.descricao||'').toLowerCase().includes(q) ||
           String(m.numero||'').includes(q);
         return matchQ &&
-          (!filterStatus   || m.status   === filterStatus) &&
-          (!filterUrgencia || m.urgencia === filterUrgencia) &&
-          (!filterTipo     || m.tipo     === filterTipo) &&
-          (!filterArea     || m.areaId   === filterArea);
+          (!filterStatus      || m.status   === filterStatus) &&
+          (!filterUrgencia    || m.urgencia === filterUrgencia) &&
+          (!filterTipo        || m.tipo     === filterTipo) &&
+          (!filterArea        || m.areaId   === filterArea) &&
+          (!filterDataInicio  || (m.dataAbertura||'') >= filterDataInicio) &&
+          (!filterDataFim     || (m.dataAbertura||'') <= filterDataFim);
       });
   },
 
@@ -276,6 +280,18 @@ const ManutencaoModule = {
           <option value="">Todas as áreas</option>
           ${areas.map(a=>`<option value="${a.id}" ${this._state.filterArea===a.id?'selected':''}>${UI.escape(a.nome)}</option>`).join('')}
         </select>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:nowrap;">
+          <span style="font-size:12px;color:var(--text-muted);white-space:nowrap;">📅 Abertura:</span>
+          <input type="date" class="filter-select" style="min-width:130px;cursor:pointer;"
+            title="Data de abertura — de"
+            value="${this._state.filterDataInicio}"
+            onchange="ManutencaoModule._setState('filterDataInicio',this.value);ManutencaoModule._reRenderCards()" />
+          <span style="font-size:12px;color:var(--text-muted);">até</span>
+          <input type="date" class="filter-select" style="min-width:130px;cursor:pointer;"
+            title="Data de abertura — até"
+            value="${this._state.filterDataFim}"
+            onchange="ManutencaoModule._setState('filterDataFim',this.value);ManutencaoModule._reRenderCards()" />
+        </div>
         <span class="results-count">${filtered.length} chamado${filtered.length!==1?'s':''}</span>
         <div class="view-toggle-btn">
           <button class="btn btn-icon ${this._getViewMode()==='card'?'view-toggle-active':''}"
@@ -2113,6 +2129,7 @@ const ManutencaoModule = {
           <td><span class="badge ${urgencia.badge}" style="font-size:10px;">${urgencia.icon} ${urgencia.label}</span></td>
           <td><span class="badge ${status.badge}" style="font-size:10px;">${status.icon} ${status.label}</span></td>
           <td>${sla ? `<span class="manut-sla ${sla.css}" style="font-size:10px;">⏱ ${sla.label}</span>` : '—'}</td>
+          <td style="white-space:nowrap;font-size:12px;color:var(--text-muted);">${m.dataAbertura ? UI.formatDate(m.dataAbertura) : '—'}</td>
           <td style="white-space:nowrap;" onclick="event.stopPropagation()">
             ${m.status==='aberto' ? `<button class="btn btn-sm btn-secondary" onclick="ManutencaoModule.assumir('${m.id}')">Assumir</button>` : ''}
             ${!['concluido','cancelado'].includes(m.status) ? `<button class="btn btn-sm btn-ghost" title="Avançar" onclick="ManutencaoModule.avancarStatus('${m.id}')">▶</button>` : ''}
@@ -2126,7 +2143,7 @@ const ManutencaoModule = {
           <thead>
             <tr>
               <th>#</th><th>Tipo</th><th>Título</th><th>Área</th>
-              <th>Resp.</th><th>Urgência</th><th>Status</th><th>SLA</th><th></th>
+              <th>Resp.</th><th>Urgência</th><th>Status</th><th>SLA</th><th>Abertura</th><th></th>
             </tr>
           </thead>
           <tbody>${rows}</tbody>
@@ -2136,14 +2153,14 @@ const ManutencaoModule = {
 
   _renderEmpty() {
     const s = this._state;
-    const filtered = s.search||s.filterStatus||s.filterUrgencia||s.filterTipo||s.filterArea;
+    const filtered = s.search||s.filterStatus||s.filterUrgencia||s.filterTipo||s.filterArea||s.filterDataInicio||s.filterDataFim;
     return filtered
       ? `<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">🔍</div><div class="empty-title">Nenhum chamado encontrado</div><button class="btn btn-secondary mt-16" onclick="ManutencaoModule.clearFilters()">Limpar filtros</button></div>`
       : `<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">🔧</div><div class="empty-title">Nenhum chamado de manutenção</div><div class="empty-desc">Abra um chamado ou execute um checklist de inspeção.</div><button class="btn btn-primary mt-16" onclick="ManutencaoModule.openModalChamado()">+ Abrir primeiro chamado</button></div>`;
   },
 
   clearFilters() {
-    Object.assign(this._state,{search:'',filterStatus:'',filterUrgencia:'',filterTipo:'',filterArea:''});
+    Object.assign(this._state,{search:'',filterStatus:'',filterUrgencia:'',filterTipo:'',filterArea:'',filterDataInicio:'',filterDataFim:''});
     this.render();
   },
 };

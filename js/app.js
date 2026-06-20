@@ -85,6 +85,7 @@ const App = {
     { route: 'loja',        icon: '🛒', label: 'Loja'                },
     { route: 'dayuse',      icon: '🚪', label: 'Day Use'             },
     { route: 'financeiro',  icon: '💰', label: 'Financeiro'          },
+    { route: 'fornecedores', icon: '🚚', label: 'Fornecedores'        },
     { route: 'manutencao',  icon: '🔧', label: 'Manutenção'          },
     { route: 'cadastros',   icon: '🗂️', label: 'Cadastros'           },
     { route: 'admin',       icon: '⚙️', label: 'Administração'       },
@@ -102,24 +103,25 @@ const App = {
   ],
 
   SEED_PERFIS: [
-    { key: 'superadmin',    label: 'Super Admin',      descricao: 'Acesso total ao sistema e ao painel administrativo global', cor: 'badge-danger',  modulos: ['dashboard','arenas','alunos','matriculas','planos','professores','turmas','eventos','torneios','loja','dayuse','financeiro','manutencao','cadastros','admin'] },
-    { key: 'admin',         label: 'Administrador',    descricao: 'Acesso total ao sistema, incluindo gestão de usuários',    cor: 'badge-danger',  modulos: ['dashboard','arenas','alunos','matriculas','planos','professores','turmas','eventos','torneios','loja','dayuse','financeiro','manutencao','cadastros','admin'] },
-    { key: 'gerente',       label: 'Gerente',          descricao: 'Acesso a todos os módulos operacionais',                   cor: 'badge-warning', modulos: ['dashboard','arenas','alunos','matriculas','planos','professores','turmas','eventos','torneios','loja','dayuse','financeiro','manutencao','cadastros'] },
+    { key: 'superadmin',    label: 'Super Admin',      descricao: 'Acesso total ao sistema e ao painel administrativo global', cor: 'badge-danger',  modulos: ['dashboard','arenas','alunos','matriculas','planos','professores','turmas','eventos','torneios','loja','fornecedores','dayuse','financeiro','manutencao','cadastros','admin'] },
+    { key: 'admin',         label: 'Administrador',    descricao: 'Acesso total ao sistema, incluindo gestão de usuários',    cor: 'badge-danger',  modulos: ['dashboard','arenas','alunos','matriculas','planos','professores','turmas','eventos','torneios','loja','fornecedores','dayuse','financeiro','manutencao','cadastros','admin'] },
+    { key: 'gerente',       label: 'Gerente',          descricao: 'Acesso a todos os módulos operacionais',                   cor: 'badge-warning', modulos: ['dashboard','arenas','alunos','matriculas','planos','professores','turmas','eventos','torneios','loja','fornecedores','dayuse','financeiro','manutencao','cadastros'] },
     { key: 'recepcionista', label: 'Recepcionista',    descricao: 'Atendimento ao aluno, matrículas e turmas',               cor: 'badge-blue',    modulos: ['dashboard','alunos','matriculas','turmas','eventos','torneios','loja','dayuse','manutencao'] },
-    { key: 'financeiro',    label: 'Financeiro',       descricao: 'Controle financeiro e planos de contratação',              cor: 'badge-success', modulos: ['dashboard','financeiro','planos','alunos','loja','dayuse','manutencao'] },
+    { key: 'financeiro',    label: 'Financeiro',       descricao: 'Controle financeiro e planos de contratação',              cor: 'badge-success', modulos: ['dashboard','financeiro','planos','alunos','loja','fornecedores','dayuse','manutencao'] },
     { key: 'manutencao',    label: 'Manutenção',       descricao: 'Gestão de arenas e chamados de manutenção',               cor: 'badge-gray',    modulos: ['dashboard','arenas','manutencao'] },
     { key: 'professor',     label: 'Professor',        descricao: 'Acesso às grades e aulas do próprio professor',            cor: 'badge-blue',    modulos: ['turmas','manutencao'] },
     { key: 'aluno',         label: 'Aluno',            descricao: 'Acesso às grades e aulas em que está inscrito',             cor: 'badge-success', modulos: ['turmas','manutencao'] },
   ],
 
   SEED_USUARIOS: [
-    { nome: 'Administrador',    login: 'admin',       email: 'admin@pickle.com',    perfil: 'admin',         status: 'ativo',   senha: 'YWRtaW4xMjM=' },
-    { nome: 'João Gerente',     login: 'gerente',     email: 'gerente@pickle.com',  perfil: 'gerente',       status: 'ativo',   senha: 'MTIzNDU2'     },
-    { nome: 'Maria Recepção',   login: 'recepcao',    email: 'recepcao@pickle.com', perfil: 'recepcionista', status: 'ativo',   senha: 'MTIzNDU2'     },
-    { nome: 'Pedro Financeiro', login: 'financ',      email: 'fin@pickle.com',      perfil: 'financeiro',    status: 'ativo',   senha: 'MTIzNDU2'     },
-    { nome: 'Carlos Manutenção',login: 'manut',       email: 'manut@pickle.com',    perfil: 'manutencao',    status: 'inativo', senha: 'MTIzNDU2'     },
-    { nome: 'Ricardo Alves',    login: 'prof.ricardo',email: 'prof@pickle.com',     perfil: 'professor',     status: 'ativo',   senha: 'cHJvZjEyMw==' },
-    { nome: 'Ana Paula Ferreira',login: 'ana.paula',  email: 'aluno@pickle.com',    perfil: 'aluno',         status: 'ativo',   senha: 'YWx1bm8xMjM=' },
+    { nome: 'Super Admin',       login: 'superadmin',  email: 'super@pickle.com',    perfil: 'superadmin',    status: 'ativo',   senha: 'c3VwZXJhZG1pbjEyMw==' },
+    { nome: 'Administrador',     login: 'admin',       email: 'admin@pickle.com',    perfil: 'admin',         status: 'ativo',   senha: 'YWRtaW4xMjM='        },
+    { nome: 'João Gerente',      login: 'gerente',     email: 'gerente@pickle.com',  perfil: 'gerente',       status: 'ativo',   senha: 'MTIzNDU2'             },
+    { nome: 'Maria Recepção',    login: 'recepcao',    email: 'recepcao@pickle.com', perfil: 'recepcionista', status: 'ativo',   senha: 'MTIzNDU2'             },
+    { nome: 'Pedro Financeiro',  login: 'financ',      email: 'fin@pickle.com',      perfil: 'financeiro',    status: 'ativo',   senha: 'MTIzNDU2'             },
+    { nome: 'Carlos Manutenção', login: 'manut',       email: 'manut@pickle.com',    perfil: 'manutencao',    status: 'inativo', senha: 'MTIzNDU2'             },
+    { nome: 'Ricardo Alves',     login: 'prof.ricardo',email: 'prof@pickle.com',     perfil: 'professor',     status: 'ativo',   senha: 'cHJvZjEyMw=='         },
+    { nome: 'Ana Paula Ferreira',login: 'ana.paula',   email: 'aluno@pickle.com',    perfil: 'aluno',         status: 'ativo',   senha: 'YWx1bm8xMjM='         },
   ],
 
   SEED_ARENAS: [
@@ -697,6 +699,7 @@ const App = {
       .add('torneios',   () => Auth.hasPermission('torneios')   ? TorneioModule.render()           : this._forbidden())
       .add('loja',        () => Auth.hasPermission('loja')        ? LojaModule.render()              : this._forbidden())
       .add('financeiro',  () => Auth.hasPermission('financeiro')  ? FinanceiroModule.render()        : this._forbidden())
+      .add('fornecedores', () => Auth.hasPermission('fornecedores') ? FornecedoresModule.render()      : this._forbidden())
       .add('manutencao',  () => Auth.hasPermission('manutencao')  ? ManutencaoModule.render()        : this._forbidden())
       .add('cadastros',   () => Auth.hasPermission('cadastros')   ? CadastrosModule.render()         : this._forbidden())
       .add('dayuse',      () => Auth.hasPermission('dayuse')      ? DayUseModule.render()            : this._forbidden())
@@ -821,9 +824,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (Auth.getSession()) {
     App.initUI();
     Notifications.init();
+  } else if (sessionStorage.getItem('pm_admin_login')) {
+    // Redirecionamento via "Área Administrativa" — abre login direto
+    Auth.showLogin();
+  } else if (sessionStorage.getItem('pm_return_login')) {
+    // Troca de base na tela de login — volta direto ao login sem passar pelo HomeKiosk
+    sessionStorage.removeItem('pm_return_login');
+    Auth.showLogin();
   } else {
-    // Mostra a tela inicial institucional (HomeKiosk) em vez do formulário de login
-    // diretamente. O botão "Entrar" no kiosk chama Auth.showLogin().
+    // Primeira visita ou após logout — exibe tela inicial (HomeKiosk)
     HomeKiosk.show();
   }
 });

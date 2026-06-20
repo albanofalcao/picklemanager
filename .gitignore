@@ -22,3 +22,6 @@ build-react.bat
 
 # Misc
 ola.txt
+
+# Local Netlify folder
+.netlify

@@ -1,0 +1,21 @@
+# Dependências e ferramentas locais
+node/
+.vite/
+supabase/
+sql/
+
+# Arquivos de build e logs
+*.txt
+*.bat
+build-*
+install-*
+setup-*
+start-*
+
+# Dados e configs locais
+.claude/
+.gitignore
+diagrama.html
+pb-schema.json
+fly.toml
+Dockerfile
