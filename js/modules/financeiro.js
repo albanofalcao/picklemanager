@@ -1879,7 +1879,9 @@ const FinanceiroModule = {
     const caixa = this.getCaixaAtual();
     if (!caixa) return;
     const { totForma, totalReceita, totalDespesa, saldoSistema, lancs } = this._calcTotaisCaixa(caixa.id);
-    const saldoEsperadoDinheiro = (parseFloat(caixa.saldo_inicial) || 0) + (totForma.dinheiro || 0) - totalDespesa;
+    // Considera todas as formas de recebimento (dinheiro + pix + cartões + transferência + boleto)
+    const totalEntradas = Object.values(totForma).reduce((s, v) => s + v, 0);
+    const saldoEsperadoDinheiro = (parseFloat(caixa.saldo_inicial) || 0) + totalEntradas - totalDespesa;
 
     UI.openModal({
       title: '🔒 Fechar Caixa',
@@ -1896,11 +1898,11 @@ const FinanceiroModule = {
 
           <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;font-size:13px;text-align:center;">
             <div style="background:rgba(22,163,74,.08);border-radius:8px;padding:10px;">
-              <div style="color:var(--text-muted);font-size:11px;">Total Receitas</div>
+              <div style="color:var(--text-muted);font-size:11px;">Entradas</div>
               <div style="font-weight:700;color:#16a34a;">${this._fmt(totalReceita)}</div>
             </div>
             <div style="background:rgba(239,68,68,.08);border-radius:8px;padding:10px;">
-              <div style="color:var(--text-muted);font-size:11px;">Total Despesas</div>
+              <div style="color:var(--text-muted);font-size:11px;">Saídas</div>
               <div style="font-weight:700;color:#ef4444;">${this._fmt(totalDespesa)}</div>
             </div>
             <div style="background:rgba(59,158,143,.08);border-radius:8px;padding:10px;">
@@ -1930,7 +1932,7 @@ const FinanceiroModule = {
             <div style="font-weight:600;margin-bottom:8px;">Contagem física de dinheiro:</div>
             <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">
               Esperado em caixa: <strong>${this._fmt(saldoEsperadoDinheiro)}</strong>
-              (fundo + entradas em dinheiro)
+              (fundo inicial + todas as entradas − saídas)
             </div>
             <div class="form-group">
               <label class="form-label">Total contado (R$) *</label>
@@ -2098,11 +2100,11 @@ const FinanceiroModule = {
             <div style="font-size:18px;font-weight:700;margin-top:4px;">${this._fmt(caixa.saldo_inicial)}</div>
           </div>
           <div style="background:rgba(22,163,74,.06);border:1px solid rgba(22,163,74,.2);border-radius:10px;padding:14px;text-align:center;">
-            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;">Receitas</div>
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;">Entradas</div>
             <div style="font-size:18px;font-weight:700;color:#16a34a;margin-top:4px;">${this._fmt(totalReceita)}</div>
           </div>
           <div style="background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);border-radius:10px;padding:14px;text-align:center;">
-            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;">Despesas</div>
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;">Saídas</div>
             <div style="font-size:18px;font-weight:700;color:#ef4444;margin-top:4px;">${this._fmt(totalDespesa)}</div>
           </div>
           <div style="background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.2);border-radius:10px;padding:14px;text-align:center;">
